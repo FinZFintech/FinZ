@@ -71,7 +71,7 @@ const EnachEsignScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Header title="eNACH & eSign" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={6} />
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* Loan Summary */}
         <Card>
           <Text style={styles.sectionTitle}>Loan Summary</Text>
@@ -149,7 +149,8 @@ const EnachEsignScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  content: { flex: 1 },
+  contentContainer: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 12 },
   btn: { marginTop: 12 },
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
     fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', marginTop: 8, fontStyle: 'italic',
   },
   completeBtn: { marginTop: 20 },
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
 });
 
 export default EnachEsignScreen;

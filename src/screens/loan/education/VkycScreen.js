@@ -49,7 +49,7 @@ const VkycScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Header title="Video KYC" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={5} />
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Card>
           <Text style={styles.sectionTitle}>Video KYC (vKYC)</Text>
           <Text style={styles.infoText}>
@@ -105,7 +105,8 @@ const VkycScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  content: { flex: 1 },
+  contentContainer: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 16 },
   instructions: { backgroundColor: '#E8F8F7', padding: 14, borderRadius: 10, marginBottom: 20 },
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
   successIcon: { fontSize: 48, color: COLORS.teal, marginBottom: 8 },
   successText: { fontSize: 18, fontWeight: '700', color: COLORS.teal, marginBottom: 12 },
   btn: { marginTop: 12 },
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
 });
 
 export default VkycScreen;

@@ -70,7 +70,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Header title="Selfie Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={4} />
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Card>
           <Text style={styles.sectionTitle}>Take a Live Selfie</Text>
           <Text style={styles.infoText}>
@@ -132,7 +132,8 @@ const SelfieVerificationScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  content: { flex: 1 },
+  contentContainer: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 16 },
   vkycNote: { backgroundColor: '#E8F8F7', padding: 12, borderRadius: 8, marginBottom: 16 },
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
   },
   verifiedText: { color: COLORS.teal, fontWeight: '700', fontSize: 15 },
   proceedBtn: { marginTop: 16 },
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
 });
 
 export default SelfieVerificationScreen;
