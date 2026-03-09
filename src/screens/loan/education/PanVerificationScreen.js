@@ -42,30 +42,11 @@ const PanVerificationScreen = ({ navigation }) => {
     }
   };
 
-  const handleVerifyPan = async () => {
-    if (!validatePan(pan)) {
-      Alert.alert('Error', 'Please enter a valid PAN number');
-      return;
-    }
-    setLoading(true);
-    try {
-      await kycService.validatePan(pan, state.borrowerDetails?.name);
-      setPanVerified(true);
-      dispatch({ type: 'SET_PAN', payload: { panNumber: pan, name: panName } });
-    } catch {
-      // Mock verification
-      setPanVerified(true);
-      dispatch({ type: 'SET_PAN', payload: { panNumber: pan, name: panName } });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreditCheck = async () => {
+  const runCreditCheck = async (panNumber) => {
     setCreditChecking(true);
     try {
       const result = await kycService.softPull({
-        pan,
+        pan: panNumber,
         name: state.borrowerDetails?.name,
         phone: state.borrowerDetails?.phone,
         instituteId: state.instituteDetails?.id,
@@ -87,6 +68,27 @@ const PanVerificationScreen = ({ navigation }) => {
     } finally {
       setCreditChecking(false);
     }
+  };
+
+  const handleVerifyPan = async () => {
+    if (!validatePan(pan)) {
+      Alert.alert('Error', 'Please enter a valid PAN number');
+      return;
+    }
+    setLoading(true);
+    try {
+      await kycService.validatePan(pan, state.borrowerDetails?.name);
+      setPanVerified(true);
+      dispatch({ type: 'SET_PAN', payload: { panNumber: pan, name: panName } });
+    } catch {
+      // Mock verification
+      setPanVerified(true);
+      dispatch({ type: 'SET_PAN', payload: { panNumber: pan, name: panName } });
+    } finally {
+      setLoading(false);
+    }
+    // Automatically run credit check after PAN verification
+    runCreditCheck(pan);
   };
 
   const handleProceed = () => {
@@ -120,10 +122,12 @@ const PanVerificationScreen = ({ navigation }) => {
             onChangeText={(t) => {
               setPan(t.toUpperCase());
               setPanVerified(false);
+              setCreditPassed(null);
             }}
             placeholder="Enter PAN (e.g., ABCDE1234F)"
             maxLength={10}
             autoCapitalize="characters"
+            editable={!panVerified}
           />
           {panName && (
             <InfoRow label="Name on PAN" value={panName} />
@@ -144,20 +148,13 @@ const PanVerificationScreen = ({ navigation }) => {
           )}
         </Card>
 
-        {/* Credit Check */}
-        {panVerified && creditPassed === null && (
-          <Card>
-            <Text style={styles.sectionTitle}>Credit Assessment</Text>
+        {/* Credit Check In Progress */}
+        {creditChecking && (
+          <Card style={styles.checkingCard}>
+            <Text style={styles.checkingTitle}>Checking Eligibility...</Text>
             <Text style={styles.infoText}>
-              We will perform a soft credit check to verify your eligibility.
-              This will not affect your credit score.
+              Running a soft credit check. This will not affect your credit score.
             </Text>
-            <Button
-              title="Check Eligibility"
-              onPress={handleCreditCheck}
-              loading={creditChecking}
-              style={styles.btn}
-            />
           </Card>
         )}
 
@@ -229,6 +226,13 @@ const styles = StyleSheet.create({
     color: COLORS.teal,
     fontWeight: '700',
     fontSize: 15,
+  },
+  checkingCard: { alignItems: 'center' },
+  checkingTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginBottom: 8,
   },
   successCard: { alignItems: 'center', backgroundColor: '#E8F8F7' },
   successIcon: {
