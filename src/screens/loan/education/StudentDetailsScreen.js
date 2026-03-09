@@ -70,6 +70,7 @@ const StudentDetailsScreen = ({ navigation }) => {
       />
       <StepIndicator currentStep={0} />
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -127,6 +128,7 @@ const StudentDetailsScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   bottomSpacer: { height: 100 },
   sectionTitle: {

@@ -150,6 +150,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       />
       <StepIndicator currentStep={1} />
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -342,6 +343,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: {
     fontSize: 17,

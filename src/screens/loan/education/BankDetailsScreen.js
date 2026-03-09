@@ -102,7 +102,7 @@ const BankDetailsScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Header title="Bank Details" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={4} />
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Occupation */}
         <Card>
           <Text style={styles.sectionTitle}>Occupation</Text>
@@ -211,6 +211,7 @@ const BankDetailsScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   fieldLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 8 },

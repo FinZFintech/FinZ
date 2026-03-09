@@ -69,6 +69,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <Header title={`Loan #${loanId}`} onBack={() => navigation.goBack()} />
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
@@ -187,6 +188,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   statusCard: { backgroundColor: COLORS.primary },
   statusHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
