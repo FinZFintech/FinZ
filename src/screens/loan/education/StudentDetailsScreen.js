@@ -73,13 +73,14 @@ const StudentDetailsScreen = ({ navigation }) => {
       <StepIndicator currentStep={0} />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
       >
         <Card>
           <Text style={styles.sectionTitle}>Enter Registration Number</Text>
@@ -137,7 +138,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   flex: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  scrollContent: { paddingBottom: 20 },
+  scrollContent: { flexGrow: 1, paddingBottom: 40 },
   bottomSpacer: { height: 100 },
   sectionTitle: {
     fontSize: 16,

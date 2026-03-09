@@ -6,7 +6,6 @@ import Logo from './Logo';
 const Header = ({ title, subtitle, onBack, rightAction, rightIcon, showLogo = true }) => (
   <View style={styles.container}>
     <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
-    {/* Gradient-like top accent using teal strip */}
     <View style={styles.accentStrip} />
     <View style={styles.content}>
       {onBack && (
@@ -15,14 +14,14 @@ const Header = ({ title, subtitle, onBack, rightAction, rightIcon, showLogo = tr
         </TouchableOpacity>
       )}
       <View style={styles.titleContainer}>
-        {showLogo && (
-          <View style={styles.logoRow}>
-            <Logo size="tiny" white />
-          </View>
-        )}
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         {subtitle && <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>}
       </View>
+      {showLogo && (
+        <View style={styles.logoWrapper}>
+          <Logo size="tiny" white />
+        </View>
+      )}
       {rightAction && (
         <TouchableOpacity onPress={rightAction} style={styles.rightButton} activeOpacity={0.7}>
           <Text style={styles.rightText}>{rightIcon || '⋮'}</Text>
@@ -66,8 +65,9 @@ const styles = StyleSheet.create({
   titleContainer: {
     flex: 1,
   },
-  logoRow: {
-    marginBottom: 4,
+  logoWrapper: {
+    marginLeft: 8,
+    opacity: 0.7,
   },
   title: {
     color: COLORS.textLight,
@@ -87,6 +87,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 8,
   },
   rightText: {
     color: COLORS.textLight,

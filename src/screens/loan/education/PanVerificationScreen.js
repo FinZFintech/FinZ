@@ -105,7 +105,7 @@ const PanVerificationScreen = ({ navigation }) => {
         onBack={() => navigation.goBack()}
       />
       <StepIndicator currentStep={2} />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* PAN Verification */}
         <Card>
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   flex: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  scrollContent: { paddingBottom: 20 },
+  scrollContent: { flexGrow: 1, paddingBottom: 40 },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',

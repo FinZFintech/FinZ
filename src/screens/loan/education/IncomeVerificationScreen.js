@@ -195,7 +195,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Header title="Income Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={5} />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Method Selection */}
         {!incomeResult && (
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   flex: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  scrollContent: { paddingBottom: 20 },
+  scrollContent: { flexGrow: 1, paddingBottom: 40 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 16 },
   optionsRow: { flexDirection: 'row', gap: 12 },
