@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Button from '../../../components/common/Button';
+import Header from '../../../components/common/Header';
 import { COLORS, APP_NAME } from '../../../config/constants';
 import { useLoan } from '../../../store/LoanContext';
 import { formatCurrency, calculateEmi } from '../../../utils/helpers';
@@ -19,6 +20,7 @@ const LoanSuccessScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      <Header title="Application Complete" />
       <View style={styles.content}>
         <View style={styles.iconContainer}>
           <Text style={styles.icon}>🎉</Text>
@@ -59,11 +61,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.primary,
-    justifyContent: 'center',
   },
   content: {
+    flex: 1,
     paddingHorizontal: 24,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   iconContainer: {
     width: 100, height: 100, borderRadius: 50,

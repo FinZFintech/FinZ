@@ -8,7 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import Card from '../../components/common/Card';
-import Logo from '../../components/common/Logo';
+import Header from '../../components/common/Header';
 import StatusBadge from '../../components/common/StatusBadge';
 import { COLORS } from '../../config/constants';
 import { useAuth } from '../../store/AuthContext';
@@ -71,24 +71,11 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Custom Home Header with Logo */}
-      <View style={styles.homeHeader}>
-        <View style={styles.homeHeaderTop}>
-          <Logo size="small" white />
-          <TouchableOpacity
-            style={styles.profileBtn}
-            onPress={() => navigation.navigate('ProfileTab')}
-          >
-            <Text style={styles.profileInitial}>
-              {(user?.name || 'U').charAt(0).toUpperCase()}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.greetingSection}>
-          <Text style={styles.greeting}>{getGreeting()},</Text>
-          <Text style={styles.userName}>{user?.name || 'User'}</Text>
-        </View>
-      </View>
+      <Header
+        title={`${getGreeting()}, ${user?.name || 'User'}`}
+        rightAction={() => navigation.navigate('ProfileTab')}
+        rightIcon={(user?.name || 'U').charAt(0).toUpperCase()}
+      />
 
       <ScrollView
         style={styles.content}
@@ -214,36 +201,6 @@ const HomeScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  homeHeader: {
-    backgroundColor: COLORS.primary,
-    paddingTop: 48,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  homeHeaderTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  profileBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: COLORS.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileInitial: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.textLight,
-  },
-  greetingSection: {},
-  greeting: { fontSize: 14, color: 'rgba(255,255,255,0.7)' },
-  userName: { fontSize: 26, fontWeight: '800', color: COLORS.textLight, marginTop: 2 },
   content: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
   quickActions: {
