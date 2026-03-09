@@ -89,6 +89,20 @@ const HomeStack = () => (
     <HomeStackNav.Screen name="Offers" component={OffersScreen} />
     <HomeStackNav.Screen name="DailyCheckIn" component={DailyCheckInScreen} />
     {sharedScreens(HomeStackNav)}
+    {/* Education Loan Flow */}
+    <HomeStackNav.Screen name="InstituteSelection" component={InstituteSelectionScreen} />
+    <HomeStackNav.Screen name="StudentDetails" component={StudentDetailsScreen} />
+    <HomeStackNav.Screen name="BorrowerSelection" component={BorrowerSelectionScreen} />
+    <HomeStackNav.Screen name="PanVerification" component={PanVerificationScreen} />
+    <HomeStackNav.Screen name="KycVerification" component={KycVerificationScreen} />
+    <HomeStackNav.Screen name="SelfieVerification" component={SelfieVerificationScreen} />
+    <HomeStackNav.Screen name="BankDetails" component={BankDetailsScreen} />
+    <HomeStackNav.Screen name="IncomeVerification" component={IncomeVerificationScreen} />
+    <HomeStackNav.Screen name="VkycScreen" component={VkycScreen} />
+    <HomeStackNav.Screen name="EnachEsign" component={EnachEsignScreen} />
+    <HomeStackNav.Screen name="LoanSuccess" component={LoanSuccessScreen} />
+    {/* Employee Loan */}
+    <HomeStackNav.Screen name="EmployeeLoan" component={EmployeeLoanScreen} />
   </HomeStackNav.Navigator>
 );
 
@@ -235,21 +249,7 @@ const AppNavigator = () => (
     {/* Admin Tabs */}
     <RootStack.Screen name="AdminTabs" component={AdminTabs} />
 
-    {/* Education Loan Flow (full-screen, tabs intentionally hidden) */}
-    <RootStack.Screen name="InstituteSelection" component={InstituteSelectionScreen} />
-    <RootStack.Screen name="StudentDetails" component={StudentDetailsScreen} />
-    <RootStack.Screen name="BorrowerSelection" component={BorrowerSelectionScreen} />
-    <RootStack.Screen name="PanVerification" component={PanVerificationScreen} />
-    <RootStack.Screen name="KycVerification" component={KycVerificationScreen} />
-    <RootStack.Screen name="SelfieVerification" component={SelfieVerificationScreen} />
-    <RootStack.Screen name="BankDetails" component={BankDetailsScreen} />
-    <RootStack.Screen name="IncomeVerification" component={IncomeVerificationScreen} />
-    <RootStack.Screen name="VkycScreen" component={VkycScreen} />
-    <RootStack.Screen name="EnachEsign" component={EnachEsignScreen} />
-    <RootStack.Screen name="LoanSuccess" component={LoanSuccessScreen} />
-
-    {/* Employee Loan (full-screen flow) */}
-    <RootStack.Screen name="EmployeeLoan" component={EmployeeLoanScreen} />
+    {/* Education Loan & Employee Loan screens are inside HomeStack to keep tabs visible */}
   </RootStack.Navigator>
 );
 
