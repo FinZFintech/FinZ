@@ -46,7 +46,7 @@ const AdminDashboardScreen = ({ navigation }) => {
     { label: 'Pending Credit', value: stats.pendingCredit, color: COLORS.secondary, icon: '📊' },
     { label: 'Pending Income', value: stats.pendingIncome, color: '#9C27B0', icon: '💰' },
     { label: 'Manual Review', value: stats.manualReview, color: COLORS.error, icon: '👁️' },
-    { label: 'Disbursed', value: stats.disbursed, color: COLORS.success, icon: '✅' },
+    { label: 'Disbursed', value: stats.disbursed, color: COLORS.teal, icon: '✅' },
     { label: 'Rejected', value: stats.rejected, color: COLORS.error, icon: '❌' },
   ];
 

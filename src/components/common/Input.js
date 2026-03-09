@@ -15,6 +15,7 @@ const Input = ({
   autoCapitalize = 'none',
   multiline = false,
   rightIcon,
+  prefix,
   style,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
@@ -30,6 +31,7 @@ const Input = ({
           !editable && styles.disabled,
         ]}
       >
+        {prefix && <Text style={styles.prefix}>{prefix}</Text>}
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -57,32 +59,42 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: COLORS.textPrimary,
-    marginBottom: 6,
+    marginBottom: 7,
+    letterSpacing: 0.2,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    borderRadius: 10,
-    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    backgroundColor: COLORS.background,
   },
   focused: {
-    borderColor: COLORS.primary,
+    borderColor: COLORS.teal,
+    backgroundColor: COLORS.surface,
   },
   errorBorder: {
     borderColor: COLORS.error,
+    backgroundColor: '#FFF8F7',
   },
   disabled: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F0F0F8',
+    opacity: 0.8,
+  },
+  prefix: {
+    paddingLeft: 14,
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
   },
   input: {
     flex: 1,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     fontSize: 15,
     color: COLORS.textPrimary,
   },
@@ -96,7 +108,7 @@ const styles = StyleSheet.create({
   error: {
     fontSize: 12,
     color: COLORS.error,
-    marginTop: 4,
+    marginTop: 5,
     marginLeft: 4,
   },
 });

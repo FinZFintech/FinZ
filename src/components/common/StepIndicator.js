@@ -5,11 +5,11 @@ import { COLORS } from '../../config/constants';
 const steps = [
   'Institute',
   'Apply',
-  'PAN & Credit',
+  'PAN',
   'KYC',
-  'Selfie & Bank',
+  'Verify',
   'Income',
-  'eNACH & eSign',
+  'Sign',
 ];
 
 const StepIndicator = ({ currentStep, totalSteps, labels }) => {
@@ -18,47 +18,47 @@ const StepIndicator = ({ currentStep, totalSteps, labels }) => {
 
   return (
     <View style={styles.container}>
+      {/* Progress bar */}
+      <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressFill,
+            { width: `${Math.min((currentStep / (total - 1)) * 100, 100)}%` },
+          ]}
+        />
+      </View>
+      {/* Step dots */}
       <View style={styles.stepsRow}>
         {Array.from({ length: total }, (_, i) => (
-          <React.Fragment key={i}>
-            <View style={styles.stepItem}>
-              <View
+          <View key={i} style={styles.stepItem}>
+            <View
+              style={[
+                styles.circle,
+                i < currentStep && styles.completed,
+                i === currentStep && styles.active,
+              ]}
+            >
+              <Text
                 style={[
-                  styles.circle,
-                  i < currentStep && styles.completed,
-                  i === currentStep && styles.active,
+                  styles.circleText,
+                  (i <= currentStep) && styles.activeText,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.circleText,
-                    (i <= currentStep) && styles.activeText,
-                  ]}
-                >
-                  {i < currentStep ? '✓' : i + 1}
-                </Text>
-              </View>
-              {stepLabels[i] && (
-                <Text
-                  style={[
-                    styles.label,
-                    i === currentStep && styles.activeLabel,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {stepLabels[i]}
-                </Text>
-              )}
+                {i < currentStep ? '✓' : i + 1}
+              </Text>
             </View>
-            {i < total - 1 && (
-              <View
+            {stepLabels[i] && (
+              <Text
                 style={[
-                  styles.line,
-                  i < currentStep && styles.completedLine,
+                  styles.label,
+                  i <= currentStep && styles.activeLabel,
                 ]}
-              />
+                numberOfLines={1}
+              >
+                {stepLabels[i]}
+              </Text>
             )}
-          </React.Fragment>
+          </View>
         ))}
       </View>
     </View>
@@ -67,35 +67,48 @@ const StepIndicator = ({ currentStep, totalSteps, labels }) => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 8,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     backgroundColor: COLORS.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  progressTrack: {
+    height: 3,
+    backgroundColor: COLORS.border,
+    borderRadius: 2,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 3,
+    backgroundColor: COLORS.teal,
+    borderRadius: 2,
   },
   stepsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
   stepItem: {
     alignItems: 'center',
-    width: 42,
+    flex: 1,
   },
   circle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#E0E0E0',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   completed: {
-    backgroundColor: COLORS.success,
+    backgroundColor: COLORS.teal,
   },
   active: {
     backgroundColor: COLORS.primary,
   },
   circleText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: COLORS.textSecondary,
   },
@@ -103,7 +116,7 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
   },
   label: {
-    fontSize: 8,
+    fontSize: 9,
     color: COLORS.textSecondary,
     marginTop: 4,
     textAlign: 'center',
@@ -111,15 +124,6 @@ const styles = StyleSheet.create({
   activeLabel: {
     color: COLORS.primary,
     fontWeight: '600',
-  },
-  line: {
-    flex: 1,
-    height: 2,
-    backgroundColor: '#E0E0E0',
-    marginBottom: 16,
-  },
-  completedLine: {
-    backgroundColor: COLORS.success,
   },
 });
 

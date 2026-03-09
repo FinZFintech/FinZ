@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
+import Logo from '../../components/common/Logo';
 import StatusBadge from '../../components/common/StatusBadge';
-import { COLORS, APP_NAME } from '../../config/constants';
+import { COLORS } from '../../config/constants';
 import { useAuth } from '../../store/AuthContext';
 import { loanService } from '../../services/loanService';
 import { engagementService } from '../../services/engagementService';
@@ -36,12 +36,11 @@ const HomeScreen = ({ navigation }) => {
       if (loanData.status === 'fulfilled') setLoans(loanData.value.loans || []);
       if (tipData.status === 'fulfilled') setDailyTip(tipData.value);
     } catch {
-      // Mock data
       setLoans([
         {
           id: 'L001',
           type: 'education',
-          instituteName: 'ABC Institute',
+          instituteName: 'ABC Institute of Technology',
           amount: 250000,
           emi: 22500,
           status: 'active',
@@ -50,7 +49,7 @@ const HomeScreen = ({ navigation }) => {
         },
       ]);
       setDailyTip({
-        title: 'Financial Tip of the Day',
+        title: 'Tip of the Day',
         content: 'Paying EMIs on time helps improve your credit score by up to 30 points annually.',
       });
       setCreditScore(720);
@@ -72,59 +71,51 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Header
-        title={APP_NAME}
-        rightAction={() => navigation.navigate('Profile')}
-        rightIcon="👤"
-      />
-      <ScrollView
-        style={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Greeting */}
+      {/* Custom Home Header with Logo */}
+      <View style={styles.homeHeader}>
+        <View style={styles.homeHeaderTop}>
+          <Logo size="small" white />
+          <TouchableOpacity
+            style={styles.profileBtn}
+            onPress={() => navigation.navigate('Profile')}
+          >
+            <Text style={styles.profileInitial}>
+              {(user?.name || 'U').charAt(0).toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.greetingSection}>
           <Text style={styles.greeting}>{getGreeting()},</Text>
           <Text style={styles.userName}>{user?.name || 'User'}</Text>
         </View>
+      </View>
 
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.teal]} />}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Quick Actions */}
         <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate('InstituteSelection')}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: '#EEEDF5' }]}>
-              <Text style={styles.actionEmoji}>🎓</Text>
-            </View>
-            <Text style={styles.actionText}>Education Loan</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate('EmployeeLoan')}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: '#E8F8F7' }]}>
-              <Text style={styles.actionEmoji}>💼</Text>
-            </View>
-            <Text style={styles.actionText}>Employee Loan</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate('CreditScore')}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: '#F0EDF5' }]}>
-              <Text style={styles.actionEmoji}>📊</Text>
-            </View>
-            <Text style={styles.actionText}>Credit Score</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate('Referral')}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: '#FFF5DC' }]}>
-              <Text style={styles.actionEmoji}>🎁</Text>
-            </View>
-            <Text style={styles.actionText}>Refer & Earn</Text>
-          </TouchableOpacity>
+          {[
+            { key: 'edu', label: 'Education\nLoan', icon: '🎓', bg: '#EEEDF5', screen: 'InstituteSelection' },
+            { key: 'emp', label: 'Employee\nLoan', icon: '💼', bg: '#E8F8F7', screen: 'EmployeeLoan' },
+            { key: 'credit', label: 'Credit\nScore', icon: '📊', bg: '#F0EDF5', screen: 'CreditScore' },
+            { key: 'refer', label: 'Refer &\nEarn', icon: '🎁', bg: '#FFF5DC', screen: 'Referral' },
+          ].map((item) => (
+            <TouchableOpacity
+              key={item.key}
+              style={styles.quickAction}
+              onPress={() => navigation.navigate(item.screen)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: item.bg }]}>
+                <Text style={styles.actionEmoji}>{item.icon}</Text>
+              </View>
+              <Text style={styles.actionText}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Credit Score Widget */}
@@ -135,14 +126,20 @@ const HomeScreen = ({ navigation }) => {
           >
             <View style={styles.creditRow}>
               <View>
-                <Text style={styles.creditLabel}>Your Credit Score</Text>
-                <Text style={styles.creditScore}>{creditScore}</Text>
+                <Text style={styles.creditLabel}>CIBIL Score</Text>
+                <Text style={styles.creditScoreNum}>{creditScore}</Text>
                 <Text style={styles.creditRating}>
                   {creditScore >= 750 ? 'Excellent' : creditScore >= 650 ? 'Good' : 'Fair'}
                 </Text>
               </View>
-              <View style={styles.creditGauge}>
-                <View style={[styles.gaugeBar, { width: `${(creditScore / 900) * 100}%` }]} />
+              <View style={styles.creditRight}>
+                <View style={styles.creditGauge}>
+                  <View style={[styles.gaugeBar, { width: `${(creditScore / 900) * 100}%` }]} />
+                </View>
+                <View style={styles.gaugeLabels}>
+                  <Text style={styles.gaugeLabel}>300</Text>
+                  <Text style={styles.gaugeLabel}>900</Text>
+                </View>
               </View>
             </View>
           </Card>
@@ -152,7 +149,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Your Loans</Text>
           <TouchableOpacity onPress={() => navigation.navigate('MyLoans')}>
-            <Text style={styles.viewAll}>View All</Text>
+            <Text style={styles.viewAll}>View All →</Text>
           </TouchableOpacity>
         </View>
 
@@ -167,22 +164,30 @@ const HomeScreen = ({ navigation }) => {
             <Card
               key={loan.id}
               onPress={() => navigation.navigate('LoanDetail', { loanId: loan.id })}
+              accent={COLORS.teal}
+              style={styles.loanCard}
             >
               <View style={styles.loanHeader}>
-                <Text style={styles.loanType}>
-                  {loan.type === 'education' ? '🎓' : '💼'}{' '}
-                  {loan.instituteName || loan.companyName}
-                </Text>
+                <View style={styles.loanLeft}>
+                  <Text style={styles.loanType}>
+                    {loan.type === 'education' ? '🎓' : '💼'}{' '}
+                    {loan.instituteName || loan.companyName}
+                  </Text>
+                  <Text style={styles.loanId}>#{loan.id}</Text>
+                </View>
                 <StatusBadge status={loan.status} />
               </View>
+              <View style={styles.loanDivider} />
               <View style={styles.loanDetails}>
                 <View style={styles.loanDetail}>
                   <Text style={styles.loanDetailLabel}>Amount</Text>
                   <Text style={styles.loanDetailValue}>{formatCurrency(loan.amount)}</Text>
                 </View>
-                <View style={styles.loanDetail}>
-                  <Text style={styles.loanDetailLabel}>EMI</Text>
-                  <Text style={styles.loanDetailValue}>{formatCurrency(loan.emi)}</Text>
+                <View style={[styles.loanDetail, styles.loanDetailCenter]}>
+                  <Text style={styles.loanDetailLabel}>Monthly EMI</Text>
+                  <Text style={[styles.loanDetailValue, { color: COLORS.teal }]}>
+                    {formatCurrency(loan.emi)}
+                  </Text>
                 </View>
                 <View style={styles.loanDetail}>
                   <Text style={styles.loanDetailLabel}>Next EMI</Text>
@@ -195,7 +200,7 @@ const HomeScreen = ({ navigation }) => {
 
         {/* Daily Tip */}
         {dailyTip && (
-          <Card style={styles.tipCard}>
+          <Card accent={COLORS.secondary} style={styles.tipCard}>
             <Text style={styles.tipTitle}>💡 {dailyTip.title}</Text>
             <Text style={styles.tipContent}>{dailyTip.content}</Text>
           </Card>
@@ -209,50 +214,127 @@ const HomeScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { flex: 1 },
-  greetingSection: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 },
-  greeting: { fontSize: 14, color: COLORS.textSecondary },
-  userName: { fontSize: 24, fontWeight: '800', color: COLORS.textPrimary },
-  quickActions: {
-    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 12, justifyContent: 'space-around',
+  homeHeader: {
+    backgroundColor: COLORS.primary,
+    paddingTop: 48,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
-  quickAction: { alignItems: 'center', width: 80 },
+  homeHeaderTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  profileBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: COLORS.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileInitial: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.textLight,
+  },
+  greetingSection: {},
+  greeting: { fontSize: 14, color: 'rgba(255,255,255,0.7)' },
+  userName: { fontSize: 26, fontWeight: '800', color: COLORS.textLight, marginTop: 2 },
+  content: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  quickAction: {
+    alignItems: 'center',
+    flex: 1,
+  },
   actionIcon: {
-    width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 6,
   },
-  actionEmoji: { fontSize: 26 },
-  actionText: { fontSize: 11, color: COLORS.textSecondary, textAlign: 'center', fontWeight: '500' },
-  creditCard: { marginHorizontal: 16, backgroundColor: COLORS.primary },
-  creditRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  creditLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)' },
-  creditScore: { fontSize: 36, fontWeight: '900', color: COLORS.textLight },
-  creditRating: { fontSize: 13, color: COLORS.teal, fontWeight: '600' },
+  actionEmoji: { fontSize: 24 },
+  actionText: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    fontWeight: '600',
+    lineHeight: 14,
+  },
+  creditCard: {
+    backgroundColor: COLORS.primary,
+    borderColor: 'transparent',
+  },
+  creditRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  creditLabel: { fontSize: 11, color: 'rgba(255,255,255,0.6)', letterSpacing: 1, fontWeight: '600' },
+  creditScoreNum: { fontSize: 40, fontWeight: '900', color: COLORS.textLight, marginVertical: 2 },
+  creditRating: { fontSize: 13, color: COLORS.teal, fontWeight: '700' },
+  creditRight: { alignItems: 'flex-end' },
   creditGauge: {
-    width: 100, height: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 4,
+    width: 110,
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 3,
   },
   gaugeBar: {
-    height: 8, backgroundColor: COLORS.teal, borderRadius: 4,
+    height: 6,
+    backgroundColor: COLORS.teal,
+    borderRadius: 3,
   },
+  gaugeLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: 110,
+    marginTop: 3,
+  },
+  gaugeLabel: { fontSize: 9, color: 'rgba(255,255,255,0.4)' },
   sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 4,
   },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary },
-  viewAll: { fontSize: 14, color: COLORS.primary, fontWeight: '600' },
-  emptyCard: { marginHorizontal: 16, alignItems: 'center', paddingVertical: 32 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
+  viewAll: { fontSize: 13, color: COLORS.teal, fontWeight: '600' },
+  emptyCard: { alignItems: 'center', paddingVertical: 36 },
   emptyIcon: { fontSize: 40, marginBottom: 8 },
   emptyText: { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary },
   emptySubtext: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
+  loanCard: { marginBottom: 2 },
   loanHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  loanType: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary, flex: 1 },
+  loanLeft: { flex: 1, marginRight: 8 },
+  loanType: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
+  loanId: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+  loanDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 12,
+  },
   loanDetails: { flexDirection: 'row', justifyContent: 'space-between' },
-  loanDetail: { alignItems: 'center' },
-  loanDetailLabel: { fontSize: 11, color: COLORS.textSecondary },
-  loanDetailValue: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary, marginTop: 2 },
-  tipCard: { marginHorizontal: 16, backgroundColor: '#FFFDE7' },
+  loanDetail: {},
+  loanDetailCenter: { alignItems: 'center' },
+  loanDetailLabel: { fontSize: 10, color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  loanDetailValue: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginTop: 3 },
+  tipCard: { backgroundColor: '#FFFDF5' },
   tipTitle: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 6 },
   tipContent: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20 },
   bottomSpacer: { height: 100 },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
 import { COLORS } from '../../config/constants';
 
 const Button = ({
@@ -11,6 +11,7 @@ const Button = ({
   style,
   textStyle,
   icon,
+  small = false,
 }) => {
   const isDisabled = disabled || loading;
 
@@ -22,17 +23,34 @@ const Button = ({
         styles.button,
         styles[variant],
         isDisabled && styles.disabled,
+        small && styles.small,
         style,
       ]}
-      activeOpacity={0.7}
+      activeOpacity={0.75}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'outline' ? COLORS.primary : COLORS.textLight} />
+        <ActivityIndicator
+          size="small"
+          color={variant === 'outline' ? COLORS.primary : COLORS.textLight}
+        />
       ) : (
-        <>
-          {icon && <Text style={[styles.icon, variant === 'outline' && styles.outlineText]}>{icon}</Text>}
-          <Text style={[styles.text, styles[`${variant}Text`], textStyle]}>{title}</Text>
-        </>
+        <View style={styles.inner}>
+          {icon && (
+            <Text style={[styles.icon, variant === 'outline' && styles.outlineIcon]}>
+              {icon}
+            </Text>
+          )}
+          <Text
+            style={[
+              styles.text,
+              styles[`${variant}Text`],
+              small && styles.smallText,
+              textStyle,
+            ]}
+          >
+            {title}
+          </Text>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -40,37 +58,51 @@ const Button = ({
 
 const styles = StyleSheet.create({
   button: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    minHeight: 52,
+  },
+  inner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    minHeight: 50,
+  },
+  small: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    minHeight: 40,
+    borderRadius: 10,
   },
   primary: {
     backgroundColor: COLORS.primary,
   },
   secondary: {
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.teal,
   },
   outline: {
     backgroundColor: 'transparent',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: COLORS.primary,
   },
   danger: {
     backgroundColor: COLORS.error,
   },
   success: {
-    backgroundColor: COLORS.success,
+    backgroundColor: COLORS.teal,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.45,
   },
   text: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  smallText: {
+    fontSize: 13,
   },
   primaryText: {
     color: COLORS.textLight,
@@ -89,8 +121,11 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginRight: 8,
-    fontSize: 18,
+    fontSize: 16,
     color: COLORS.textLight,
+  },
+  outlineIcon: {
+    color: COLORS.primary,
   },
 });
 

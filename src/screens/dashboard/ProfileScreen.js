@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   profileCard: { alignItems: 'center', paddingVertical: 24 },
   avatar: {
-    width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.primary,
+    width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.teal,
     alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
   avatarText: { fontSize: 30, fontWeight: '800', color: COLORS.textLight },
@@ -90,9 +90,9 @@ const styles = StyleSheet.create({
   },
   menuIcon: { fontSize: 20, marginRight: 14 },
   menuLabel: { flex: 1, fontSize: 15, color: COLORS.textPrimary },
-  menuArrow: { fontSize: 16, color: COLORS.textSecondary },
+  menuArrow: { fontSize: 16, color: COLORS.teal },
   logoutBtn: {
-    backgroundColor: '#FFEBEE', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16,
+    backgroundColor: '#FFF3F0', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16,
   },
   logoutText: { fontSize: 16, fontWeight: '700', color: COLORS.error },
   version: { textAlign: 'center', fontSize: 12, color: COLORS.textSecondary, marginTop: 16 },

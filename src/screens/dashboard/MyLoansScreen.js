@@ -63,7 +63,7 @@ const MyLoansScreen = ({ navigation }) => {
         data={filterLoans()}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.teal]} />}
         renderItem={({ item }) => (
           <Card onPress={() => navigation.navigate('LoanDetail', { loanId: item.id })}>
             <View style={styles.loanHeader}>
@@ -94,8 +94,8 @@ const MyLoansScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   tabs: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
-  tab: { flex: 1, paddingVertical: 8, borderRadius: 20, backgroundColor: '#E0E0E0', alignItems: 'center' },
-  activeTab: { backgroundColor: COLORS.primary },
+  tab: { flex: 1, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F0EDF5', alignItems: 'center' },
+  activeTab: { backgroundColor: COLORS.teal },
   tabText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
   activeTabText: { color: COLORS.textLight },
   list: { paddingHorizontal: 16, paddingBottom: 20 },
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   loanRow: { flexDirection: 'row', justifyContent: 'space-between' },
   label: { fontSize: 11, color: COLORS.textSecondary },
   value: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginTop: 2 },
-  nextEmi: { fontSize: 12, color: COLORS.info, marginTop: 10, fontWeight: '500' },
+  nextEmi: { fontSize: 12, color: COLORS.teal, marginTop: 10, fontWeight: '500' },
   empty: { alignItems: 'center', paddingTop: 60 },
   emptyText: { fontSize: 16, color: COLORS.textSecondary },
 });

@@ -75,7 +75,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
         {/* Status Card */}
         <Card style={styles.statusCard}>
           <View style={styles.statusHeader}>
-            <Text style={styles.loanName}>
+            <Text style={styles.statusLoanName}>
               {loan.type === 'education' ? '🎓' : '💼'} {loan.instituteName}
             </Text>
             <StatusBadge status={loan.status} />
@@ -123,8 +123,8 @@ const LoanDetailScreen = ({ route, navigation }) => {
                     styles.emiStatusBadge,
                     {
                       backgroundColor:
-                        emi.status === 'paid' ? '#EEEDF5' :
-                        emi.status === 'upcoming' ? '#EEEDF5' : '#F5F5F5',
+                        emi.status === 'paid' ? '#E8F8F7' :
+                        emi.status === 'upcoming' ? '#E8F8F7' : '#F5F5F5',
                     },
                   ]}
                 >
@@ -133,7 +133,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
                       styles.emiStatusText,
                       {
                         color:
-                          emi.status === 'paid' ? COLORS.success :
+                          emi.status === 'paid' ? COLORS.teal :
                           emi.status === 'upcoming' ? COLORS.info : COLORS.textSecondary,
                       },
                     ]}
@@ -187,10 +187,11 @@ const LoanDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  statusCard: { backgroundColor: '#EEEDF5' },
+  statusCard: { backgroundColor: COLORS.primary },
   statusHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   loanName: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
-  courseName: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
+  statusLoanName: { fontSize: 17, fontWeight: '700', color: COLORS.textLight },
+  courseName: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   emiRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
   emiLeft: { flex: 1 },

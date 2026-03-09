@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 16 },
-  timeline: { backgroundColor: '#F5F7FA', padding: 14, borderRadius: 10, marginBottom: 20 },
+  timeline: { backgroundColor: '#E8F8F7', padding: 14, borderRadius: 10, marginBottom: 20 },
   timelineItem: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 26 },
 });
 

@@ -49,7 +49,7 @@ const LoanSuccessScreen = ({ navigation }) => {
           We will notify you via SMS/WhatsApp once the loan is disbursed.
         </Text>
 
-        <Button title="Go to Dashboard" onPress={handleGoHome} style={styles.btn} />
+        <Button title="Go to Dashboard" onPress={handleGoHome} variant="secondary" style={styles.btn} />
       </View>
     </View>
   );
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     fontSize: 13, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 20,
     marginBottom: 32,
   },
-  btn: { backgroundColor: COLORS.textLight, width: '100%' },
+  btn: { width: '100%' },
 });
 
 export default LoanSuccessScreen;

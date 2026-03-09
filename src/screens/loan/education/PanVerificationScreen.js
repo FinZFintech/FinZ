@@ -218,27 +218,27 @@ const styles = StyleSheet.create({
   },
   btn: { marginTop: 12 },
   verifiedBadge: {
-    backgroundColor: '#EEEDF5',
+    backgroundColor: '#E8F8F7',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 8,
   },
   verifiedText: {
-    color: COLORS.success,
+    color: COLORS.teal,
     fontWeight: '700',
     fontSize: 15,
   },
-  successCard: { alignItems: 'center', backgroundColor: '#EEEDF5' },
+  successCard: { alignItems: 'center', backgroundColor: '#E8F8F7' },
   successIcon: {
     fontSize: 48,
-    color: COLORS.success,
+    color: COLORS.teal,
     marginBottom: 8,
   },
   successTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: COLORS.success,
+    color: COLORS.teal,
     marginBottom: 8,
   },
   successText: {

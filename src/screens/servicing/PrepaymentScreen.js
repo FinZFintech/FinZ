@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginVertical: 12 },
-  warningBanner: { backgroundColor: '#FFF3E0', padding: 12, borderRadius: 8, marginBottom: 12 },
+  warningBanner: { backgroundColor: '#FFF8E1', padding: 12, borderRadius: 8, marginBottom: 12 },
   warningText: { fontSize: 13, color: COLORS.warning, lineHeight: 20 },
   amountPreview: { fontSize: 14, fontWeight: '600', color: COLORS.primary, marginBottom: 12 },
   submitBtn: { marginTop: 16 },

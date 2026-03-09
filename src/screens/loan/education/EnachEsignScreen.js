@@ -154,9 +154,9 @@ const styles = StyleSheet.create({
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 12 },
   btn: { marginTop: 12 },
   doneBadge: {
-    backgroundColor: '#EEEDF5', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 12,
+    backgroundColor: '#E8F8F7', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 12,
   },
-  doneText: { color: COLORS.success, fontWeight: '700', fontSize: 15 },
+  doneText: { color: COLORS.teal, fontWeight: '700', fontSize: 15 },
   disabledNote: {
     fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', marginTop: 8, fontStyle: 'italic',
   },

@@ -18,10 +18,10 @@ const OffersScreen = ({ navigation }) => {
       setOffers(data.offers || []);
     } catch {
       setOffers([
-        { id: '1', title: 'Zero Processing Fee', description: 'Apply for education loan this month and get zero processing fee!', validTill: '2026-03-31', color: '#EEEDF5' },
-        { id: '2', title: 'Reduced Interest Rate', description: 'Special 11% p.a. interest rate for select institutes.', validTill: '2026-04-15', color: '#EEEDF5' },
-        { id: '3', title: 'Cashback Offer', description: 'Get ₹1000 cashback on your first EMI payment.', validTill: '2026-03-31', color: '#FFF3E0' },
-        { id: '4', title: 'Referral Bonus Double', description: 'Earn ₹1000 per referral this month. Double the rewards!', validTill: '2026-03-31', color: '#FCE4EC' },
+        { id: '1', title: 'Zero Processing Fee', description: 'Apply for education loan this month and get zero processing fee!', validTill: '2026-03-31', color: '#E8F8F7' },
+        { id: '2', title: 'Reduced Interest Rate', description: 'Special 11% p.a. interest rate for select institutes.', validTill: '2026-04-15', color: '#F0EDF5' },
+        { id: '3', title: 'Cashback Offer', description: 'Get ₹1000 cashback on your first EMI payment.', validTill: '2026-03-31', color: '#FFF8E1' },
+        { id: '4', title: 'Referral Bonus Double', description: 'Earn ₹1000 per referral this month. Double the rewards!', validTill: '2026-03-31', color: '#E8F8F7' },
       ]);
     }
   };

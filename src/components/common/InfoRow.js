@@ -2,10 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../config/constants';
 
-const InfoRow = ({ label, value, style }) => (
+const InfoRow = ({ label, value, highlight, style }) => (
   <View style={[styles.row, style]}>
     <Text style={styles.label}>{label}</Text>
-    <Text style={styles.value}>{value || '-'}</Text>
+    <Text style={[styles.value, highlight && styles.highlight]}>{value || '—'}</Text>
   </View>
 );
 
@@ -14,21 +14,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.border,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(228,228,240,0.5)',
   },
   label: {
     fontSize: 13,
     color: COLORS.textSecondary,
     flex: 1,
+    letterSpacing: 0.1,
   },
   value: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.textPrimary,
-    flex: 1,
+    flex: 1.2,
     textAlign: 'right',
+  },
+  highlight: {
+    color: COLORS.teal,
+    fontWeight: '700',
   },
 });
 

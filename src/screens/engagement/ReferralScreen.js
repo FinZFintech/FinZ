@@ -88,14 +88,14 @@ const ReferralScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  heroCard: { alignItems: 'center', backgroundColor: '#EEEDF5' },
+  heroCard: { alignItems: 'center', backgroundColor: '#E8F8F7' },
   heroIcon: { fontSize: 50, marginBottom: 12 },
   heroTitle: { fontSize: 20, fontWeight: '800', color: COLORS.primary, marginBottom: 8 },
   heroText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   codeBox: { backgroundColor: '#F5F7FA', padding: 16, borderRadius: 10, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: COLORS.border, borderStyle: 'dashed' },
   codeText: { fontSize: 24, fontWeight: '900', color: COLORS.primary, letterSpacing: 3 },
-  stepsCard: { backgroundColor: '#F5F7FA' },
+  stepsCard: { backgroundColor: '#E8F8F7' },
   stepItem: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 28 },
   bottomSpacer: { height: 40 },
 });
