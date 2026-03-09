@@ -19,7 +19,7 @@ const Header = ({ title, subtitle, onBack, rightAction, rightIcon, showLogo = tr
       </View>
       {showLogo && (
         <View style={styles.logoWrapper}>
-          <Logo size="tiny" white />
+          <Logo size="small" white />
         </View>
       )}
       {rightAction && (
@@ -67,7 +67,6 @@ const styles = StyleSheet.create({
   },
   logoWrapper: {
     marginLeft: 8,
-    opacity: 0.7,
   },
   title: {
     color: COLORS.textLight,
