@@ -1,14 +1,62 @@
 import api from './api';
-import { API_ENDPOINTS } from '../config/constants';
+import { API_ENDPOINTS, MOCK_MODE } from '../config/constants';
+import { signzyService } from './signzyService';
 
 export const kycService = {
-  // PAN
-  async fetchPanByMobile(mobile) {
-    return api.post(API_ENDPOINTS.PAN.FETCH_BY_MOBILE, { mobile });
+  // PAN - Phone to PAN (Signzy)
+  async fetchPanByMobile(mobile, firstName = '', lastName = '') {
+    if (MOCK_MODE) {
+      await new Promise((r) => setTimeout(r, 1200));
+      return {
+        panNumber: 'ABCDE1234F',
+        name: 'RAHUL SHARMA',
+        gender: 'Male',
+        dateOfBirth: '1995-06-15',
+      };
+    }
+
+    try {
+      const result = await signzyService.phoneToPan(mobile, firstName, lastName);
+      return {
+        panNumber: result.pan,
+        name: result.name,
+        gender: result.gender,
+        dateOfBirth: result.dateOfBirth,
+      };
+    } catch (err) {
+      // Fallback to backend API if Signzy call fails
+      const data = await api.post(API_ENDPOINTS.PAN.FETCH_BY_MOBILE, { mobile });
+      return data;
+    }
   },
 
-  async validatePan(panNumber, name) {
-    return api.post(API_ENDPOINTS.PAN.VALIDATE, { panNumber, name });
+  // PAN Verification (Signzy)
+  async validatePan(panNumber) {
+    if (MOCK_MODE) {
+      await new Promise((r) => setTimeout(r, 1000));
+      return {
+        isValid: true,
+        name: 'RAHUL SHARMA',
+        panNumber,
+        panStatus: 'VALID',
+        panStatusLabel: 'VALID',
+        firstName: 'RAHUL',
+        middleName: '',
+        lastName: 'SHARMA',
+        typeOfHolder: 'Individual or Person',
+        isIndividual: true,
+        aadhaarSeedingStatus: 'Successful',
+        individualTaxComplianceStatus: 'operative',
+      };
+    }
+
+    try {
+      return await signzyService.verifyPan(panNumber);
+    } catch (err) {
+      // Fallback to backend API if Signzy call fails
+      const data = await api.post(API_ENDPOINTS.PAN.VALIDATE, { panNumber });
+      return data;
+    }
   },
 
   // Credit Bureau

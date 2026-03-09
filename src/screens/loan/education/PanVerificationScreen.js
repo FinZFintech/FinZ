@@ -16,6 +16,7 @@ const PanVerificationScreen = ({ navigation }) => {
   const [pan, setPan] = useState('');
   const [panFetched, setPanFetched] = useState(false);
   const [panVerified, setPanVerified] = useState(false);
+  const [panDetails, setPanDetails] = useState(null);
   const [creditChecking, setCreditChecking] = useState(false);
   const [creditPassed, setCreditPassed] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -28,15 +29,23 @@ const PanVerificationScreen = ({ navigation }) => {
   const fetchPanByMobile = async () => {
     setLoading(true);
     try {
-      const data = await kycService.fetchPanByMobile(state.borrowerDetails?.phone);
+      const borrowerName = state.borrowerDetails?.name || '';
+      const nameParts = borrowerName.trim().split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+
+      const data = await kycService.fetchPanByMobile(
+        state.borrowerDetails?.phone,
+        firstName,
+        lastName,
+      );
       setPan(data.panNumber || '');
       setPanName(data.name || '');
       setPanFetched(true);
     } catch {
-      // Mock - PAN fetched from mobile
-      setPan('ABCDE1234F');
-      setPanName('RAHUL SHARMA');
-      setPanFetched(true);
+      setPan('');
+      setPanName('');
+      setPanFetched(false);
     } finally {
       setLoading(false);
     }
@@ -77,16 +86,39 @@ const PanVerificationScreen = ({ navigation }) => {
     }
     setLoading(true);
     try {
-      await kycService.validatePan(pan, state.borrowerDetails?.name);
+      const result = await kycService.validatePan(pan);
+
+      if (!result.isValid) {
+        const statusMsg = result.panStatusLabel || result.panStatus || 'INVALID';
+        Alert.alert(
+          'PAN Verification Failed',
+          `PAN status: ${statusMsg}. Please check and try again.`,
+        );
+        setLoading(false);
+        return;
+      }
+
       setPanVerified(true);
-      dispatch({ type: 'SET_PAN', payload: { panNumber: pan, name: panName } });
-    } catch {
-      // Mock verification
-      setPanVerified(true);
-      dispatch({ type: 'SET_PAN', payload: { panNumber: pan, name: panName } });
-    } finally {
+      setPanDetails(result);
+      setPanName(result.name || panName);
+      dispatch({
+        type: 'SET_PAN',
+        payload: {
+          panNumber: pan,
+          name: result.name || panName,
+          panStatus: result.panStatus,
+          isIndividual: result.isIndividual,
+          aadhaarSeedingStatus: result.aadhaarSeedingStatus,
+        },
+      });
+    } catch (err) {
+      const errorMsg =
+        err?.error?.message || err?.message || 'PAN verification failed. Please try again.';
+      Alert.alert('Verification Error', errorMsg);
       setLoading(false);
+      return;
     }
+    setLoading(false);
     // Automatically run credit check after PAN verification
     runCreditCheck(pan);
   };
@@ -122,6 +154,7 @@ const PanVerificationScreen = ({ navigation }) => {
             onChangeText={(t) => {
               setPan(t.toUpperCase());
               setPanVerified(false);
+              setPanDetails(null);
               setCreditPassed(null);
             }}
             placeholder="Enter PAN (e.g., ABCDE1234F)"
@@ -129,8 +162,24 @@ const PanVerificationScreen = ({ navigation }) => {
             autoCapitalize="characters"
             editable={!panVerified}
           />
-          {panName && (
+          {panName ? (
             <InfoRow label="Name on PAN" value={panName} />
+          ) : null}
+
+          {/* PAN Verification Details */}
+          {panDetails && (
+            <View style={styles.panDetailsContainer}>
+              <InfoRow label="PAN Status" value={panDetails.panStatusLabel || panDetails.panStatus} />
+              {panDetails.typeOfHolder ? (
+                <InfoRow label="Holder Type" value={panDetails.typeOfHolder} />
+              ) : null}
+              {panDetails.aadhaarSeedingStatus ? (
+                <InfoRow label="Aadhaar Linked" value={panDetails.aadhaarSeedingStatus} />
+              ) : null}
+              {panDetails.individualTaxComplianceStatus ? (
+                <InfoRow label="Tax Compliance" value={panDetails.individualTaxComplianceStatus} />
+              ) : null}
+            </View>
           )}
 
           {!panVerified ? (
@@ -215,6 +264,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   btn: { marginTop: 12 },
+  panDetailsContainer: {
+    backgroundColor: COLORS.background,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 8,
+    marginBottom: 4,
+  },
   verifiedBadge: {
     backgroundColor: '#E8F8F7',
     padding: 12,

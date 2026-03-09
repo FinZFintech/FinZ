@@ -4,6 +4,17 @@ export const APP_VERSION = '1.0.0';
 // MOCK_MODE: When true, all API calls will use mock data (no backend needed)
 export const MOCK_MODE = true;
 
+// Signzy API Configuration - configurable keys for Phone-to-PAN & PAN Verification
+export const SIGNZY_CONFIG = {
+  BASE_URL: 'https://api-preproduction.signzy.app/api/v3',
+  AUTH_TOKEN: 'vqoNYa3hklTfQJBzUoEr1i1qahc6MtuR',
+  CLIENT_ID: 'support@finz.finance',
+  ENDPOINTS: {
+    PHONE_TO_PAN: '/phonekyc/phonetoPan',
+    PAN_FETCH_V2: '/pan/fetchV2',
+  },
+};
+
 export const COLORS = {
   primary: '#2D2B6B',       // Navy (logo "fin" text & Z dark portion)
   primaryLight: '#3E3C8A',
@@ -77,6 +88,23 @@ export const KYC_METHODS = {
   CKYC: 'ckyc',
   DIGILOCKER: 'digilocker',
   AADHAAR_XML: 'aadhaar_xml',
+};
+
+export const PAN_STATUS_CODES = {
+  E: 'VALID',
+  F: 'FAKE',
+  X: 'DEACTIVATED',
+  D: 'DELETED',
+  N: 'INVALID',
+  EA: 'AMALGAMATION',
+  EC: 'ACQUISITION',
+  ED: 'DEATH',
+  EI: 'DISSOLUTION',
+  EL: 'LIQUIDATED',
+  EM: 'MERGER',
+  EP: 'PARTITION',
+  ES: 'SPLIT',
+  EU: 'UNDER LIQUIDATION',
 };
 
 export const API_ENDPOINTS = {
