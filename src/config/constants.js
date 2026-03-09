@@ -1,26 +1,31 @@
-export const APP_NAME = 'FinZ Fintech';
+export const APP_NAME = 'FinZ';
 export const APP_VERSION = '1.0.0';
 
+// MOCK_MODE: When true, all API calls will use mock data (no backend needed)
+export const MOCK_MODE = true;
+
 export const COLORS = {
-  primary: '#1B5E20',
-  primaryLight: '#4CAF50',
-  primaryDark: '#0D3B0E',
-  secondary: '#FF9800',
-  secondaryLight: '#FFB74D',
-  accent: '#2196F3',
-  background: '#F5F7FA',
+  primary: '#2D2B6B',       // Navy (logo "fin" text & Z dark portion)
+  primaryLight: '#3E3C8A',
+  primaryDark: '#1E1C4E',
+  secondary: '#F5B731',     // Golden yellow (logo dot on "i" & Z bottom)
+  secondaryLight: '#F7C95C',
+  teal: '#2CC5BE',          // Teal (logo Z diagonal stroke)
+  purple: '#7B6DAF',        // Purple (logo Z top portion)
+  accent: '#2CC5BE',
+  background: '#F5F6FB',
   surface: '#FFFFFF',
   error: '#D32F2F',
-  success: '#2E7D32',
-  warning: '#F57C00',
-  info: '#1976D2',
-  textPrimary: '#212121',
-  textSecondary: '#757575',
+  success: '#2CC5BE',
+  warning: '#F5B731',
+  info: '#7B6DAF',
+  textPrimary: '#2D2B6B',
+  textSecondary: '#6E6E8A',
   textLight: '#FFFFFF',
-  border: '#E0E0E0',
-  disabled: '#BDBDBD',
-  overlay: 'rgba(0,0,0,0.5)',
-  cardShadow: 'rgba(0,0,0,0.08)',
+  border: '#E4E4F0',
+  disabled: '#B8B8CE',
+  overlay: 'rgba(45,43,107,0.5)',
+  cardShadow: 'rgba(45,43,107,0.08)',
 };
 
 export const FONTS = {

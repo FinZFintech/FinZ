@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   },
   selectedOption: {
     borderColor: COLORS.primary,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#EEEDF5',
   },
   optionIcon: { fontSize: 32, marginBottom: 8 },
   optionText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, textAlign: 'center' },
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   },
   selectedProduct: {
     borderColor: COLORS.primary,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#EEEDF5',
   },
   productName: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
   productRate: { fontSize: 13, color: COLORS.primary, marginTop: 4, fontWeight: '600' },
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   selectedTenureText: { color: COLORS.textLight },
   emiCard: { backgroundColor: '#FAFFFE' },
   emiHighlight: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#EEEDF5',
     padding: 16,
     borderRadius: 10,
     marginTop: 12,

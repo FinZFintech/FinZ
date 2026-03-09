@@ -123,8 +123,8 @@ const LoanDetailScreen = ({ route, navigation }) => {
                     styles.emiStatusBadge,
                     {
                       backgroundColor:
-                        emi.status === 'paid' ? '#E8F5E9' :
-                        emi.status === 'upcoming' ? '#E3F2FD' : '#F5F5F5',
+                        emi.status === 'paid' ? '#EEEDF5' :
+                        emi.status === 'upcoming' ? '#EEEDF5' : '#F5F5F5',
                     },
                   ]}
                 >
@@ -187,7 +187,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  statusCard: { backgroundColor: '#F1F8E9' },
+  statusCard: { backgroundColor: '#EEEDF5' },
   statusHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   loanName: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
   courseName: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },

@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 16 },
-  vkycNote: { backgroundColor: '#E3F2FD', padding: 12, borderRadius: 8, marginBottom: 16 },
+  vkycNote: { backgroundColor: '#EEEDF5', padding: 12, borderRadius: 8, marginBottom: 16 },
   vkycNoteText: { fontSize: 12, color: COLORS.info, lineHeight: 18 },
   selfiePreview: {
     width: 200,
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   },
   btn: { marginTop: 12 },
   verifiedBadge: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#EEEDF5',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',

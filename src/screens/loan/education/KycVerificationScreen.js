@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
   },
   steps: { marginBottom: 16 },
   stepText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 24 },
-  successCard: { alignItems: 'center', backgroundColor: '#F1F8E9' },
+  successCard: { alignItems: 'center', backgroundColor: '#EEEDF5' },
   successIcon: { fontSize: 48, color: COLORS.success, marginBottom: 8 },
   successTitle: { fontSize: 22, fontWeight: '800', color: COLORS.success, marginBottom: 8 },
   successText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' },

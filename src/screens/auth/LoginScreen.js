@@ -8,10 +8,11 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { COLORS, APP_NAME } from '../../config/constants';
+import { COLORS } from '../../config/constants';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import OtpInput from '../../components/common/OtpInput';
+import Logo from '../../components/common/Logo';
 import { authService } from '../../services/authService';
 import { useAuth } from '../../store/AuthContext';
 import { validateMobile } from '../../utils/helpers';
@@ -68,12 +69,16 @@ const LoginScreen = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>FZ</Text>
+          <View style={styles.logoWrap}>
+            <Logo size="medium" />
           </View>
-          <Text style={styles.appName}>{APP_NAME}</Text>
           <Text style={styles.welcomeText}>
             {showOtp ? 'Verify OTP' : 'Welcome! Login to continue'}
+          </Text>
+          <Text style={styles.subText}>
+            {showOtp
+              ? 'Enter the 6-digit code sent to your mobile'
+              : 'Enter your mobile number to get started'}
           </Text>
         </View>
 
@@ -101,9 +106,11 @@ const LoginScreen = ({ navigation }) => {
             </>
           ) : (
             <>
-              <Text style={styles.otpInfo}>
-                OTP sent to +91 {mobile.slice(0, 4)}XXXXXX
-              </Text>
+              <View style={styles.otpInfoBox}>
+                <Text style={styles.otpInfo}>
+                  OTP sent to +91 {mobile.slice(0, 2)}XXXXXX{mobile.slice(-2)}
+                </Text>
+              </View>
               <OtpInput
                 length={6}
                 onComplete={(code) => {
@@ -132,9 +139,19 @@ const LoginScreen = ({ navigation }) => {
           )}
         </View>
 
-        <Text style={styles.terms}>
-          By continuing, you agree to our Terms of Service and Privacy Policy
-        </Text>
+        <View style={styles.footer}>
+          <View style={styles.colorBar}>
+            <View style={[styles.colorSegment, { backgroundColor: COLORS.primary, flex: 3 }]} />
+            <View style={[styles.colorSegment, { backgroundColor: COLORS.purple, flex: 1 }]} />
+            <View style={[styles.colorSegment, { backgroundColor: COLORS.teal, flex: 2 }]} />
+            <View style={[styles.colorSegment, { backgroundColor: COLORS.secondary, flex: 1 }]} />
+          </View>
+          <Text style={styles.terms}>
+            By continuing, you agree to our{' '}
+            <Text style={styles.link}>Terms of Service</Text> and{' '}
+            <Text style={styles.link}>Privacy Policy</Text>
+          </Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -143,7 +160,7 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.surface,
   },
   scrollContent: {
     flexGrow: 1,
@@ -152,40 +169,37 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 36,
   },
-  logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  logoText: {
-    fontSize: 34,
-    fontWeight: '900',
-    color: COLORS.textLight,
-  },
-  appName: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: COLORS.primary,
-    marginBottom: 8,
+  logoWrap: {
+    marginBottom: 24,
   },
   welcomeText: {
-    fontSize: 16,
+    fontSize: 22,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  subText: {
+    fontSize: 14,
     color: COLORS.textSecondary,
+    marginTop: 6,
   },
   form: {
+    marginBottom: 32,
+  },
+  otpInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
+    padding: 12,
+    borderRadius: 10,
     marginBottom: 24,
   },
   otpInfo: {
-    textAlign: 'center',
     fontSize: 14,
     color: COLORS.textSecondary,
-    marginBottom: 24,
+    fontWeight: '500',
   },
   otpInput: {
     marginBottom: 24,
@@ -196,11 +210,29 @@ const styles = StyleSheet.create({
   changeButton: {
     marginTop: 12,
   },
+  footer: {
+    alignItems: 'center',
+  },
+  colorBar: {
+    flexDirection: 'row',
+    height: 3,
+    width: '100%',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  colorSegment: {
+    height: 3,
+  },
   terms: {
     textAlign: 'center',
     fontSize: 12,
     color: COLORS.textSecondary,
     lineHeight: 18,
+  },
+  link: {
+    color: COLORS.teal,
+    fontWeight: '600',
   },
 });
 

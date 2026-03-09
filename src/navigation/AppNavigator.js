@@ -102,7 +102,7 @@ const CustomerTabs = () => (
               width: 56,
               height: 56,
               borderRadius: 28,
-              backgroundColor: COLORS.primary,
+              backgroundColor: COLORS.teal,
               alignItems: 'center',
               justifyContent: 'center',
               marginTop: -20,

@@ -88,7 +88,7 @@ const ReferralScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  heroCard: { alignItems: 'center', backgroundColor: '#E8F5E9' },
+  heroCard: { alignItems: 'center', backgroundColor: '#EEEDF5' },
   heroIcon: { fontSize: 50, marginBottom: 12 },
   heroTitle: { fontSize: 20, fontWeight: '800', color: COLORS.primary, marginBottom: 8 },
   heroText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },

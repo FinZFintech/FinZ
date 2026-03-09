@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   },
   filled: {
     borderColor: COLORS.primary,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#EEEDF5',
   },
 });
 

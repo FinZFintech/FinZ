@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   instructions: { backgroundColor: '#F5F7FA', padding: 14, borderRadius: 10, marginBottom: 20 },
   instructionTitle: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 8 },
   instructionItem: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 22 },
-  pendingBanner: { backgroundColor: '#E3F2FD', padding: 14, borderRadius: 8, marginBottom: 16 },
+  pendingBanner: { backgroundColor: '#EEEDF5', padding: 14, borderRadius: 8, marginBottom: 16 },
   pendingText: { fontSize: 13, color: COLORS.info, lineHeight: 20 },
   successBanner: { alignItems: 'center', paddingTop: 12 },
   successIcon: { fontSize: 48, color: COLORS.success, marginBottom: 8 },

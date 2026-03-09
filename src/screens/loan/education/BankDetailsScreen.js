@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 12, color: COLORS.error, marginTop: -4, marginBottom: 8 },
   verifyBtn: { marginTop: 8 },
   btn: { marginTop: 12 },
-  successCard: { backgroundColor: '#F1F8E9' },
+  successCard: { backgroundColor: '#EEEDF5' },
   successTitle: { fontSize: 16, fontWeight: '700', color: COLORS.success, marginBottom: 8 },
   failCard: { backgroundColor: '#FFF3F0' },
   failTitle: { fontSize: 16, fontWeight: '700', color: COLORS.error, marginBottom: 8 },

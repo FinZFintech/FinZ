@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { COLORS, APP_NAME } from '../../config/constants';
+import { COLORS } from '../../config/constants';
 import { useAuth } from '../../store/AuthContext';
+import Logo from '../../components/common/Logo';
 
 const SplashScreen = ({ navigation }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -24,13 +25,10 @@ const SplashScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
-        <View style={styles.logo}>
-          <Text style={styles.logoText}>FZ</Text>
-        </View>
-        <Text style={styles.appName}>{APP_NAME}</Text>
+        <Logo size="large" />
         <Text style={styles.tagline}>Smart Financing, Simplified</Text>
       </View>
-      <ActivityIndicator size="large" color={COLORS.textLight} style={styles.loader} />
+      <ActivityIndicator size="large" color={COLORS.teal} style={styles.loader} />
     </View>
   );
 };
@@ -38,7 +36,7 @@ const SplashScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -46,29 +44,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 100,
-    height: 100,
-    borderRadius: 24,
-    backgroundColor: COLORS.textLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  logoText: {
-    fontSize: 42,
-    fontWeight: '900',
-    color: COLORS.primary,
-  },
-  appName: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: COLORS.textLight,
-    letterSpacing: 1,
+    marginBottom: 16,
   },
   tagline: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    fontSize: 15,
+    color: COLORS.textSecondary,
     marginTop: 8,
+    letterSpacing: 0.5,
   },
   loader: {
     position: 'absolute',

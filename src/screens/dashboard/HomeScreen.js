@@ -93,7 +93,7 @@ const HomeScreen = ({ navigation }) => {
             style={styles.quickAction}
             onPress={() => navigation.navigate('InstituteSelection')}
           >
-            <View style={[styles.actionIcon, { backgroundColor: '#E8F5E9' }]}>
+            <View style={[styles.actionIcon, { backgroundColor: '#EEEDF5' }]}>
               <Text style={styles.actionEmoji}>🎓</Text>
             </View>
             <Text style={styles.actionText}>Education Loan</Text>
@@ -102,7 +102,7 @@ const HomeScreen = ({ navigation }) => {
             style={styles.quickAction}
             onPress={() => navigation.navigate('EmployeeLoan')}
           >
-            <View style={[styles.actionIcon, { backgroundColor: '#E3F2FD' }]}>
+            <View style={[styles.actionIcon, { backgroundColor: '#E8F8F7' }]}>
               <Text style={styles.actionEmoji}>💼</Text>
             </View>
             <Text style={styles.actionText}>Employee Loan</Text>
@@ -111,7 +111,7 @@ const HomeScreen = ({ navigation }) => {
             style={styles.quickAction}
             onPress={() => navigation.navigate('CreditScore')}
           >
-            <View style={[styles.actionIcon, { backgroundColor: '#FFF3E0' }]}>
+            <View style={[styles.actionIcon, { backgroundColor: '#F0EDF5' }]}>
               <Text style={styles.actionEmoji}>📊</Text>
             </View>
             <Text style={styles.actionText}>Credit Score</Text>
@@ -120,7 +120,7 @@ const HomeScreen = ({ navigation }) => {
             style={styles.quickAction}
             onPress={() => navigation.navigate('Referral')}
           >
-            <View style={[styles.actionIcon, { backgroundColor: '#FCE4EC' }]}>
+            <View style={[styles.actionIcon, { backgroundColor: '#FFF5DC' }]}>
               <Text style={styles.actionEmoji}>🎁</Text>
             </View>
             <Text style={styles.actionText}>Refer & Earn</Text>
@@ -227,12 +227,12 @@ const styles = StyleSheet.create({
   creditRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   creditLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)' },
   creditScore: { fontSize: 36, fontWeight: '900', color: COLORS.textLight },
-  creditRating: { fontSize: 13, color: COLORS.secondaryLight, fontWeight: '600' },
+  creditRating: { fontSize: 13, color: COLORS.teal, fontWeight: '600' },
   creditGauge: {
     width: 100, height: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 4,
   },
   gaugeBar: {
-    height: 8, backgroundColor: COLORS.secondaryLight, borderRadius: 4,
+    height: 8, backgroundColor: COLORS.teal, borderRadius: 4,
   },
   sectionHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

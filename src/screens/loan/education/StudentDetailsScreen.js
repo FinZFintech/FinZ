@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   },
   detailsCard: { marginTop: 8 },
   feeHighlight: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#EEEDF5',
     padding: 16,
     borderRadius: 10,
     marginTop: 16,

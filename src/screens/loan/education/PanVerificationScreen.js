@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   },
   btn: { marginTop: 12 },
   verifiedBadge: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#EEEDF5',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
   },
-  successCard: { alignItems: 'center', backgroundColor: '#F1F8E9' },
+  successCard: { alignItems: 'center', backgroundColor: '#EEEDF5' },
   successIcon: {
     fontSize: 48,
     color: COLORS.success,
