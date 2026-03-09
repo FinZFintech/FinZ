@@ -153,7 +153,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       <StepIndicator currentStep={1} />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
       <ScrollView
         style={styles.content}
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   flex: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  scrollContent: { flexGrow: 1, paddingBottom: 40 },
+  scrollContent: { paddingBottom: 120 },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',

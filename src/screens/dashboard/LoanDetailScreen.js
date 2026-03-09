@@ -189,7 +189,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  scrollContent: { flexGrow: 1, paddingBottom: 40 },
+  scrollContent: { paddingBottom: 120 },
   statusCard: { backgroundColor: COLORS.primary },
   statusHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   loanName: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },

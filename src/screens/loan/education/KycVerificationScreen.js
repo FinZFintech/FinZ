@@ -224,7 +224,7 @@ const KycVerificationScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Header title="KYC Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={3} />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* CKYC */}
         {!kycCompleted && currentMethod === KYC_METHODS.CKYC && (
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   flex: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  scrollContent: { flexGrow: 1, paddingBottom: 40 },
+  scrollContent: { paddingBottom: 120 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 12 },
   otpLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 12 },
