@@ -6,9 +6,6 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Dimensions,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import Input from '../../../components/common/Input';
@@ -72,18 +69,10 @@ const StudentDetailsScreen = ({ navigation }) => {
         onBack={() => navigation.goBack()}
       />
       <StepIndicator currentStep={0} />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
       <ScrollView
-        style={styles.content}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        nestedScrollEnabled
-        bounces={true}
       >
         <Card>
           <Text style={styles.sectionTitle}>Enter Registration Number</Text>
@@ -132,16 +121,13 @@ const StudentDetailsScreen = ({ navigation }) => {
         )}
         <View style={styles.bottomSpacer} />
       </ScrollView>
-      </KeyboardAvoidingView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  flex: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  scrollContent: { paddingBottom: 120 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   bottomSpacer: { height: 100 },
   sectionTitle: {
     fontSize: 16,

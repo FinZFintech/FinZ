@@ -6,8 +6,6 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Header from '../../../components/common/Header';
@@ -195,8 +193,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Header title="Income Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={5} />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Method Selection */}
         {!incomeResult && (
           <Card>
@@ -353,16 +350,13 @@ const IncomeVerificationScreen = ({ navigation }) => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-      </KeyboardAvoidingView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  flex: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  scrollContent: { paddingBottom: 120 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 16 },
   optionsRow: { flexDirection: 'row', gap: 12 },

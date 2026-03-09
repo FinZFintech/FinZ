@@ -6,8 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import Input from '../../../components/common/Input';
@@ -151,12 +149,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         onBack={() => navigation.goBack()}
       />
       <StepIndicator currentStep={1} />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
       <ScrollView
-        style={styles.content}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -343,16 +336,13 @@ const BorrowerSelectionScreen = ({ navigation }) => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-      </KeyboardAvoidingView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  flex: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  scrollContent: { paddingBottom: 120 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',

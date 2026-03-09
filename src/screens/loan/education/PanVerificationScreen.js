@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Input from '../../../components/common/Input';
@@ -105,8 +105,7 @@ const PanVerificationScreen = ({ navigation }) => {
         onBack={() => navigation.goBack()}
       />
       <StepIndicator currentStep={2} />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* PAN Verification */}
         <Card>
           <Text style={styles.sectionTitle}>PAN Verification</Text>
@@ -198,16 +197,13 @@ const PanVerificationScreen = ({ navigation }) => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-      </KeyboardAvoidingView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  flex: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  scrollContent: { paddingBottom: 120 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
