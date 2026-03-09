@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   factorScore: { fontSize: 14, fontWeight: '600' },
   tipsCard: { backgroundColor: '#FFF8E1' },
   tipItem: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 24 },
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
 });
 
 export default CreditScoreScreen;

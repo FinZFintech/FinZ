@@ -73,7 +73,7 @@ const InstituteSelectionScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Header title="Select Institute" onBack={() => navigation.goBack()} />
+      <Header title="Select Institute" onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
       <View style={styles.content}>
         <Input
           placeholder="Search institute by name or city..."

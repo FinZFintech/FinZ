@@ -51,7 +51,7 @@ const OffersScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  list: { padding: 16 },
+  list: { padding: 16, paddingBottom: 80 },
   offerCard: { marginBottom: 4 },
   offerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 6 },
   offerDesc: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 8 },

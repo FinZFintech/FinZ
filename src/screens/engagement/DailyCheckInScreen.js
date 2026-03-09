@@ -71,7 +71,7 @@ const DailyCheckInScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Header title="Daily Check-In" onBack={() => navigation.goBack()} />
+      <Header title="Daily Check-In" onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
       <ScrollView style={styles.content}>
         {/* Streak Card */}
         <Card style={styles.streakCard}>
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
   quizResult: { fontSize: 14, fontWeight: '600', marginTop: 8, textAlign: 'center' },
   rewardsCard: { backgroundColor: '#F0EDF5' },
   rewardItem: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 28 },
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
 });
 
 export default DailyCheckInScreen;

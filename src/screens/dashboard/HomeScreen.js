@@ -79,7 +79,7 @@ const HomeScreen = ({ navigation }) => {
           </View>
           <TouchableOpacity
             style={styles.profileBtn}
-            onPress={() => navigation.navigate('Profile')}
+            onPress={() => navigation.navigate('ProfileTab')}
           >
             <Text style={styles.profileInitial}>
               {(user?.name || 'U').charAt(0).toUpperCase()}

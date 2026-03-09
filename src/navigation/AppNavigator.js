@@ -44,8 +44,16 @@ import DailyCheckInScreen from '../screens/engagement/DailyCheckInScreen';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import LoanQueueScreen from '../screens/admin/LoanQueueScreen';
 
-const Stack = createStackNavigator();
+const RootStack = createStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Nested stacks for tabs that need sub-navigation
+const HomeStackNav = createStackNavigator();
+const LoansStackNav = createStackNavigator();
+const ProfileStackNav = createStackNavigator();
+const AdminHomeStackNav = createStackNavigator();
+
+const noHeader = { headerShown: false };
 
 const TabIcon = ({ label, icon, focused }) => (
   <View style={{ alignItems: 'center', paddingTop: 4 }}>
@@ -63,31 +71,73 @@ const TabIcon = ({ label, icon, focused }) => (
   </View>
 );
 
+// Shared detail screens registered in multiple tab stacks
+const sharedScreens = (Stack) => (
+  <>
+    <Stack.Screen name="LoanDetail" component={LoanDetailScreen} />
+    <Stack.Screen name="Prepayment" component={PrepaymentScreen} />
+    <Stack.Screen name="NocRequest" component={NocRequestScreen} />
+  </>
+);
+
+const HomeStack = () => (
+  <HomeStackNav.Navigator screenOptions={noHeader}>
+    <HomeStackNav.Screen name="HomeMain" component={HomeScreen} />
+    <HomeStackNav.Screen name="MyLoans" component={MyLoansScreen} />
+    <HomeStackNav.Screen name="CreditScore" component={CreditScoreScreen} />
+    <HomeStackNav.Screen name="Referral" component={ReferralScreen} />
+    <HomeStackNav.Screen name="Offers" component={OffersScreen} />
+    <HomeStackNav.Screen name="DailyCheckIn" component={DailyCheckInScreen} />
+    {sharedScreens(HomeStackNav)}
+  </HomeStackNav.Navigator>
+);
+
+const LoansStack = () => (
+  <LoansStackNav.Navigator screenOptions={noHeader}>
+    <LoansStackNav.Screen name="MyLoansMain" component={MyLoansScreen} />
+    {sharedScreens(LoansStackNav)}
+  </LoansStackNav.Navigator>
+);
+
+const ProfileStack = () => (
+  <ProfileStackNav.Navigator screenOptions={noHeader}>
+    <ProfileStackNav.Screen name="ProfileMain" component={ProfileScreen} />
+    <ProfileStackNav.Screen name="MyLoans" component={MyLoansScreen} />
+    <ProfileStackNav.Screen name="CreditScore" component={CreditScoreScreen} />
+    <ProfileStackNav.Screen name="Referral" component={ReferralScreen} />
+    <ProfileStackNav.Screen name="Offers" component={OffersScreen} />
+    <ProfileStackNav.Screen name="DailyCheckIn" component={DailyCheckInScreen} />
+    {sharedScreens(ProfileStackNav)}
+  </ProfileStackNav.Navigator>
+);
+
+const tabBarStyle = {
+  height: 65,
+  paddingBottom: 8,
+  backgroundColor: COLORS.surface,
+  borderTopWidth: 0.5,
+  borderTopColor: COLORS.border,
+  elevation: 8,
+};
+
 const CustomerTabs = () => (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
-      tabBarStyle: {
-        height: 65,
-        paddingBottom: 8,
-        backgroundColor: COLORS.surface,
-        borderTopWidth: 0.5,
-        borderTopColor: COLORS.border,
-        elevation: 8,
-      },
+      tabBarStyle,
       tabBarShowLabel: false,
     }}
   >
     <Tab.Screen
       name="Home"
-      component={HomeScreen}
+      component={HomeStack}
       options={{
         tabBarIcon: ({ focused }) => <TabIcon label="Home" icon="🏠" focused={focused} />,
       }}
     />
     <Tab.Screen
       name="LoansTab"
-      component={MyLoansScreen}
+      component={LoansStack}
       options={{
         tabBarIcon: ({ focused }) => <TabIcon label="Loans" icon="📋" focused={focused} />,
       }}
@@ -123,7 +173,7 @@ const CustomerTabs = () => (
     />
     <Tab.Screen
       name="ProfileTab"
-      component={ProfileScreen}
+      component={ProfileStack}
       options={{
         tabBarIcon: ({ focused }) => <TabIcon label="Profile" icon="👤" focused={focused} />,
       }}
@@ -131,23 +181,27 @@ const CustomerTabs = () => (
   </Tab.Navigator>
 );
 
+const AdminHomeStack = () => (
+  <AdminHomeStackNav.Navigator screenOptions={noHeader}>
+    <AdminHomeStackNav.Screen name="AdminDashboardMain" component={AdminDashboardScreen} />
+    <AdminHomeStackNav.Screen name="LoanQueue" component={LoanQueueScreen} />
+  </AdminHomeStackNav.Navigator>
+);
+
 const AdminTabs = () => (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
       tabBarStyle: {
-        height: 65,
-        paddingBottom: 8,
-        backgroundColor: COLORS.surface,
-        borderTopWidth: 0.5,
-        borderTopColor: COLORS.border,
+        ...tabBarStyle,
+        elevation: undefined,
       },
       tabBarShowLabel: false,
     }}
   >
     <Tab.Screen
       name="AdminHome"
-      component={AdminDashboardScreen}
+      component={AdminHomeStack}
       options={{
         tabBarIcon: ({ focused }) => <TabIcon label="Dashboard" icon="📊" focused={focused} />,
       }}
@@ -170,51 +224,33 @@ const AdminTabs = () => (
 );
 
 const AppNavigator = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <RootStack.Navigator screenOptions={noHeader}>
     {/* Auth */}
-    <Stack.Screen name="Splash" component={SplashScreen} />
-    <Stack.Screen name="Login" component={LoginScreen} />
+    <RootStack.Screen name="Splash" component={SplashScreen} />
+    <RootStack.Screen name="Login" component={LoginScreen} />
 
     {/* Customer Tabs */}
-    <Stack.Screen name="CustomerTabs" component={CustomerTabs} />
+    <RootStack.Screen name="CustomerTabs" component={CustomerTabs} />
 
     {/* Admin Tabs */}
-    <Stack.Screen name="AdminTabs" component={AdminTabs} />
+    <RootStack.Screen name="AdminTabs" component={AdminTabs} />
 
-    {/* Education Loan Flow */}
-    <Stack.Screen name="InstituteSelection" component={InstituteSelectionScreen} />
-    <Stack.Screen name="StudentDetails" component={StudentDetailsScreen} />
-    <Stack.Screen name="BorrowerSelection" component={BorrowerSelectionScreen} />
-    <Stack.Screen name="PanVerification" component={PanVerificationScreen} />
-    <Stack.Screen name="KycVerification" component={KycVerificationScreen} />
-    <Stack.Screen name="SelfieVerification" component={SelfieVerificationScreen} />
-    <Stack.Screen name="BankDetails" component={BankDetailsScreen} />
-    <Stack.Screen name="IncomeVerification" component={IncomeVerificationScreen} />
-    <Stack.Screen name="VkycScreen" component={VkycScreen} />
-    <Stack.Screen name="EnachEsign" component={EnachEsignScreen} />
-    <Stack.Screen name="LoanSuccess" component={LoanSuccessScreen} />
+    {/* Education Loan Flow (full-screen, tabs intentionally hidden) */}
+    <RootStack.Screen name="InstituteSelection" component={InstituteSelectionScreen} />
+    <RootStack.Screen name="StudentDetails" component={StudentDetailsScreen} />
+    <RootStack.Screen name="BorrowerSelection" component={BorrowerSelectionScreen} />
+    <RootStack.Screen name="PanVerification" component={PanVerificationScreen} />
+    <RootStack.Screen name="KycVerification" component={KycVerificationScreen} />
+    <RootStack.Screen name="SelfieVerification" component={SelfieVerificationScreen} />
+    <RootStack.Screen name="BankDetails" component={BankDetailsScreen} />
+    <RootStack.Screen name="IncomeVerification" component={IncomeVerificationScreen} />
+    <RootStack.Screen name="VkycScreen" component={VkycScreen} />
+    <RootStack.Screen name="EnachEsign" component={EnachEsignScreen} />
+    <RootStack.Screen name="LoanSuccess" component={LoanSuccessScreen} />
 
-    {/* Employee Loan */}
-    <Stack.Screen name="EmployeeLoan" component={EmployeeLoanScreen} />
-
-    {/* Dashboard */}
-    <Stack.Screen name="MyLoans" component={MyLoansScreen} />
-    <Stack.Screen name="LoanDetail" component={LoanDetailScreen} />
-    <Stack.Screen name="Profile" component={ProfileScreen} />
-
-    {/* Servicing */}
-    <Stack.Screen name="Prepayment" component={PrepaymentScreen} />
-    <Stack.Screen name="NocRequest" component={NocRequestScreen} />
-
-    {/* Engagement */}
-    <Stack.Screen name="CreditScore" component={CreditScoreScreen} />
-    <Stack.Screen name="Referral" component={ReferralScreen} />
-    <Stack.Screen name="Offers" component={OffersScreen} />
-    <Stack.Screen name="DailyCheckIn" component={DailyCheckInScreen} />
-
-    {/* Admin */}
-    <Stack.Screen name="LoanQueue" component={LoanQueueScreen} />
-  </Stack.Navigator>
+    {/* Employee Loan (full-screen flow) */}
+    <RootStack.Screen name="EmployeeLoan" component={EmployeeLoanScreen} />
+  </RootStack.Navigator>
 );
 
 export default AppNavigator;

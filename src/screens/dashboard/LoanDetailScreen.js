@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   emiStatusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   emiStatusText: { fontSize: 11, fontWeight: '600' },
   serviceBtn: { marginTop: 8 },
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
 });
 
 export default LoanDetailScreen;

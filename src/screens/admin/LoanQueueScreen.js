@@ -105,7 +105,7 @@ const LoanQueueScreen = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  list: { padding: 16 },
+  list: { padding: 16, paddingBottom: 80 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   loanId: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
   reasonBanner: { backgroundColor: '#FFF8E1', padding: 10, borderRadius: 8, marginTop: 8 },

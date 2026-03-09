@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   codeText: { fontSize: 24, fontWeight: '900', color: COLORS.primary, letterSpacing: 3 },
   stepsCard: { backgroundColor: '#E8F8F7' },
   stepItem: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 28 },
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
 });
 
 export default ReferralScreen;

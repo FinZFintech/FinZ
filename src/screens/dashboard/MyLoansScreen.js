@@ -47,7 +47,7 @@ const MyLoansScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Header title="My Loans" onBack={() => navigation.goBack()} />
+      <Header title="My Loans" onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
       <View style={styles.tabs}>
         {TABS.map(tab => (
           <TouchableOpacity
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
   activeTab: { backgroundColor: COLORS.teal },
   tabText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
   activeTabText: { color: COLORS.textLight },
-  list: { paddingHorizontal: 16, paddingBottom: 20 },
+  list: { paddingHorizontal: 16, paddingBottom: 80 },
   loanHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   loanId: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
   loanName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },

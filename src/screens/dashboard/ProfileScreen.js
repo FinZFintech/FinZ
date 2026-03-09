@@ -36,7 +36,7 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Header title="Profile" onBack={() => navigation.goBack()} />
+      <Header title="Profile" onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
       <ScrollView style={styles.content}>
         <Card style={styles.profileCard}>
           <View style={styles.avatar}>
@@ -49,9 +49,9 @@ const ProfileScreen = ({ navigation }) => {
         </Card>
 
         <Card>
-          {menuItems.map((item, i) => (
+          {menuItems.map((item) => (
             <TouchableOpacity
-              key={i}
+              key={item.label}
               style={styles.menuItem}
               onPress={() => item.screen && navigation.navigate(item.screen)}
             >
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   logoutText: { fontSize: 16, fontWeight: '700', color: COLORS.error },
   version: { textAlign: 'center', fontSize: 12, color: COLORS.textSecondary, marginTop: 16 },
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
 });
 
 export default ProfileScreen;
