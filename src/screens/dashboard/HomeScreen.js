@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -27,7 +27,7 @@ const HomeScreen = ({ navigation }) => {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [loanData, tipData] = await Promise.allSettled([
         loanService.getLoans(),
@@ -54,13 +54,13 @@ const HomeScreen = ({ navigation }) => {
       });
       setCreditScore(720);
     }
-  };
+  }, []);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
-  };
+  }, [loadData]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();

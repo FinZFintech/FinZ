@@ -12,7 +12,7 @@ const steps = [
   'Sign',
 ];
 
-const StepIndicator = ({ currentStep, totalSteps, labels }) => {
+const StepIndicator = React.memo(({ currentStep, totalSteps, labels }) => {
   const stepLabels = labels || steps;
   const total = totalSteps || stepLabels.length;
 
@@ -30,7 +30,7 @@ const StepIndicator = ({ currentStep, totalSteps, labels }) => {
       {/* Step dots */}
       <View style={styles.stepsRow}>
         {Array.from({ length: total }, (_, i) => (
-          <View key={i} style={styles.stepItem}>
+          <View key={stepLabels[i] || `step-${i}`} style={styles.stepItem}>
             <View
               style={[
                 styles.circle,
@@ -63,7 +63,7 @@ const StepIndicator = ({ currentStep, totalSteps, labels }) => {
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

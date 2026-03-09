@@ -82,8 +82,8 @@ const CreditScoreScreen = ({ navigation }) => {
 
             <Card>
               <Text style={styles.sectionTitle}>Score Factors</Text>
-              {score.factors.map((f, i) => (
-                <View key={i} style={styles.factorRow}>
+              {score.factors.map((f) => (
+                <View key={f.label} style={styles.factorRow}>
                   <Text style={styles.factorLabel}>{f.label}</Text>
                   <Text
                     style={[
@@ -103,8 +103,8 @@ const CreditScoreScreen = ({ navigation }) => {
 
             <Card style={styles.tipsCard}>
               <Text style={styles.sectionTitle}>Tips to Improve</Text>
-              {score.tips.map((tip, i) => (
-                <Text key={i} style={styles.tipItem}>💡 {tip}</Text>
+              {score.tips.map((tip) => (
+                <Text key={tip} style={styles.tipItem}>💡 {tip}</Text>
               ))}
             </Card>
           </>

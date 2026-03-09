@@ -18,49 +18,46 @@ const Logo = ({ size = 'medium', white = false }) => {
   return (
     <View style={[styles.container, { width: w, height: h }]}>
       <Svg width={w} height={h} viewBox="0 0 220 72">
-        {/* ===== "f" character ===== */}
-        {/* f stem */}
-        <Rect x="8" y="18" width="10" height="42" rx="2" fill={textColor} />
-        {/* f top hook */}
-        <Path
-          d="M18 18 C18 8, 24 2, 34 2 L34 2 C36 2, 36 4, 34 4 C26 4, 22 9, 22 18 L28 18 C29 18, 29 20, 28 20 L22 20 L22 18 Z"
-          fill={textColor}
-        />
-        {/* f crossbar */}
-        <Rect x="4" y="26" width="28" height="8" rx="3" fill={textColor} />
+        {/* ===== "F" character (uppercase) ===== */}
+        {/* F vertical stem */}
+        <Rect x="6" y="6" width="12" height="54" rx="2" fill={textColor} />
+        {/* F top bar */}
+        <Rect x="6" y="6" width="32" height="10" rx="2" fill={textColor} />
+        {/* F middle crossbar */}
+        <Rect x="6" y="30" width="26" height="9" rx="2" fill={textColor} />
 
         {/* ===== "i" character ===== */}
         {/* i dot - golden yellow */}
-        <Circle cx="48" cy="15" r="6" fill={white ? '#FFFFFF' : GOLD} />
+        <Circle cx="52" cy="15" r="6" fill={white ? '#FFFFFF' : GOLD} />
         {/* i stem */}
-        <Rect x="43" y="26" width="10" height="34" rx="4" fill={textColor} />
+        <Rect x="47" y="26" width="10" height="34" rx="4" fill={textColor} />
 
         {/* ===== "n" character ===== */}
         {/* n left stem */}
-        <Rect x="62" y="26" width="10" height="34" rx="2" fill={textColor} />
+        <Rect x="66" y="26" width="10" height="34" rx="2" fill={textColor} />
         {/* n arch */}
         <Path
-          d="M67 40 C67 30, 74 26, 83 26 C92 26, 96 32, 96 40 L96 60 L86 60 L86 42 C86 36, 84 32, 79 32 C74 32, 72 36, 72 42 L72 40 Z"
+          d="M71 40 C71 30, 78 26, 87 26 C96 26, 100 32, 100 40 L100 60 L90 60 L90 42 C90 36, 88 32, 83 32 C78 32, 76 36, 76 42 L76 40 Z"
           fill={textColor}
         />
         {/* n right stem */}
-        <Rect x="86" y="32" width="10" height="28" rx="2" fill={textColor} />
+        <Rect x="90" y="32" width="10" height="28" rx="2" fill={textColor} />
 
         {/* ===== "Z" character (geometric colored blocks) ===== */}
-        <G transform="translate(110, 4)">
+        <G transform="translate(112, 4)">
           {/* Z top bar: purple left + navy right */}
-          <Rect x="0" y="0" width="42" height="18" rx="3" fill={white ? 'rgba(255,255,255,0.7)' : PURPLE} />
-          <Rect x="42" y="0" width="42" height="18" rx="3" fill={white ? 'rgba(255,255,255,0.85)' : NAVY_DARK} />
+          <Rect x="0" y="0" width="40" height="16" rx="3" fill={white ? 'rgba(255,255,255,0.7)' : PURPLE} />
+          <Rect x="40" y="0" width="40" height="16" rx="3" fill={white ? 'rgba(255,255,255,0.85)' : NAVY_DARK} />
 
           {/* Z diagonal: teal stripe */}
           <Path
-            d="M68 14 L84 14 L16 52 L0 52 Z"
+            d="M62 10 L80 10 L18 54 L0 54 Z"
             fill={white ? 'rgba(255,255,255,0.9)' : TEAL}
           />
 
           {/* Z bottom bar: teal left + golden right */}
-          <Rect x="0" y="48" width="42" height="18" rx="3" fill={white ? 'rgba(255,255,255,0.9)' : TEAL} />
-          <Rect x="42" y="48" width="42" height="18" rx="3" fill={white ? '#FFFFFF' : GOLD} />
+          <Rect x="0" y="48" width="40" height="16" rx="3" fill={white ? 'rgba(255,255,255,0.9)' : TEAL} />
+          <Rect x="40" y="48" width="40" height="16" rx="3" fill={white ? '#FFFFFF' : GOLD} />
         </G>
       </Svg>
     </View>

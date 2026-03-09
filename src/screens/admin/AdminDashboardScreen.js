@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
@@ -13,7 +13,7 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   useEffect(() => { loadStats(); }, []);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const data = await adminService.getDashboardStats();
       setStats(data);
@@ -31,9 +31,9 @@ const AdminDashboardScreen = ({ navigation }) => {
         totalDisbursedAmount: 15600000,
       });
     }
-  };
+  }, []);
 
-  const onRefresh = async () => { setRefreshing(true); await loadStats(); setRefreshing(false); };
+  const onRefresh = useCallback(async () => { setRefreshing(true); await loadStats(); setRefreshing(false); }, [loadStats]);
 
   const handleLogout = async () => { await logout(); navigation.reset({ index: 0, routes: [{ name: 'Login' }] }); };
 
@@ -65,9 +65,9 @@ const AdminDashboardScreen = ({ navigation }) => {
         <Text style={styles.role}>{user?.role === 'sales' ? 'Sales Team' : 'Credit Team'}</Text>
 
         <View style={styles.statsGrid}>
-          {statCards.map((card, i) => (
+          {statCards.map((card) => (
             <TouchableOpacity
-              key={i}
+              key={card.label}
               style={[styles.statCard, { borderLeftColor: card.color }]}
               onPress={() => navigation.navigate('LoanQueue', { filter: card.label })}
             >

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Header from '../../components/common/Header';
@@ -20,7 +20,7 @@ const DailyCheckInScreen = ({ navigation }) => {
     loadQuiz();
   }, []);
 
-  const loadCheckInData = async () => {
+  const loadCheckInData = useCallback(async () => {
     try {
       const lastCheckIn = await AsyncStorage.getItem('last_checkin');
       const streakData = await AsyncStorage.getItem('checkin_streak');
@@ -39,9 +39,9 @@ const DailyCheckInScreen = ({ navigation }) => {
     } catch {
       // First time
     }
-  };
+  }, []);
 
-  const loadQuiz = () => {
+  const loadQuiz = useCallback(() => {
     const quizzes = [
       { question: 'What does CIBIL score range from?', options: ['0-100', '300-900', '100-1000', '0-850'], correct: 1 },
       { question: 'What is the full form of EMI?', options: ['Equal Monthly Income', 'Equated Monthly Installment', 'Every Month Interest', 'Equal Money Installment'], correct: 1 },
@@ -49,9 +49,9 @@ const DailyCheckInScreen = ({ navigation }) => {
       { question: 'What is foreclosure of a loan?', options: ['Missing EMI payment', 'Paying loan before tenure', 'Loan rejection', 'Interest increase'], correct: 1 },
     ];
     setFinancialQuiz(quizzes[Math.floor(Math.random() * quizzes.length)]);
-  };
+  }, []);
 
-  const handleCheckIn = async () => {
+  const handleCheckIn = useCallback(async () => {
     const today = new Date().toDateString();
     const lastCheckIn = await AsyncStorage.getItem('last_checkin');
     const yesterday = new Date(Date.now() - 86400000).toDateString();
@@ -67,7 +67,7 @@ const DailyCheckInScreen = ({ navigation }) => {
     const ws = [...weekStatus];
     ws[adjustedDay] = true;
     setWeekStatus(ws);
-  };
+  }, [streak, weekStatus]);
 
   return (
     <View style={styles.container}>
@@ -104,16 +104,16 @@ const DailyCheckInScreen = ({ navigation }) => {
           <Card>
             <Text style={styles.sectionTitle}>📝 Financial Quiz</Text>
             <Text style={styles.quizQuestion}>{financialQuiz.question}</Text>
-            {financialQuiz.options.map((opt, i) => (
+            {financialQuiz.options.map((opt, optIndex) => (
               <TouchableOpacity
-                key={i}
+                key={`quiz-${opt}`}
                 style={[
                   styles.quizOption,
-                  selectedAnswer === i && i === financialQuiz.correct && styles.correctOption,
-                  selectedAnswer === i && i !== financialQuiz.correct && styles.wrongOption,
-                  selectedAnswer !== null && i === financialQuiz.correct && styles.correctOption,
+                  selectedAnswer === optIndex && optIndex === financialQuiz.correct && styles.correctOption,
+                  selectedAnswer === optIndex && optIndex !== financialQuiz.correct && styles.wrongOption,
+                  selectedAnswer !== null && optIndex === financialQuiz.correct && styles.correctOption,
                 ]}
-                onPress={() => setSelectedAnswer(i)}
+                onPress={() => setSelectedAnswer(optIndex)}
                 disabled={selectedAnswer !== null}
               >
                 <Text style={styles.quizOptionText}>{opt}</Text>
