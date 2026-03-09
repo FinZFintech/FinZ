@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
 import { COLORS } from '../../config/constants';
 
-const Header = ({ title, subtitle, onBack, rightAction, rightIcon, showLogo = true }) => (
+const Header = ({ title, greeting, subtitle, onBack, rightAction, rightIcon, showLogo = true }) => (
   <View style={styles.container}>
     <StatusBar backgroundColor={COLORS.primaryDark} barStyle="light-content" />
     <View style={styles.content}>
@@ -13,7 +13,8 @@ const Header = ({ title, subtitle, onBack, rightAction, rightIcon, showLogo = tr
           </TouchableOpacity>
         )}
         <View style={styles.titleContainer}>
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          {greeting && <Text style={styles.greeting}>{greeting}</Text>}
+          <Text style={[styles.title, greeting && styles.titleWithGreeting]} numberOfLines={1}>{title}</Text>
           {subtitle && <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>}
         </View>
       </View>
@@ -25,8 +26,8 @@ const Header = ({ title, subtitle, onBack, rightAction, rightIcon, showLogo = tr
           </View>
         )}
         {rightAction && (
-          <TouchableOpacity onPress={rightAction} style={styles.rightButton} activeOpacity={0.7}>
-            <Text style={styles.rightText}>{rightIcon || '⋮'}</Text>
+          <TouchableOpacity onPress={rightAction} style={styles.avatarButton} activeOpacity={0.7}>
+            <Text style={styles.avatarText}>{rightIcon || '⋮'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -45,12 +46,12 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.15,
-        shadowRadius: 4,
+        shadowRadius: 6,
       },
       android: {
-        elevation: 6,
+        elevation: 8,
       },
     }),
   },
@@ -58,7 +59,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 14,
     minHeight: 56,
   },
@@ -70,15 +71,16 @@ const styles = StyleSheet.create({
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
   },
   backButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.13)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   backText: {
     color: COLORS.textLight,
@@ -87,15 +89,27 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  greeting: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+    marginBottom: 1,
   },
   title: {
     color: COLORS.textLight,
     fontSize: 18,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+  },
+  titleWithGreeting: {
+    fontSize: 20,
+    fontWeight: '800',
   },
   subtitle: {
-    color: 'rgba(255,255,255,0.65)',
+    color: 'rgba(255,255,255,0.6)',
     fontSize: 12,
     marginTop: 2,
     fontWeight: '400',
@@ -103,36 +117,35 @@ const styles = StyleSheet.create({
   logoBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
-    marginLeft: 12,
   },
   logoText: {
     color: COLORS.textLight,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   logoZ: {
     color: COLORS.teal,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
-  rightButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+  avatarButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.teal,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
   },
-  rightText: {
+  avatarText: {
     color: COLORS.textLight,
-    fontSize: 18,
+    fontSize: 16,
+    fontWeight: '700',
   },
   accentStrip: {
     flexDirection: 'row',

@@ -72,7 +72,8 @@ const HomeScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header
-        title={`${getGreeting()}, ${user?.name || 'User'}`}
+        greeting={getGreeting()}
+        title={user?.name || 'User'}
         rightAction={() => navigation.navigate('ProfileTab')}
         rightIcon={(user?.name || 'U').charAt(0).toUpperCase()}
       />
