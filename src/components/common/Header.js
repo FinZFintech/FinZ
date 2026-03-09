@@ -1,8 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { COLORS } from '../../config/constants';
-import Logo from './Logo';
-
 const Header = ({ title, subtitle, onBack, rightAction, rightIcon, showLogo = true }) => (
   <View style={styles.container}>
     <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
@@ -18,9 +16,7 @@ const Header = ({ title, subtitle, onBack, rightAction, rightIcon, showLogo = tr
         {subtitle && <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>}
       </View>
       {showLogo && (
-        <View style={styles.logoWrapper}>
-          <Logo size="small" white />
-        </View>
+        <Text style={styles.logoText}>FinZ</Text>
       )}
       {rightAction && (
         <TouchableOpacity onPress={rightAction} style={styles.rightButton} activeOpacity={0.7}>
@@ -65,7 +61,11 @@ const styles = StyleSheet.create({
   titleContainer: {
     flex: 1,
   },
-  logoWrapper: {
+  logoText: {
+    color: COLORS.textLight,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
     marginLeft: 8,
   },
   title: {
