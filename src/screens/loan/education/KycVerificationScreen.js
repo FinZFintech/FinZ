@@ -7,6 +7,8 @@ import {
   Alert,
   Linking,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Header from '../../../components/common/Header';
@@ -222,7 +224,8 @@ const KycVerificationScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Header title="KYC Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={3} />
-      <ScrollView style={styles.content}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* CKYC */}
         {!kycCompleted && currentMethod === KYC_METHODS.CKYC && (
           <Card>
@@ -377,13 +380,16 @@ const KycVerificationScreen = ({ navigation }) => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  flex: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  scrollContent: { paddingBottom: 20 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 12 },
   otpLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 12 },
@@ -413,7 +419,7 @@ const styles = StyleSheet.create({
   failIcon: { fontSize: 48, color: COLORS.error, marginBottom: 8 },
   failTitle: { fontSize: 22, fontWeight: '800', color: COLORS.error, marginBottom: 8 },
   failText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
 });
 
 export default KycVerificationScreen;

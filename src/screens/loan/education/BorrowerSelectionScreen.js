@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import Input from '../../../components/common/Input';
@@ -149,7 +151,17 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         onBack={() => navigation.goBack()}
       />
       <StepIndicator currentStep={1} />
-      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Borrower Type Selection */}
         <Card>
           <Text style={styles.sectionTitle}>Who is the Borrower?</Text>
@@ -332,13 +344,16 @@ const BorrowerSelectionScreen = ({ navigation }) => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  flex: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  scrollContent: { paddingBottom: 20 },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
@@ -411,7 +426,7 @@ const styles = StyleSheet.create({
   emiAmount: { fontSize: 32, fontWeight: '900', color: COLORS.textLight, marginTop: 4 },
   emiNote: { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 6 },
   applyButton: { marginTop: 16 },
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
 });
 
 export default BorrowerSelectionScreen;

@@ -10,7 +10,7 @@ const TEAL = COLORS.teal;
 const NAVY_DARK = COLORS.primaryDark;
 
 const Logo = ({ size = 'medium', white = false }) => {
-  const scale = size === 'large' ? 1.5 : size === 'small' ? 0.6 : 1;
+  const scale = size === 'large' ? 1.5 : size === 'small' ? 0.6 : size === 'tiny' ? 0.35 : 1;
   const w = 220 * scale;
   const h = 72 * scale;
   const textColor = white ? '#FFFFFF' : NAVY;

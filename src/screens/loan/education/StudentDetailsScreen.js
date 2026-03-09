@@ -6,6 +6,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import Input from '../../../components/common/Input';
@@ -69,7 +71,16 @@ const StudentDetailsScreen = ({ navigation }) => {
         onBack={() => navigation.goBack()}
       />
       <StepIndicator currentStep={0} />
-      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <Card>
           <Text style={styles.sectionTitle}>Enter Registration Number</Text>
           <Input
@@ -115,14 +126,19 @@ const StudentDetailsScreen = ({ navigation }) => {
             />
           </Card>
         )}
+        <View style={styles.bottomSpacer} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  flex: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  scrollContent: { paddingBottom: 20 },
+  bottomSpacer: { height: 100 },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
