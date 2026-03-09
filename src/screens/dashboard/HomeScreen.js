@@ -74,7 +74,9 @@ const HomeScreen = ({ navigation }) => {
       {/* Custom Home Header with Logo */}
       <View style={styles.homeHeader}>
         <View style={styles.homeHeaderTop}>
-          <Logo size="small" white />
+          <View style={styles.logoBg}>
+            <Logo size="small" />
+          </View>
           <TouchableOpacity
             style={styles.profileBtn}
             onPress={() => navigation.navigate('Profile')}
@@ -227,6 +229,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  logoBg: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   profileBtn: {
     width: 38,
