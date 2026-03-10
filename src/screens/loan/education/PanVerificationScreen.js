@@ -113,9 +113,17 @@ const PanVerificationScreen = ({ navigation }) => {
     }
   };
 
+  const showPanError = (errorMsg) => {
+    setPanError(errorMsg);
+    Alert.alert(
+      'Verification Failed',
+      `${errorMsg}\n\nPlease enter the correct PAN number or go back to change the borrower phone number registered with PAN (NSDL).`,
+    );
+  };
+
   const handleVerifyPan = async () => {
     if (!validatePan(pan)) {
-      setPanError('Please enter a valid PAN number in format ABCDE1234F.');
+      showPanError('Please enter a valid PAN number in format ABCDE1234F.');
       return;
     }
     setLoading(true);
@@ -126,8 +134,8 @@ const PanVerificationScreen = ({ navigation }) => {
 
       if (!result.isValid) {
         const statusMsg = result.panStatusLabel || result.panStatus || 'INVALID';
-        setPanError(`PAN verification failed — status: ${statusMsg}. Please enter the correct PAN or go back to update your mobile number registered with NSDL.`);
         setLoading(false);
+        showPanError(`PAN verification failed — status: ${statusMsg}.`);
         return;
       }
 
@@ -147,7 +155,7 @@ const PanVerificationScreen = ({ navigation }) => {
       setLoading(false);
       runCreditCheck(pan);
     } catch (err) {
-      let errorMsg = 'PAN verification failed. Please try again.';
+      let errorMsg = 'Verification failed. Please try again.';
       if (err?.message) {
         errorMsg = err.message;
       } else if (err?.error?.message) {
@@ -155,8 +163,8 @@ const PanVerificationScreen = ({ navigation }) => {
       } else if (typeof err === 'string') {
         errorMsg = err;
       }
-      setPanError(`${errorMsg}\n\nPlease enter the correct PAN number or go back to change the borrower phone number registered with PAN (NSDL).`);
       setLoading(false);
+      showPanError(errorMsg);
     }
   };
 
