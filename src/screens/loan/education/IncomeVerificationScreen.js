@@ -28,7 +28,6 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const [eligibilityResult, setEligibilityResult] = useState(null);
 
   const loanAmount = state.studentDetails?.balanceFee || 0;
-  const requiresVkyc = loanAmount >= 60000;
 
   // Account Aggregator
   const handleInitiateAA = async () => {
@@ -160,11 +159,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
   };
 
   const handleProceed = () => {
-    if (requiresVkyc) {
-      navigation.navigate('VkycScreen');
-    } else {
-      navigation.navigate('EnachEsign');
-    }
+    navigation.navigate('KycVerification');
   };
 
   const handleAddCoBorrower = () => {
@@ -192,7 +187,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header title="Income Verification" onBack={() => navigation.goBack()} />
-      <StepIndicator currentStep={5} />
+      <StepIndicator currentStep={3} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Method Selection */}
         {!incomeResult && (

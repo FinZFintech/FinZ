@@ -210,7 +210,7 @@ const KycVerificationScreen = ({ navigation }) => {
 
     dispatch({ type: 'SET_KYC_DATA', payload: { ...kycData, method } });
     dispatch({ type: 'SET_KYC_METHOD', payload: method });
-    dispatch({ type: 'SET_STEP', payload: 3 });
+    dispatch({ type: 'SET_STEP', payload: 4 });
     setKycCompleted(true);
   };
 
@@ -221,7 +221,7 @@ const KycVerificationScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header title="KYC Verification" onBack={() => navigation.goBack()} />
-      <StepIndicator currentStep={3} />
+      <StepIndicator currentStep={4} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* CKYC */}
         {!kycCompleted && currentMethod === KYC_METHODS.CKYC && (

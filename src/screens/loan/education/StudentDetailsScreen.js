@@ -20,10 +20,19 @@ import { formatCurrency } from '../../../utils/helpers';
 
 const StudentDetailsScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
+  const isManualInstitute = state.instituteDetails?.isManual === true;
   const [regNo, setRegNo] = useState('');
   const [loading, setLoading] = useState(false);
   const [studentData, setStudentData] = useState(null);
   const [fetched, setFetched] = useState(false);
+
+  // Manual entry fields
+  const [manualStudentName, setManualStudentName] = useState('');
+  const [manualFatherName, setManualFatherName] = useState('');
+  const [manualCourseName, setManualCourseName] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualEmail, setManualEmail] = useState('');
+  const [manualBalanceFee, setManualBalanceFee] = useState('');
 
   const fetchStudent = async () => {
     if (!regNo.trim()) {
@@ -56,6 +65,45 @@ const StudentDetailsScreen = ({ navigation }) => {
     }
   };
 
+  const handleManualSubmit = () => {
+    if (!manualStudentName.trim()) {
+      Alert.alert('Error', 'Please enter student name');
+      return;
+    }
+    if (!manualFatherName.trim()) {
+      Alert.alert('Error', "Please enter father's name");
+      return;
+    }
+    if (!manualCourseName.trim()) {
+      Alert.alert('Error', 'Please enter course name');
+      return;
+    }
+    if (!manualPhone.trim() || manualPhone.length !== 10) {
+      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      return;
+    }
+    const fee = parseInt(manualBalanceFee, 10);
+    if (!fee || fee <= 0) {
+      Alert.alert('Error', 'Please enter a valid fee amount');
+      return;
+    }
+
+    const data = {
+      regNo: regNo || 'MANUAL',
+      studentName: manualStudentName.trim(),
+      fatherName: manualFatherName.trim(),
+      courseName: manualCourseName.trim(),
+      instituteName: state.instituteDetails?.name || '',
+      phone: manualPhone.trim(),
+      email: manualEmail.trim(),
+      balanceFee: fee,
+      isManual: true,
+    };
+    setStudentData(data);
+    dispatch({ type: 'SET_STUDENT', payload: data });
+    setFetched(true);
+  };
+
   const handleProceed = () => {
     dispatch({ type: 'SET_STUDENT', payload: studentData });
     navigation.navigate('BorrowerSelection');
@@ -75,22 +123,88 @@ const StudentDetailsScreen = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Card>
-          <Text style={styles.sectionTitle}>Enter Registration Number</Text>
-          <Input
-            label="Registration / Enrollment Number"
-            value={regNo}
-            onChangeText={setRegNo}
-            placeholder="Enter your registration number"
-            autoCapitalize="characters"
-          />
-          <Button
-            title="Fetch Details"
-            onPress={fetchStudent}
-            loading={loading}
-            disabled={!regNo.trim()}
-          />
-        </Card>
+        {!isManualInstitute ? (
+          /* API-based flow */
+          <Card>
+            <Text style={styles.sectionTitle}>Enter Registration Number</Text>
+            <Input
+              label="Registration / Enrollment Number"
+              value={regNo}
+              onChangeText={setRegNo}
+              placeholder="Enter your registration number"
+              autoCapitalize="characters"
+            />
+            <Button
+              title="Fetch Details"
+              onPress={fetchStudent}
+              loading={loading}
+              disabled={!regNo.trim()}
+            />
+          </Card>
+        ) : !fetched ? (
+          /* Manual entry flow */
+          <Card>
+            <Text style={styles.sectionTitle}>Enter Student Details</Text>
+            <Text style={styles.manualHint}>
+              Since your institute is not in our system, please fill in the details manually.
+            </Text>
+            <Input
+              label="Registration / Enrollment Number (Optional)"
+              value={regNo}
+              onChangeText={setRegNo}
+              placeholder="Enter registration number if available"
+              autoCapitalize="characters"
+            />
+            <Input
+              label="Student Name"
+              value={manualStudentName}
+              onChangeText={setManualStudentName}
+              placeholder="Enter full name"
+              autoCapitalize="words"
+            />
+            <Input
+              label="Father's Name"
+              value={manualFatherName}
+              onChangeText={setManualFatherName}
+              placeholder="Enter father's full name"
+              autoCapitalize="words"
+            />
+            <Input
+              label="Course Name"
+              value={manualCourseName}
+              onChangeText={setManualCourseName}
+              placeholder="e.g., B.Tech Computer Science"
+              autoCapitalize="words"
+            />
+            <Input
+              label="Phone Number"
+              value={manualPhone}
+              onChangeText={(t) => setManualPhone(t.replace(/[^0-9]/g, ''))}
+              placeholder="Enter 10-digit mobile number"
+              keyboardType="phone-pad"
+              maxLength={10}
+            />
+            <Input
+              label="Email (Optional)"
+              value={manualEmail}
+              onChangeText={setManualEmail}
+              placeholder="Enter email address"
+              keyboardType="email-address"
+            />
+            <Input
+              label="Balance Fee / Loan Amount Required"
+              value={manualBalanceFee}
+              onChangeText={(t) => setManualBalanceFee(t.replace(/[^0-9]/g, ''))}
+              placeholder="Enter amount in rupees"
+              keyboardType="number-pad"
+            />
+            <Button
+              title="Submit Details"
+              onPress={handleManualSubmit}
+              style={styles.proceedButton}
+            />
+          </Card>
+        ) : null}
 
         {fetched && studentData && (
           <Card style={styles.detailsCard}>
@@ -137,6 +251,12 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: 14,
     letterSpacing: 0.2,
+  },
+  manualHint: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+    marginBottom: 16,
   },
   detailsCard: { marginTop: 8 },
   feeHighlight: {

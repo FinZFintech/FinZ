@@ -94,14 +94,21 @@ const BankDetailsScreen = ({ navigation }) => {
     }
   };
 
+  const loanAmount = state.studentDetails?.balanceFee || 0;
+  const requiresVkyc = loanAmount >= 60000;
+
   const handleProceed = () => {
-    navigation.navigate('IncomeVerification');
+    if (requiresVkyc) {
+      navigation.navigate('VkycScreen');
+    } else {
+      navigation.navigate('EnachEsign');
+    }
   };
 
   return (
     <View style={styles.container}>
       <Header title="Bank Details" onBack={() => navigation.goBack()} />
-      <StepIndicator currentStep={4} />
+      <StepIndicator currentStep={5} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Occupation */}
         <Card>
@@ -192,7 +199,7 @@ const BankDetailsScreen = ({ navigation }) => {
               <>
                 <InfoRow label="Account Holder" value={pennyDropResult.accountHolderName} />
                 <InfoRow label="Name Match" value={pennyDropResult.nameMatch ? 'Matched' : 'Mismatch'} />
-                <Button title="Continue to Income Verification" onPress={handleProceed} style={styles.btn} />
+                <Button title="Continue" onPress={handleProceed} style={styles.btn} />
               </>
             )}
             {!pennyDropResult?.verified && (

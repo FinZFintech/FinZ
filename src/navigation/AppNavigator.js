@@ -94,10 +94,10 @@ const HomeStack = () => (
     <HomeStackNav.Screen name="StudentDetails" component={StudentDetailsScreen} />
     <HomeStackNav.Screen name="BorrowerSelection" component={BorrowerSelectionScreen} />
     <HomeStackNav.Screen name="PanVerification" component={PanVerificationScreen} />
+    <HomeStackNav.Screen name="IncomeVerification" component={IncomeVerificationScreen} />
     <HomeStackNav.Screen name="KycVerification" component={KycVerificationScreen} />
     <HomeStackNav.Screen name="SelfieVerification" component={SelfieVerificationScreen} />
     <HomeStackNav.Screen name="BankDetails" component={BankDetailsScreen} />
-    <HomeStackNav.Screen name="IncomeVerification" component={IncomeVerificationScreen} />
     <HomeStackNav.Screen name="VkycScreen" component={VkycScreen} />
     <HomeStackNav.Screen name="EnachEsign" component={EnachEsignScreen} />
     <HomeStackNav.Screen name="LoanSuccess" component={LoanSuccessScreen} />

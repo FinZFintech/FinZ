@@ -184,7 +184,7 @@ const PanVerificationScreen = ({ navigation }) => {
   };
 
   const handleProceed = () => {
-    navigation.navigate('KycVerification');
+    navigation.navigate('IncomeVerification');
   };
 
   const handleRetryDifferentBorrower = () => {
@@ -298,10 +298,10 @@ const PanVerificationScreen = ({ navigation }) => {
             <Text style={styles.successTitle}>Eligible!</Text>
             <Text style={styles.successText}>
               You have passed the initial credit check. Please proceed to
-              complete KYC verification.
+              income verification.
             </Text>
             <Button
-              title="Continue to KYC"
+              title="Continue to Income Verification"
               onPress={handleProceed}
               style={styles.btn}
             />

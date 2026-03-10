@@ -6,9 +6,9 @@ const steps = [
   'Institute',
   'Apply',
   'PAN',
+  'Income',
   'KYC',
   'Verify',
-  'Income',
   'Sign',
 ];
 

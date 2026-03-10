@@ -69,7 +69,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header title="Selfie Verification" onBack={() => navigation.goBack()} />
-      <StepIndicator currentStep={4} />
+      <StepIndicator currentStep={5} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Card>
           <Text style={styles.sectionTitle}>Take a Live Selfie</Text>

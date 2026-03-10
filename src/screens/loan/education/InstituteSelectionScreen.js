@@ -6,9 +6,12 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
+  ScrollView,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import Input from '../../../components/common/Input';
+import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import { COLORS } from '../../../config/constants';
 import { loanService } from '../../../services/loanService';
@@ -19,6 +22,9 @@ const InstituteSelectionScreen = ({ navigation }) => {
   const [search, setSearch] = useState('');
   const [institutes, setInstitutes] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [manualEntry, setManualEntry] = useState(false);
+  const [manualName, setManualName] = useState('');
+  const [manualCity, setManualCity] = useState('');
 
   useEffect(() => {
     fetchInstitutes();
@@ -57,6 +63,27 @@ const InstituteSelectionScreen = ({ navigation }) => {
     navigation.navigate('StudentDetails');
   };
 
+  const handleManualSubmit = () => {
+    if (!manualName.trim()) {
+      Alert.alert('Error', 'Please enter institute name');
+      return;
+    }
+    if (!manualCity.trim()) {
+      Alert.alert('Error', 'Please enter city');
+      return;
+    }
+    const manualInstitute = {
+      id: null,
+      name: manualName.trim(),
+      city: manualCity.trim(),
+      courses: 0,
+      isManual: true,
+    };
+    dispatch({ type: 'SET_INSTITUTE', payload: manualInstitute });
+    dispatch({ type: 'SET_LOAN_TYPE', payload: 'education' });
+    navigation.navigate('StudentDetails');
+  };
+
   const renderInstitute = ({ item }) => (
     <Card onPress={() => handleSelectInstitute(item)} style={styles.instituteCard}>
       <View style={styles.instituteIcon}>
@@ -70,6 +97,41 @@ const InstituteSelectionScreen = ({ navigation }) => {
       <Text style={styles.arrow}>→</Text>
     </Card>
   );
+
+  if (manualEntry) {
+    return (
+      <View style={styles.container}>
+        <Header title="Enter Institute Details" onBack={() => setManualEntry(false)} />
+        <ScrollView style={styles.content} contentContainerStyle={styles.manualContent} keyboardShouldPersistTaps="handled">
+          <Card>
+            <Text style={styles.manualTitle}>Institute Not Listed?</Text>
+            <Text style={styles.manualSubtitle}>
+              Enter your institute details manually. You will also need to fill in student details on the next screen.
+            </Text>
+            <Input
+              label="Institute Name"
+              value={manualName}
+              onChangeText={setManualName}
+              placeholder="Enter full institute name"
+              autoCapitalize="words"
+            />
+            <Input
+              label="City"
+              value={manualCity}
+              onChangeText={setManualCity}
+              placeholder="Enter city"
+              autoCapitalize="words"
+            />
+            <Button
+              title="Continue"
+              onPress={handleManualSubmit}
+              style={styles.manualBtn}
+            />
+          </Card>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -91,6 +153,15 @@ const InstituteSelectionScreen = ({ navigation }) => {
             contentContainerStyle={styles.list}
             ListEmptyComponent={
               <Text style={styles.emptyText}>No institutes found</Text>
+            }
+            ListFooterComponent={
+              <TouchableOpacity
+                style={styles.manualEntryBtn}
+                onPress={() => setManualEntry(true)}
+              >
+                <Text style={styles.manualEntryText}>My institute is not listed</Text>
+                <Text style={styles.manualEntryArrow}>→</Text>
+              </TouchableOpacity>
             }
           />
         )}
@@ -125,6 +196,47 @@ const styles = StyleSheet.create({
   arrow: { fontSize: 20, color: COLORS.textSecondary },
   loader: { marginTop: 40 },
   emptyText: { textAlign: 'center', marginTop: 40, color: COLORS.textSecondary },
+  manualEntryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    marginTop: 8,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    borderRadius: 12,
+    borderStyle: 'dashed',
+    backgroundColor: '#EEEDF5',
+  },
+  manualEntryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  manualEntryArrow: {
+    fontSize: 16,
+    color: COLORS.primary,
+    marginLeft: 8,
+  },
+  manualContent: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 120,
+  },
+  manualTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+  },
+  manualSubtitle: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  manualBtn: { marginTop: 12 },
 });
 
 export default InstituteSelectionScreen;
