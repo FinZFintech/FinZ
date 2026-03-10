@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Input from '../../../components/common/Input';
@@ -23,6 +23,9 @@ const PanVerificationScreen = ({ navigation }) => {
   const [panName, setPanName] = useState('');
   const [panError, setPanError] = useState(null);
   const [panInputError, setPanInputError] = useState('');
+  const [panNotLinked, setPanNotLinked] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorModalMessage, setErrorModalMessage] = useState('');
 
   useEffect(() => {
     fetchPanByMobile();
@@ -74,12 +77,15 @@ const PanVerificationScreen = ({ navigation }) => {
         setPan(data.panNumber);
         setPanName(data.name || '');
         setPanFetched(true);
+        setPanNotLinked(false);
       } else {
         setPanFetched(false);
+        setPanNotLinked(true);
       }
     } catch {
       // Phone-to-PAN lookup failed — user can enter PAN manually
       setPanFetched(false);
+      setPanNotLinked(true);
     } finally {
       setLoading(false);
     }
@@ -115,10 +121,8 @@ const PanVerificationScreen = ({ navigation }) => {
 
   const showPanError = (errorMsg) => {
     setPanError(errorMsg);
-    Alert.alert(
-      'Verification Failed',
-      `${errorMsg}\n\nPlease enter the correct PAN number or go back to change the borrower phone number registered with PAN (NSDL).`,
-    );
+    setErrorModalMessage(errorMsg);
+    setErrorModalVisible(true);
   };
 
   const handleVerifyPan = async () => {
@@ -179,10 +183,6 @@ const PanVerificationScreen = ({ navigation }) => {
     setCreditPassed(null);
   };
 
-  const handleChangeBorrower = () => {
-    navigation.goBack();
-  };
-
   const handleProceed = () => {
     navigation.navigate('IncomeVerification');
   };
@@ -206,6 +206,11 @@ const PanVerificationScreen = ({ navigation }) => {
           {panFetched && (
             <Text style={styles.infoText}>
               PAN linked with your mobile number:
+            </Text>
+          )}
+          {panNotLinked && !panFetched && (
+            <Text style={styles.warningText}>
+              PAN not linked to phone. Please enter your PAN number manually.
             </Text>
           )}
           <Input
@@ -272,12 +277,6 @@ const PanVerificationScreen = ({ navigation }) => {
               onPress={handleRetryPan}
               style={styles.btn}
             />
-            <Button
-              title="Change Borrower Phone Number"
-              onPress={handleChangeBorrower}
-              variant="outline"
-              style={styles.btnSecondary}
-            />
           </Card>
         )}
 
@@ -327,6 +326,28 @@ const PanVerificationScreen = ({ navigation }) => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Error Popup Modal */}
+      <Modal
+        visible={errorModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalIcon}>⚠</Text>
+            <Text style={styles.modalTitle}>Verification Failed</Text>
+            <Text style={styles.modalMessage}>{errorModalMessage}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setErrorModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -421,6 +442,53 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  warningText: {
+    fontSize: 13,
+    color: '#E67E22',
+    marginBottom: 12,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
+  },
+  modalIcon: { fontSize: 40, marginBottom: 8 },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.error,
+    marginBottom: 10,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  modalButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
   },
   bottomSpacer: { height: 100 },
 });
