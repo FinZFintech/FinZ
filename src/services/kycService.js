@@ -1,17 +1,20 @@
 import api from './api';
 import { API_ENDPOINTS, MOCK_MODE } from '../config/constants';
-import { signzyService } from './signzyService';
 
 export const kycService = {
-  // PAN - Phone to PAN (Signzy direct API - works independent of MOCK_MODE)
+  // PAN - Phone to PAN (routed through backend to avoid CORS)
   async fetchPanByMobile(mobile, firstName = '', lastName = '') {
     try {
-      const result = await signzyService.phoneToPan(mobile, firstName, lastName);
+      const data = await api.post(API_ENDPOINTS.PAN.FETCH_BY_MOBILE, {
+        mobile,
+        firstName,
+        lastName,
+      });
       return {
-        panNumber: result.pan,
-        name: result.name,
-        gender: result.gender,
-        dateOfBirth: result.dateOfBirth,
+        panNumber: data.panNumber || data.pan || '',
+        name: data.name || '',
+        gender: data.gender || '',
+        dateOfBirth: data.dateOfBirth || '',
       };
     } catch (err) {
       if (MOCK_MODE) {
@@ -22,23 +25,33 @@ export const kycService = {
           dateOfBirth: '',
         };
       }
-      // Fallback to backend API if Signzy call fails
-      const data = await api.post(API_ENDPOINTS.PAN.FETCH_BY_MOBILE, { mobile });
-      return data;
+      throw err;
     }
   },
 
-  // PAN Verification (Signzy direct API - works independent of MOCK_MODE)
+  // PAN Verification (routed through backend to avoid CORS)
   async validatePan(panNumber) {
     try {
-      return await signzyService.verifyPan(panNumber);
+      const data = await api.post(API_ENDPOINTS.PAN.VALIDATE, { panNumber });
+      return {
+        isValid: data.isValid === true,
+        name: data.name || '',
+        panNumber: data.panNumber || panNumber,
+        panStatus: data.panStatus || '',
+        panStatusLabel: data.panStatusLabel || data.panStatus || 'UNKNOWN',
+        firstName: data.firstName || '',
+        middleName: data.middleName || '',
+        lastName: data.lastName || '',
+        typeOfHolder: data.typeOfHolder || '',
+        isIndividual: data.isIndividual === true,
+        aadhaarSeedingStatus: data.aadhaarSeedingStatus || '',
+        individualTaxComplianceStatus: data.individualTaxComplianceStatus || '',
+      };
     } catch (err) {
       if (MOCK_MODE) {
         throw err;
       }
-      // Fallback to backend API if Signzy call fails
-      const data = await api.post(API_ENDPOINTS.PAN.VALIDATE, { panNumber });
-      return data;
+      throw err;
     }
   },
 
