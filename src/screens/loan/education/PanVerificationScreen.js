@@ -39,12 +39,15 @@ const PanVerificationScreen = ({ navigation }) => {
         firstName,
         lastName,
       );
-      setPan(data.panNumber || '');
-      setPanName(data.name || '');
-      setPanFetched(true);
+      if (data.panNumber) {
+        setPan(data.panNumber);
+        setPanName(data.name || '');
+        setPanFetched(true);
+      } else {
+        setPanFetched(false);
+      }
     } catch {
-      setPan('');
-      setPanName('');
+      // Phone-to-PAN lookup failed — user can enter PAN manually
       setPanFetched(false);
     } finally {
       setLoading(false);

@@ -3,18 +3,8 @@ import { API_ENDPOINTS, MOCK_MODE } from '../config/constants';
 import { signzyService } from './signzyService';
 
 export const kycService = {
-  // PAN - Phone to PAN (Signzy)
+  // PAN - Phone to PAN (Signzy direct API - works independent of MOCK_MODE)
   async fetchPanByMobile(mobile, firstName = '', lastName = '') {
-    if (MOCK_MODE) {
-      await new Promise((r) => setTimeout(r, 1200));
-      return {
-        panNumber: 'ABCDE1234F',
-        name: 'RAHUL SHARMA',
-        gender: 'Male',
-        dateOfBirth: '1995-06-15',
-      };
-    }
-
     try {
       const result = await signzyService.phoneToPan(mobile, firstName, lastName);
       return {
@@ -24,35 +14,28 @@ export const kycService = {
         dateOfBirth: result.dateOfBirth,
       };
     } catch (err) {
+      if (MOCK_MODE) {
+        return {
+          panNumber: '',
+          name: '',
+          gender: '',
+          dateOfBirth: '',
+        };
+      }
       // Fallback to backend API if Signzy call fails
       const data = await api.post(API_ENDPOINTS.PAN.FETCH_BY_MOBILE, { mobile });
       return data;
     }
   },
 
-  // PAN Verification (Signzy)
+  // PAN Verification (Signzy direct API - works independent of MOCK_MODE)
   async validatePan(panNumber) {
-    if (MOCK_MODE) {
-      await new Promise((r) => setTimeout(r, 1000));
-      return {
-        isValid: true,
-        name: 'RAHUL SHARMA',
-        panNumber,
-        panStatus: 'VALID',
-        panStatusLabel: 'VALID',
-        firstName: 'RAHUL',
-        middleName: '',
-        lastName: 'SHARMA',
-        typeOfHolder: 'Individual or Person',
-        isIndividual: true,
-        aadhaarSeedingStatus: 'Successful',
-        individualTaxComplianceStatus: 'operative',
-      };
-    }
-
     try {
       return await signzyService.verifyPan(panNumber);
     } catch (err) {
+      if (MOCK_MODE) {
+        throw err;
+      }
       // Fallback to backend API if Signzy call fails
       const data = await api.post(API_ENDPOINTS.PAN.VALIDATE, { panNumber });
       return data;
