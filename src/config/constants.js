@@ -124,10 +124,8 @@ export const API_ENDPOINTS = {
     EMPLOYEE_DETAILS: '/companies/{id}/employees/{empId}',
     LOAN_PRODUCTS: '/companies/{id}/loan-products',
   },
-  PAN: {
-    VALIDATE: '/kyc/pan/validate',
-    FETCH_BY_MOBILE: '/kyc/pan/fetch-by-mobile',
-  },
+  // PAN endpoints removed — PAN operations now use Signzy API directly
+  // via signzyService.js (SIGNZY_CONFIG above)
   CREDIT: {
     SOFT_PULL: '/credit/soft-pull',
     HARD_PULL: '/credit/hard-pull',

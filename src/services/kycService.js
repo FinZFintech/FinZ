@@ -3,19 +3,28 @@ import { API_ENDPOINTS } from '../config/constants';
 import { signzyService } from './signzyService';
 
 export const kycService = {
-  // Phone-to-PAN lookup via Signzy API
+  /**
+   * Phone-to-PAN lookup — calls Signzy phoneToPan API directly.
+   * URL: https://api-preproduction.signzy.app/api/v3/phonekyc/phonetoPan
+   */
   async fetchPanByMobile(mobile, firstName = '', lastName = '') {
-    const data = await signzyService.phoneToPan(mobile, firstName, lastName);
+    console.log('[kycService] fetchPanByMobile → calling signzyService.phoneToPan directly');
+    const result = await signzyService.phoneToPan(mobile, firstName, lastName);
+    console.log('[kycService] phoneToPan result:', JSON.stringify(result));
     return {
-      panNumber: data.pan || '',
-      name: data.name || '',
-      gender: data.gender || '',
-      dateOfBirth: data.dateOfBirth || '',
+      panNumber: result.pan || '',
+      name: result.name || '',
+      gender: result.gender || '',
+      dateOfBirth: result.dateOfBirth || '',
     };
   },
 
-  // PAN verification via Signzy API
+  /**
+   * PAN verification — calls Signzy PAN fetchV2 API directly.
+   * URL: https://api-preproduction.signzy.app/api/v3/pan/fetchV2
+   */
   async validatePan(panNumber) {
+    console.log('[kycService] validatePan → calling signzyService.verifyPan directly');
     return signzyService.verifyPan(panNumber);
   },
 
