@@ -22,7 +22,7 @@ const Input = ({
 
   return (
     <View style={[styles.container, style]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <View
         style={[
           styles.inputContainer,
@@ -31,7 +31,7 @@ const Input = ({
           !editable && styles.disabled,
         ]}
       >
-        {prefix && <Text style={styles.prefix}>{prefix}</Text>}
+        {prefix ? <Text style={styles.prefix}>{prefix}</Text> : null}
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -49,7 +49,7 @@ const Input = ({
         />
         {rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
       </View>
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
 };

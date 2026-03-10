@@ -13,9 +13,9 @@ const Header = ({ title, greeting, subtitle, onBack, rightAction, rightIcon, sho
           </TouchableOpacity>
         )}
         <View style={styles.titleContainer}>
-          {greeting && <Text style={styles.greeting}>{greeting}</Text>}
-          <Text style={[styles.title, greeting && styles.titleWithGreeting]} numberOfLines={1}>{title}</Text>
-          {subtitle && <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>}
+          {greeting ? <Text style={styles.greeting}>{greeting}</Text> : null}
+          <Text style={[styles.title, greeting ? styles.titleWithGreeting : undefined]} numberOfLines={1}>{title}</Text>
+          {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
         </View>
       </View>
       <View style={styles.rightSection}>
