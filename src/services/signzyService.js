@@ -15,19 +15,29 @@ const signzyApi = axios.create({
 signzyApi.interceptors.response.use(
   (response) => response,
   (error) => {
-    const status = error.response?.status;
-    const data = error.response?.data;
+    // Network error — no response received at all
+    if (!error.response) {
+      const networkErr = new Error(
+        'Unable to connect to verification service. Please check your internet connection and try again.',
+      );
+      networkErr.statusCode = 0;
+      networkErr.isNetworkError = true;
+      return Promise.reject(networkErr);
+    }
 
-    let message = 'Signzy API request failed';
+    const status = error.response.status;
+    const data = error.response.data;
+
+    let message = 'Verification service error. Please try again.';
 
     if (status === 400) {
-      message = data?.error?.message || 'Invalid request parameters';
+      message = data?.error?.message || 'Invalid PAN number. Please check and re-enter.';
     } else if (status === 401) {
-      message = data?.message || 'Invalid Signzy authentication credentials';
+      message = data?.message || 'Verification service authentication failed. Please contact support.';
     } else if (status === 404) {
-      message = data?.error?.message || 'Record not found';
+      message = data?.error?.message || 'PAN number not found. Please check and re-enter.';
     } else if (status === 409) {
-      message = data?.error?.message || 'Service temporarily unavailable';
+      message = 'Verification service is temporarily unavailable. Please try again later.';
     } else if (data?.error?.message) {
       message = data.error.message;
     } else if (data?.message) {

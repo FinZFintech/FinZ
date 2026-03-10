@@ -22,10 +22,40 @@ const PanVerificationScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [panName, setPanName] = useState('');
   const [panError, setPanError] = useState(null);
+  const [panInputError, setPanInputError] = useState('');
 
   useEffect(() => {
     fetchPanByMobile();
   }, []);
+
+  // PAN format: 5 letters + 4 digits + 1 letter (e.g. ABCDE1234F)
+  const sanitizePanInput = (text) => {
+    const upper = text.toUpperCase();
+    let filtered = '';
+    for (let i = 0; i < upper.length && i < 10; i++) {
+      const ch = upper[i];
+      if (i < 5) {
+        // First 5 must be letters
+        if (/[A-Z]/.test(ch)) filtered += ch;
+      } else if (i < 9) {
+        // Next 4 must be digits
+        if (/[0-9]/.test(ch)) filtered += ch;
+      } else {
+        // Last 1 must be a letter
+        if (/[A-Z]/.test(ch)) filtered += ch;
+      }
+    }
+    return filtered;
+  };
+
+  const getPanInputHint = (value) => {
+    if (!value) return '';
+    if (value.length < 5) return 'Enter 5 letters (e.g. ABCDE...)';
+    if (value.length < 9) return 'Enter 4 digits (e.g. ...1234...)';
+    if (value.length < 10) return 'Enter last letter (e.g. ...F)';
+    if (!validatePan(value)) return 'Invalid PAN format';
+    return '';
+  };
 
   const fetchPanByMobile = async () => {
     setLoading(true);
@@ -90,6 +120,7 @@ const PanVerificationScreen = ({ navigation }) => {
     }
     setLoading(true);
     setPanError(null);
+    setPanInputError('');
     try {
       const result = await kycService.validatePan(pan);
 
@@ -113,16 +144,20 @@ const PanVerificationScreen = ({ navigation }) => {
           aadhaarSeedingStatus: result.aadhaarSeedingStatus,
         },
       });
-    } catch (err) {
-      const errorMsg =
-        err?.error?.message || err?.message || 'PAN verification failed';
-      setPanError(`${errorMsg}. Please enter the correct PAN number or go back to change the borrower phone number registered with PAN (NSDL).`);
       setLoading(false);
-      return;
+      runCreditCheck(pan);
+    } catch (err) {
+      let errorMsg = 'PAN verification failed. Please try again.';
+      if (err?.message) {
+        errorMsg = err.message;
+      } else if (err?.error?.message) {
+        errorMsg = err.error.message;
+      } else if (typeof err === 'string') {
+        errorMsg = err;
+      }
+      setPanError(`${errorMsg}\n\nPlease enter the correct PAN number or go back to change the borrower phone number registered with PAN (NSDL).`);
+      setLoading(false);
     }
-    setLoading(false);
-    // Automatically run credit check after PAN verification
-    runCreditCheck(pan);
   };
 
   const handleRetryPan = () => {
@@ -132,6 +167,7 @@ const PanVerificationScreen = ({ navigation }) => {
     setPanVerified(false);
     setPanDetails(null);
     setPanError(null);
+    setPanInputError('');
     setCreditPassed(null);
   };
 
@@ -168,16 +204,19 @@ const PanVerificationScreen = ({ navigation }) => {
             label="PAN Number"
             value={pan}
             onChangeText={(t) => {
-              setPan(t.toUpperCase());
+              const sanitized = sanitizePanInput(t);
+              setPan(sanitized);
+              setPanInputError(getPanInputHint(sanitized));
               setPanVerified(false);
               setPanDetails(null);
               setPanError(null);
               setCreditPassed(null);
             }}
-            placeholder="Enter PAN (e.g., ABCDE1234F)"
+            placeholder="ABCDE1234F"
             maxLength={10}
             autoCapitalize="characters"
             editable={!panVerified}
+            error={panInputError}
           />
           {panName ? (
             <InfoRow label="Name on PAN" value={panName} />
@@ -204,7 +243,7 @@ const PanVerificationScreen = ({ navigation }) => {
               title="Verify PAN"
               onPress={handleVerifyPan}
               loading={loading}
-              disabled={pan.length !== 10}
+              disabled={!validatePan(pan)}
               style={styles.btn}
             />
           ) : (
