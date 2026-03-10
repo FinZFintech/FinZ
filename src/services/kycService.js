@@ -1,58 +1,58 @@
+import { Platform } from 'react-native';
 import api from './api';
-import { API_ENDPOINTS, MOCK_MODE } from '../config/constants';
+import { API_ENDPOINTS } from '../config/constants';
+import { signzyService } from './signzyService';
 
 export const kycService = {
-  // PAN - Phone to PAN (routed through backend to avoid CORS)
+  // PAN - Phone to PAN via Signzy API
+  // On native (Android/iOS) calls Signzy directly; on web, proxies through backend
   async fetchPanByMobile(mobile, firstName = '', lastName = '') {
-    try {
-      const data = await api.post(API_ENDPOINTS.PAN.FETCH_BY_MOBILE, {
-        mobile,
-        firstName,
-        lastName,
-      });
+    if (Platform.OS !== 'web') {
+      // Native: call Signzy directly (no CORS restriction)
+      const data = await signzyService.phoneToPan(mobile, firstName, lastName);
       return {
-        panNumber: data.panNumber || data.pan || '',
+        panNumber: data.pan || '',
         name: data.name || '',
         gender: data.gender || '',
         dateOfBirth: data.dateOfBirth || '',
       };
-    } catch (err) {
-      if (MOCK_MODE) {
-        return {
-          panNumber: '',
-          name: '',
-          gender: '',
-          dateOfBirth: '',
-        };
-      }
-      throw err;
     }
+    // Web: route through backend proxy to avoid CORS
+    const data = await api.post(API_ENDPOINTS.PAN.FETCH_BY_MOBILE, {
+      mobile,
+      firstName,
+      lastName,
+    });
+    return {
+      panNumber: data.panNumber || data.pan || '',
+      name: data.name || '',
+      gender: data.gender || '',
+      dateOfBirth: data.dateOfBirth || '',
+    };
   },
 
-  // PAN Verification (routed through backend to avoid CORS)
+  // PAN Verification via Signzy API
   async validatePan(panNumber) {
-    try {
-      const data = await api.post(API_ENDPOINTS.PAN.VALIDATE, { panNumber });
-      return {
-        isValid: data.isValid === true,
-        name: data.name || '',
-        panNumber: data.panNumber || panNumber,
-        panStatus: data.panStatus || '',
-        panStatusLabel: data.panStatusLabel || data.panStatus || 'UNKNOWN',
-        firstName: data.firstName || '',
-        middleName: data.middleName || '',
-        lastName: data.lastName || '',
-        typeOfHolder: data.typeOfHolder || '',
-        isIndividual: data.isIndividual === true,
-        aadhaarSeedingStatus: data.aadhaarSeedingStatus || '',
-        individualTaxComplianceStatus: data.individualTaxComplianceStatus || '',
-      };
-    } catch (err) {
-      if (MOCK_MODE) {
-        throw err;
-      }
-      throw err;
+    if (Platform.OS !== 'web') {
+      // Native: call Signzy directly
+      return signzyService.verifyPan(panNumber);
     }
+    // Web: route through backend proxy
+    const data = await api.post(API_ENDPOINTS.PAN.VALIDATE, { panNumber });
+    return {
+      isValid: data.isValid === true,
+      name: data.name || '',
+      panNumber: data.panNumber || panNumber,
+      panStatus: data.panStatus || '',
+      panStatusLabel: data.panStatusLabel || data.panStatus || 'UNKNOWN',
+      firstName: data.firstName || '',
+      middleName: data.middleName || '',
+      lastName: data.lastName || '',
+      typeOfHolder: data.typeOfHolder || '',
+      isIndividual: data.isIndividual === true,
+      aadhaarSeedingStatus: data.aadhaarSeedingStatus || '',
+      individualTaxComplianceStatus: data.individualTaxComplianceStatus || '',
+    };
   },
 
   // Credit Bureau
