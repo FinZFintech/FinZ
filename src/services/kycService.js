@@ -1,58 +1,22 @@
-import { Platform } from 'react-native';
 import api from './api';
 import { API_ENDPOINTS } from '../config/constants';
 import { signzyService } from './signzyService';
 
 export const kycService = {
-  // PAN - Phone to PAN via Signzy API
-  // On native (Android/iOS) calls Signzy directly; on web, proxies through backend
+  // Phone-to-PAN lookup via Signzy API
   async fetchPanByMobile(mobile, firstName = '', lastName = '') {
-    if (Platform.OS !== 'web') {
-      // Native: call Signzy directly (no CORS restriction)
-      const data = await signzyService.phoneToPan(mobile, firstName, lastName);
-      return {
-        panNumber: data.pan || '',
-        name: data.name || '',
-        gender: data.gender || '',
-        dateOfBirth: data.dateOfBirth || '',
-      };
-    }
-    // Web: route through backend proxy to avoid CORS
-    const data = await api.post(API_ENDPOINTS.PAN.FETCH_BY_MOBILE, {
-      mobile,
-      firstName,
-      lastName,
-    });
+    const data = await signzyService.phoneToPan(mobile, firstName, lastName);
     return {
-      panNumber: data.panNumber || data.pan || '',
+      panNumber: data.pan || '',
       name: data.name || '',
       gender: data.gender || '',
       dateOfBirth: data.dateOfBirth || '',
     };
   },
 
-  // PAN Verification via Signzy API
+  // PAN verification via Signzy API
   async validatePan(panNumber) {
-    if (Platform.OS !== 'web') {
-      // Native: call Signzy directly
-      return signzyService.verifyPan(panNumber);
-    }
-    // Web: route through backend proxy
-    const data = await api.post(API_ENDPOINTS.PAN.VALIDATE, { panNumber });
-    return {
-      isValid: data.isValid === true,
-      name: data.name || '',
-      panNumber: data.panNumber || panNumber,
-      panStatus: data.panStatus || '',
-      panStatusLabel: data.panStatusLabel || data.panStatus || 'UNKNOWN',
-      firstName: data.firstName || '',
-      middleName: data.middleName || '',
-      lastName: data.lastName || '',
-      typeOfHolder: data.typeOfHolder || '',
-      isIndividual: data.isIndividual === true,
-      aadhaarSeedingStatus: data.aadhaarSeedingStatus || '',
-      individualTaxComplianceStatus: data.individualTaxComplianceStatus || '',
-    };
+    return signzyService.verifyPan(panNumber);
   },
 
   // Credit Bureau
