@@ -21,6 +21,7 @@ const PanVerificationScreen = ({ navigation }) => {
   const [creditPassed, setCreditPassed] = useState(null);
   const [loading, setLoading] = useState(false);
   const [panName, setPanName] = useState('');
+  const [panError, setPanError] = useState(null);
 
   useEffect(() => {
     fetchPanByMobile();
@@ -84,19 +85,17 @@ const PanVerificationScreen = ({ navigation }) => {
 
   const handleVerifyPan = async () => {
     if (!validatePan(pan)) {
-      Alert.alert('Error', 'Please enter a valid PAN number');
+      setPanError('Please enter a valid PAN number in format ABCDE1234F.');
       return;
     }
     setLoading(true);
+    setPanError(null);
     try {
       const result = await kycService.validatePan(pan);
 
       if (!result.isValid) {
         const statusMsg = result.panStatusLabel || result.panStatus || 'INVALID';
-        Alert.alert(
-          'PAN Verification Failed',
-          `PAN status: ${statusMsg}. Please check and try again.`,
-        );
+        setPanError(`PAN verification failed — status: ${statusMsg}. Please enter the correct PAN or go back to update your mobile number registered with NSDL.`);
         setLoading(false);
         return;
       }
@@ -116,14 +115,28 @@ const PanVerificationScreen = ({ navigation }) => {
       });
     } catch (err) {
       const errorMsg =
-        err?.error?.message || err?.message || 'PAN verification failed. Please try again.';
-      Alert.alert('Verification Error', errorMsg);
+        err?.error?.message || err?.message || 'PAN verification failed';
+      setPanError(`${errorMsg}. Please enter the correct PAN number or go back to change the borrower phone number registered with PAN (NSDL).`);
       setLoading(false);
       return;
     }
     setLoading(false);
     // Automatically run credit check after PAN verification
     runCreditCheck(pan);
+  };
+
+  const handleRetryPan = () => {
+    setPan('');
+    setPanName('');
+    setPanFetched(false);
+    setPanVerified(false);
+    setPanDetails(null);
+    setPanError(null);
+    setCreditPassed(null);
+  };
+
+  const handleChangeBorrower = () => {
+    navigation.goBack();
   };
 
   const handleProceed = () => {
@@ -158,6 +171,7 @@ const PanVerificationScreen = ({ navigation }) => {
               setPan(t.toUpperCase());
               setPanVerified(false);
               setPanDetails(null);
+              setPanError(null);
               setCreditPassed(null);
             }}
             placeholder="Enter PAN (e.g., ABCDE1234F)"
@@ -199,6 +213,26 @@ const PanVerificationScreen = ({ navigation }) => {
             </View>
           )}
         </Card>
+
+        {/* PAN Verification Error */}
+        {panError && (
+          <Card style={styles.errorCard}>
+            <Text style={styles.errorIcon}>⚠</Text>
+            <Text style={styles.errorTitle}>Verification Failed</Text>
+            <Text style={styles.errorText}>{panError}</Text>
+            <Button
+              title="Enter Correct PAN"
+              onPress={handleRetryPan}
+              style={styles.btn}
+            />
+            <Button
+              title="Change Borrower Phone Number"
+              onPress={handleChangeBorrower}
+              variant="outline"
+              style={styles.btnSecondary}
+            />
+          </Card>
+        )}
 
         {/* Credit Check In Progress */}
         {creditChecking && (
@@ -267,6 +301,22 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   btn: { marginTop: 12 },
+  btnSecondary: { marginTop: 8 },
+  errorCard: { alignItems: 'center', backgroundColor: '#FFF3F0', borderLeftWidth: 3, borderLeftColor: COLORS.error },
+  errorIcon: { fontSize: 36, marginBottom: 6 },
+  errorTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: COLORS.error,
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 4,
+  },
   panDetailsContainer: {
     backgroundColor: COLORS.background,
     borderRadius: 8,
