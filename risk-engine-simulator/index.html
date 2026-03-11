@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinZ Risk Engine Simulator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <h1>FinZ Risk Engine Simulator</h1>
+      <p class="subtitle">Comprehensive Risk Scoring &mdash; 22 Signzy APIs &middot; 7 Categories &middot; 4 Phases</p>
+    </div>
+  </header>
+
+  <main>
+    <!-- Applicant Input Panel -->
+    <section class="panel input-panel">
+      <h2>Applicant Input Data</h2>
+      <p class="panel-desc">These are the inputs collected from the borrower during the loan application flow. Edit any field to re-simulate.</p>
+      <div class="input-grid">
+        <div class="input-group">
+          <h3>Personal Details</h3>
+          <label>First Name <input type="text" id="firstName" value="Rajesh"></label>
+          <label>Last Name <input type="text" id="lastName" value="Kumar"></label>
+          <label>Date of Birth <input type="date" id="dob" value="1990-05-15"></label>
+          <label>Email <input type="email" id="email" value="rajesh.kumar@gmail.com"></label>
+          <label>Phone <input type="tel" id="phone" value="9876543210"></label>
+        </div>
+        <div class="input-group">
+          <h3>Identity</h3>
+          <label>PAN Number <input type="text" id="pan" value="ABCPK1234A" maxlength="10"></label>
+          <label>Aadhaar (last 4) <input type="text" id="aadhaarLast4" value="5678" maxlength="4"></label>
+        </div>
+        <div class="input-group">
+          <h3>Address</h3>
+          <label>Address Line <input type="text" id="address" value="42, MG Road, Koramangala"></label>
+          <label>City <input type="text" id="city" value="Bangalore"></label>
+          <label>State <input type="text" id="state" value="Karnataka"></label>
+          <label>Pincode <input type="text" id="pincode" value="560034" maxlength="6"></label>
+        </div>
+        <div class="input-group">
+          <h3>Financial</h3>
+          <label>Bank Account No. <input type="text" id="accountNumber" value="1234567890123"></label>
+          <label>IFSC Code <input type="text" id="ifsc" value="SBIN0001234"></label>
+          <label>Monthly Income (₹) <input type="number" id="monthlyIncome" value="65000"></label>
+          <label>Existing EMI (₹) <input type="number" id="existingEmi" value="8000"></label>
+        </div>
+        <div class="input-group">
+          <h3>Loan Request</h3>
+          <label>Loan Amount (₹) <input type="number" id="loanAmount" value="200000"></label>
+          <label>Tenure (months) <input type="number" id="tenure" value="12" min="6" max="36"></label>
+          <label>Interest Rate (%) <input type="number" id="interestRate" value="14" step="0.5"></label>
+        </div>
+        <div class="input-group">
+          <h3>Device & Session</h3>
+          <label>Device IMEI <input type="text" id="imei" value="352456789012345"></label>
+          <label>IP Address <input type="text" id="ipAddress" value="103.21.58.193"></label>
+          <label>Device ID <input type="text" id="deviceId" value="a1b2c3d4-e5f6-7890"></label>
+        </div>
+      </div>
+      <button id="runSimulation" class="btn-primary">Run Full Risk Simulation</button>
+    </section>
+
+    <!-- Phase Execution -->
+    <section class="panel" id="phasesPanel" style="display:none;">
+      <h2>Phase Execution &amp; API Responses</h2>
+      <div class="phase-tabs">
+        <button class="phase-tab active" data-phase="A">Phase A<span>Identity + Digital</span></button>
+        <button class="phase-tab" data-phase="B">Phase B<span>Income + Employment</span></button>
+        <button class="phase-tab" data-phase="C">Phase C<span>Address + KYC</span></button>
+        <button class="phase-tab" data-phase="D">Phase D<span>Bank + Document</span></button>
+      </div>
+
+      <div id="phaseContent"></div>
+    </section>
+
+    <!-- Scoring Breakdown -->
+    <section class="panel" id="scoringPanel" style="display:none;">
+      <h2>Risk Score Breakdown</h2>
+      <div class="score-dashboard">
+        <div class="final-score-card">
+          <div class="score-ring" id="scoreRing">
+            <svg viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="54" stroke="#e0e0e0" stroke-width="8" fill="none"/>
+              <circle cx="60" cy="60" r="54" stroke="#4caf50" stroke-width="8" fill="none"
+                stroke-dasharray="339.3" stroke-dashoffset="339.3" id="scoreArc"
+                stroke-linecap="round" transform="rotate(-90 60 60)"/>
+            </svg>
+            <div class="score-value" id="finalScoreValue">0</div>
+            <div class="score-max">/ 1000</div>
+          </div>
+          <div class="score-label" id="scoreLabel">Calculating...</div>
+          <div class="score-decision" id="scoreDecision"></div>
+        </div>
+        <div class="category-bars" id="categoryBars"></div>
+      </div>
+
+      <!-- Flags -->
+      <div class="flags-section" id="flagsSection">
+        <h3>Risk Flags</h3>
+        <div id="flagsList"></div>
+      </div>
+
+      <!-- Phase progression -->
+      <div class="phase-progression" id="phaseProgression">
+        <h3>Score Progression Across Phases</h3>
+        <div class="progression-chart" id="progressionChart"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="mockData.js"></script>
+  <script src="scoringEngine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
