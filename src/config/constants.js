@@ -15,6 +15,19 @@ export const SIGNZY_CONFIG = {
   },
 };
 
+// Signzy US OTP API Configuration
+export const SIGNZY_OTP_CONFIG = {
+  BASE_URL: 'https://api-preproduction.signzy.us/api/v3',
+  AUTH_TOKEN: 'vqoNYa3hklTfQJBzUoEr1i1qahc6MtuR',
+  CLIENT_ID: '64c1115454eb66846d026abf',
+  ENDPOINTS: {
+    SEND_OTP: '/otp-verification/send-otp',
+    VERIFY_OTP: '/otp-verification/verify-otp',
+  },
+  DEFAULT_CHANNEL: 'SMSOTP',
+  DEFAULT_OTP_LENGTH: '6',
+};
+
 export const COLORS = {
   primary: '#2D2B6B',       // Navy (logo "fin" text & Z dark portion)
   primaryLight: '#3E3C8A',
