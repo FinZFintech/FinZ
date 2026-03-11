@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FinZ Risk Engine Simulator</title>
+  <title>FinZ Risk Engine Simulator v2</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header>
     <div class="header-inner">
       <h1>FinZ Risk Engine Simulator</h1>
-      <p class="subtitle">Comprehensive Risk Scoring &mdash; 22 Signzy APIs &middot; 7 Categories &middot; 4 Phases</p>
+      <p class="subtitle">Comprehensive Risk Scoring &mdash; 31 APIs &middot; 12 Categories &middot; 4 Phases &middot; Time-Decay &middot; Product-Aware</p>
     </div>
   </header>
 
@@ -32,6 +32,7 @@
           <h3>Identity</h3>
           <label>PAN Number <input type="text" id="pan" value="ABCPK1234A" maxlength="10"></label>
           <label>Aadhaar (last 4) <input type="text" id="aadhaarLast4" value="5678" maxlength="4"></label>
+          <label>GSTIN <input type="text" id="gstin" value="" placeholder="Optional (self-employed)"></label>
         </div>
         <div class="input-group">
           <h3>Address</h3>
@@ -52,6 +53,13 @@
           <label>Loan Amount (₹) <input type="number" id="loanAmount" value="200000"></label>
           <label>Tenure (months) <input type="number" id="tenure" value="12" min="6" max="36"></label>
           <label>Interest Rate (%) <input type="number" id="interestRate" value="14" step="0.5"></label>
+          <label>Repeat Borrower
+            <select id="repeatBorrower">
+              <option value="no">No — First-time</option>
+              <option value="yes_good">Yes — Good history</option>
+              <option value="yes_bad">Yes — Late payments</option>
+            </select>
+          </label>
         </div>
         <div class="input-group">
           <h3>Device & Session</h3>
@@ -67,10 +75,10 @@
     <section class="panel" id="phasesPanel" style="display:none;">
       <h2>Phase Execution &amp; API Responses</h2>
       <div class="phase-tabs">
-        <button class="phase-tab active" data-phase="A">Phase A<span>Identity + Digital</span></button>
-        <button class="phase-tab" data-phase="B">Phase B<span>Income + Employment</span></button>
-        <button class="phase-tab" data-phase="C">Phase C<span>Address + KYC</span></button>
-        <button class="phase-tab" data-phase="D">Phase D<span>Bank + Document</span></button>
+        <button class="phase-tab active" data-phase="A">Phase A<span>Identity + Digital + Behavioral</span></button>
+        <button class="phase-tab" data-phase="B">Phase B<span>Credit + Income + Employment</span></button>
+        <button class="phase-tab" data-phase="C">Phase C<span>Address + KYC + Legal</span></button>
+        <button class="phase-tab" data-phase="D">Phase D<span>Bank + Docs + Product</span></button>
       </div>
 
       <div id="phaseContent"></div>
@@ -95,6 +103,12 @@
           <div class="score-decision" id="scoreDecision"></div>
         </div>
         <div class="category-bars" id="categoryBars"></div>
+      </div>
+
+      <!-- Modifiers -->
+      <div class="modifiers-section" id="modifiersSection" style="display:none;">
+        <h3>Score Modifiers</h3>
+        <div id="modifiersList"></div>
       </div>
 
       <!-- Flags -->

@@ -1,5 +1,5 @@
 /**
- * FinZ Risk Engine Simulator — UI Controller
+ * FinZ Risk Engine Simulator v2 — UI Controller
  */
 
 let currentScenario = 'good';
@@ -7,10 +7,7 @@ let currentPhase = 'A';
 let currentApis = {};
 let currentResult = null;
 
-// ─── Initialization ─────────────────────────────────────────────────────────
-
 document.addEventListener('DOMContentLoaded', () => {
-  // Add scenario bar before the input panel
   const inputPanel = document.querySelector('.input-panel');
   const scenarioBar = document.createElement('div');
   scenarioBar.className = 'scenario-bar';
@@ -21,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
   `;
   inputPanel.insertBefore(scenarioBar, inputPanel.querySelector('.input-grid'));
 
-  // Scenario switching
   scenarioBar.addEventListener('click', (e) => {
     const btn = e.target.closest('.btn-scenario');
     if (!btn) return;
@@ -31,10 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     populateInputs(SCENARIOS[currentScenario].applicant);
   });
 
-  // Run simulation
   document.getElementById('runSimulation').addEventListener('click', runSimulation);
 
-  // Phase tabs
   document.querySelector('.phase-tabs').addEventListener('click', (e) => {
     const tab = e.target.closest('.phase-tab');
     if (!tab) return;
@@ -45,18 +39,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-
-// ─── Populate Inputs ────────────────────────────────────────────────────────
-
 function populateInputs(applicant) {
   for (const [key, value] of Object.entries(applicant)) {
     const el = document.getElementById(key);
     if (el) el.value = value;
   }
 }
-
-
-// ─── Read Inputs ────────────────────────────────────────────────────────────
 
 function readInputs() {
   return {
@@ -67,6 +55,7 @@ function readInputs() {
     phone: document.getElementById('phone').value,
     pan: document.getElementById('pan').value,
     aadhaarLast4: document.getElementById('aadhaarLast4').value,
+    gstin: document.getElementById('gstin').value,
     address: document.getElementById('address').value,
     city: document.getElementById('city').value,
     state: document.getElementById('state').value,
@@ -78,54 +67,46 @@ function readInputs() {
     loanAmount: Number(document.getElementById('loanAmount').value),
     tenure: Number(document.getElementById('tenure').value),
     interestRate: Number(document.getElementById('interestRate').value),
+    repeatBorrower: document.getElementById('repeatBorrower').value,
     imei: document.getElementById('imei').value,
     ipAddress: document.getElementById('ipAddress').value,
     deviceId: document.getElementById('deviceId').value,
   };
 }
 
-
-// ─── Run Simulation ─────────────────────────────────────────────────────────
-
 function runSimulation() {
   const applicant = readInputs();
   currentApis = generateApiResponses(currentScenario);
   currentResult = calculateFullRiskScore(currentApis, applicant);
 
-  // Show panels
   document.getElementById('phasesPanel').style.display = 'block';
   document.getElementById('scoringPanel').style.display = 'block';
 
-  // Reset to Phase A
   currentPhase = 'A';
   document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active'));
   document.querySelector('[data-phase="A"]').classList.add('active');
 
   renderPhase('A');
   renderScoring();
-
-  // Smooth scroll to results
   document.getElementById('phasesPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-
-// ─── Render Phase ───────────────────────────────────────────────────────────
 
 function renderPhase(phase) {
   const container = document.getElementById('phaseContent');
   const phaseApis = Object.values(currentApis).filter(api => api.phase === phase);
 
   const phaseDescriptions = {
-    A: 'Triggered after PAN + phone collected (Step 2). Runs 7 APIs in parallel to assess identity and digital trustworthiness.',
-    B: 'Triggered after income data collected (Step 3). Runs 4 APIs to verify income, employment, and financial stability.',
-    C: 'Triggered after KYC + address obtained (Step 4). Runs 7 APIs to validate address, location, and cross-check KYC documents.',
-    D: 'Triggered after bank details verified (Step 5). Runs 4 APIs for bank verification, document forgery check, and device validation.',
+    A: 'Triggered after PAN + phone collected. Runs 9 APIs: identity verification, digital trust signals, velocity checks, and session behavior analytics.',
+    B: 'Triggered after income data collected. Runs 8 APIs: credit bureau pull, income estimation, ITR verification, GST check, and employment verification.',
+    C: 'Triggered after KYC + address obtained. Runs 8 APIs: address validation, geo-fencing, e-Aadhaar, DigiLocker, court records, and fraud ring detection.',
+    D: 'Triggered after bank details verified. Runs 6 APIs: bank verification, document forgery, bank statement analysis (AA), IMEI check, and product-aware risk adjustment.',
   };
 
   const phaseGates = {
-    A: { threshold: 200, label: 'Preliminary score must be ≥ 200 to continue' },
-    B: { threshold: 300, label: 'Updated score must be ≥ 300 to continue' },
-    C: { threshold: 350, label: 'Score must be ≥ 350 (or routed to manual review)' },
+    A: { threshold: 200, label: 'Preliminary score ≥ 200 to continue' },
+    B: { threshold: 300, label: 'Updated score ≥ 300 to continue' },
+    C: { threshold: 350, label: 'Score ≥ 350 (or manual review)' },
     D: { threshold: null, label: 'Final score determines decision' },
   };
 
@@ -147,11 +128,8 @@ function renderPhase(phase) {
     ${phaseApis.map(api => renderApiCard(api)).join('')}
   `;
 
-  // Toggle expand on click
   container.querySelectorAll('.api-card-header').forEach(header => {
-    header.addEventListener('click', () => {
-      header.parentElement.classList.toggle('expanded');
-    });
+    header.addEventListener('click', () => header.parentElement.classList.toggle('expanded'));
   });
 }
 
@@ -159,9 +137,6 @@ function renderPhase(phase) {
 function renderApiCard(api) {
   const isSuccess = api.output.statusCode === 200;
   const statusClass = isSuccess ? 'success' : 'fail';
-  const statusText = isSuccess ? 'Success' : 'Failed';
-
-  // Build scoring explanation for this API
   const scoringExplanation = getScoringExplanation(api);
 
   return `
@@ -173,7 +148,7 @@ function renderApiCard(api) {
         </div>
         <div class="api-status ${statusClass}">
           <span class="api-status-dot"></span>
-          ${statusText}
+          ${isSuccess ? 'Success' : 'Failed'}
         </div>
       </div>
       <div class="api-card-body">
@@ -194,233 +169,218 @@ function renderApiCard(api) {
   `;
 }
 
-
 function formatInput(inputDef) {
-  const obj = {};
+  const obj = {}, schema = {};
   for (const [key, def] of Object.entries(inputDef)) {
     obj[key] = def.value;
-  }
-  // Also show the schema
-  const schema = {};
-  for (const [key, def] of Object.entries(inputDef)) {
     schema[key] = `${def.type}${def.required ? ' (required)' : ' (optional)'} — ${def.description}`;
   }
   return JSON.stringify({ parameters: obj, schema }, null, 2);
 }
 
 
-function getScoringExplanation(api) {
-  const explanations = {
-    panFetch: (r) => {
-      const lines = [];
-      lines.push(`Category: Identity Verification (weight: 20%)`);
-      lines.push(`─────────────────────────────────────────`);
-      if (r.isValid) lines.push(`+ 20 pts  PAN is valid`);
-      else lines.push(`- 50 pts  PAN is INVALID`);
-      if (r.panStatusLabel === 'VALID') lines.push(`+ 10 pts  PAN status = VALID`);
-      else if (['FAKE','DEACTIVATED'].includes(r.panStatusLabel)) lines.push(`- 50 pts  PAN status = ${r.panStatusLabel}`);
-      if (r.aadhaarSeedingStatus === 'Yes') lines.push(`+ 10 pts  Aadhaar seeded to PAN`);
-      else lines.push(`-  5 pts  Aadhaar NOT seeded`);
-      if (r.individualTaxComplianceStatus === 'Operative') lines.push(`+  5 pts  Tax compliance: operative`);
-      else lines.push(`- 10 pts  Tax compliance: inoperative`);
-      return lines.join('\n');
-    },
-    phoneToPan: (r) => {
-      const lines = [`Category: Identity Verification (weight: 20%)`, `─────────────────────────────────────────`];
-      if (r.matchFound) lines.push(`+ 15 pts  Phone-to-PAN match confirmed`);
-      else lines.push(`-  5 pts  No phone-to-PAN match`);
-      return lines.join('\n');
-    },
-    phoneIntelligence: (r) => {
-      const lines = [`Category: Phone & Digital Trust (weight: 15%)`, `─────────────────────────────────────────`];
-      if (r.riskScore < 300) lines.push(`+ 20 pts  Risk score ${r.riskScore} (low)`);
-      else if (r.riskScore < 500) lines.push(`+ 10 pts  Risk score ${r.riskScore} (medium)`);
-      else if (r.riskScore >= 700) lines.push(`- 30 pts  Risk score ${r.riskScore} (HIGH)`);
-      if (r.phoneType === 'mobile') lines.push(`+ 10 pts  Phone type: mobile`);
-      else lines.push(`- 25 pts  Phone type: ${r.phoneType}`);
-      if (!r.isBlocklisted) lines.push(`+ 10 pts  Not blocklisted`);
-      else lines.push(`- 40 pts  BLOCKLISTED`);
-      if (r.simSwapDetected) lines.push(`- 15 pts  SIM swap detected`);
-      if (r.fraudSources?.length) lines.push(`- 40 pts  Fraud sources: ${r.fraudSources.join(', ')}`);
-      return lines.join('\n');
-    },
-    whatsappPresence: (r) => {
-      const lines = [`Category: Phone & Digital Trust (weight: 15%)`, `─────────────────────────────────────────`];
-      if (r.isRegistered && r.accountType === 'personal') lines.push(`+ 15 pts  WhatsApp personal account`);
-      else if (r.isRegistered) lines.push(`+ 10 pts  WhatsApp registered (business)`);
-      else lines.push(`-  5 pts  No WhatsApp account`);
-      return lines.join('\n');
-    },
-    digitalIdentityScore: (r) => {
-      const lines = [`Category: Phone & Digital Trust (weight: 15%)`, `─────────────────────────────────────────`];
-      if (r.score > 7) lines.push(`+ 10 pts  Digital score: ${r.score}/10 (strong)`);
-      else if (r.score > 5) lines.push(`+  5 pts  Digital score: ${r.score}/10`);
-      else if (r.score <= 3) lines.push(`- 10 pts  Digital score: ${r.score}/10 (very thin)`);
-      if (r.ecomPresence?.length >= 2) lines.push(`+  5 pts  E-commerce presence: ${r.ecomPresence.join(', ')}`);
-      if (r.socialPresence?.length >= 1) lines.push(`+  5 pts  Social presence: ${r.socialPresence.join(', ')}`);
-      if (r.phoneFirstSeen) {
-        const age = (new Date() - new Date(r.phoneFirstSeen)) / (365.25*24*60*60*1000);
-        if (age >= 2) lines.push(`+  5 pts  Phone established (${r.phoneFirstSeen})`);
-        else if (age < 0.5) lines.push(`- 15 pts  Phone very recent (${r.phoneFirstSeen})`);
-      } else {
-        lines.push(`- 10 pts  Phone first seen: unknown`);
-      }
-      return lines.join('\n');
-    },
-    phoneToAlternate: (r) => {
-      const lines = [`Category: Device & Behavioral (weight: 10%)`, `─────────────────────────────────────────`];
-      if (r.totalFound <= 2) lines.push(`+ 15 pts  ${r.totalFound} alternate phone(s) (normal)`);
-      else if (r.totalFound <= 4) lines.push(`+  5 pts  ${r.totalFound} alternate phones`);
-      else lines.push(`- 15 pts  ${r.totalFound} alternate phones (suspicious)`);
-      return lines.join('\n');
-    },
-    phoneToIdentity: (r) => {
-      const lines = [`Category: Identity Verification (weight: 20%)`, `─────────────────────────────────────────`];
-      if (r.identities?.length >= 2) lines.push(`+ 10 pts  ${r.identities.length} identity docs found`);
-      else if (r.identities?.length === 1) lines.push(`+  5 pts  1 identity doc found`);
-      else lines.push(`- 10 pts  No identity docs`);
-      if (r.consistencyScore >= 80) lines.push(`+ 15 pts  Consistency: ${r.consistencyScore}%`);
-      else if (r.consistencyScore >= 60) lines.push(`+  8 pts  Consistency: ${r.consistencyScore}%`);
-      else lines.push(`- 10 pts  Low consistency: ${r.consistencyScore}%`);
-      return lines.join('\n');
-    },
-    phoneToIncome: (r) => {
-      const lines = [`Category: Income & Capacity (weight: 15%)`, `─────────────────────────────────────────`];
-      if (r.estimatedMonthlyIncome) {
-        lines.push(`+ 15 pts  Income estimate available`);
-        lines.push(`          Estimated: ₹${r.estimatedMonthlyIncome?.toLocaleString()}`);
-        lines.push(`          Confidence: ${r.confidence}`);
-        lines.push(`          Points for income-to-EMI ratio calculated separately`);
-      } else {
-        lines.push(`- 20 pts  No income estimate available`);
-      }
-      return lines.join('\n');
-    },
-    phoneToPrefill: (r) => {
-      const lines = [`Category: Income & Capacity (weight: 15%)`, `─────────────────────────────────────────`];
-      if (r.dataRichness === 'high') lines.push(`+ 10 pts  Rich prefill data`);
-      else if (r.dataRichness === 'medium') lines.push(`+  5 pts  Medium prefill data`);
-      else lines.push(`-  5 pts  Thin/no prefill data`);
-      return lines.join('\n');
-    },
-    employmentVerification: (r) => {
-      const lines = [`Category: Financial Stability (weight: 25%)`, `─────────────────────────────────────────`];
-      if (r.isEmployed) lines.push(`+ 20 pts  Currently employed at ${r.employerName}`);
-      else if (r.membershipStatus === 'not_found') lines.push(`- 15 pts  No EPFO record found`);
-      else lines.push(`- 20 pts  Employment ended: ${r.dateOfExit}`);
-      return lines.join('\n');
-    },
-    advancedEmployment: (r) => {
-      const lines = [`Category: Financial Stability (weight: 25%)`, `─────────────────────────────────────────`];
-      if (r.employmentHistory?.length >= 2) lines.push(`+  5 pts  Stable work history: ${r.totalExperience}`);
-      if (r.pfFilingFrequency === 'monthly') lines.push(`+ 10 pts  PF filed monthly`);
-      else if (r.pfFilingFrequency === 'quarterly') lines.push(`+  3 pts  PF filed quarterly`);
-      else lines.push(`- 10 pts  No PF filings`);
-      if (r.employerGstinActive) lines.push(`+  5 pts  Employer GSTIN active`);
-      return lines.join('\n');
-    },
-    registeredAddress: (r) => {
-      const lines = [`Category: Address & Location (weight: 10%)`, `─────────────────────────────────────────`];
-      if (r.addressFound) {
-        lines.push(`+ 20 pts  Registered address found`);
-        if (r.matchScore >= 80) lines.push(`+ 15 pts  Match score: ${r.matchScore}%`);
-        else if (r.matchScore >= 50) lines.push(`+  5 pts  Partial match: ${r.matchScore}%`);
-        else lines.push(`- 10 pts  Mismatch: ${r.matchScore}%`);
-      } else {
-        lines.push(`- 15 pts  No registered address found`);
-      }
-      return lines.join('\n');
-    },
-    addressGeocode: (r) => {
-      const lines = [`Category: Address & Location (weight: 10%)`, `─────────────────────────────────────────`];
-      if (r.confidence > 0.7) lines.push(`+ 15 pts  Geocode confidence: ${(r.confidence*100).toFixed(0)}%`);
-      else if (r.confidence > 0.5) lines.push(`+  5 pts  Geocode confidence: ${(r.confidence*100).toFixed(0)}%`);
-      else lines.push(`-  5 pts  Low confidence: ${(r.confidence*100).toFixed(0)}%`);
-      if (r.isInternationalBorder) lines.push(`- 10 pts  Near international border (${r.nearestBorderDistance}km)`);
-      else lines.push(`+ 10 pts  Not near border`);
-      return lines.join('\n');
-    },
-    pincodeDetails: (r) => {
-      const lines = [`Category: Address & Location (weight: 10%)`, `─────────────────────────────────────────`];
-      if (r.isServiceable && !r.isBlacklisted) lines.push(`+ 10 pts  Serviceable pincode`);
-      if (r.isBlacklisted) lines.push(`- 30 pts  BLACKLISTED pincode`);
-      if (r.riskCategory === 'low') lines.push(`+  5 pts  Low-risk area`);
-      else if (r.riskCategory === 'high') lines.push(`- 10 pts  High-risk area`);
-      return lines.join('\n');
-    },
-    geoFencing: (r) => {
-      const lines = [`Category: Address & Location (weight: 10%)`, `─────────────────────────────────────────`];
-      if (r.geoMatch && r.stateMatch) lines.push(`+ 20 pts  IP matches claimed location`);
-      else if (r.geoMatch) lines.push(`+  5 pts  Same country, different state`);
-      else lines.push(`- 20 pts  IP geo mismatch: ${r.ipCountry}`);
-      if (r.isTor || r.isVpn) lines.push(`- 15 pts  Anonymizer detected`);
-      return lines.join('\n');
-    },
-    digitalIntegrity: (r) => {
-      const lines = [`Category: Phone & Digital Trust (weight: 15%)`, `─────────────────────────────────────────`];
-      if (r.emailValid && !r.emailDisposable) lines.push(`+  5 pts  Valid, non-disposable email`);
-      if (r.emailDisposable) lines.push(`- 15 pts  Disposable email detected`);
-      if (r.ipBlocklisted) lines.push(`- 20 pts  IP BLOCKLISTED`);
-      if (r.botLikelihood > 0.5) lines.push(`- 20 pts  Bot likelihood: ${(r.botLikelihood*100).toFixed(0)}%`);
-      lines.push(`          Integrity score: ${r.integrityScore}/100`);
-      return lines.join('\n');
-    },
-    eAadhaarXml: (r) => {
-      const lines = [`Category: Identity Verification (weight: 20%)`, `─────────────────────────────────────────`];
-      if (r.digitalSignatureValid) lines.push(`+  5 pts  Digital signature valid`);
-      else if (!r.aadhaarValid) lines.push(`- 15 pts  e-Aadhaar validation FAILED`);
-      return lines.join('\n');
-    },
-    digilockerDetails: (r) => {
-      const lines = [`Category: Identity Verification (weight: 20%)`, `─────────────────────────────────────────`];
-      if (r.totalDocuments >= 3) lines.push(`+ 10 pts  ${r.totalDocuments} DigiLocker docs linked`);
-      else if (r.totalDocuments >= 1) lines.push(`+  5 pts  ${r.totalDocuments} DigiLocker doc(s)`);
-      else lines.push(`-  5 pts  No DigiLocker documents`);
-      return lines.join('\n');
-    },
-    bankVerification: (r) => {
-      const lines = [`Category: Financial Stability (weight: 25%)`, `─────────────────────────────────────────`];
-      if (r.accountActive) lines.push(`+ 25 pts  Account active`);
-      else lines.push(`- 30 pts  Account inactive/not found`);
-      if (r.nameMatch && r.nameMatchScore >= 80) lines.push(`+ 15 pts  Name match: ${r.nameMatchScore}%`);
-      else if (r.nameMatch) lines.push(`+  8 pts  Partial name match: ${r.nameMatchScore}%`);
-      else lines.push(`- 20 pts  Name MISMATCH`);
-      if (r.upiLinked) lines.push(`+  5 pts  UPI linked`);
-      return lines.join('\n');
-    },
-    ifscSearch: (r) => {
-      const lines = [`Category: Financial Stability (weight: 25%)`, `─────────────────────────────────────────`];
-      if (r.valid) lines.push(`+  5 pts  IFSC valid: ${r.bankName}, ${r.branch}`);
-      else lines.push(`- 10 pts  Invalid IFSC code`);
-      return lines.join('\n');
-    },
-    imeiFetch: (r) => {
-      const lines = [`Category: Device & Behavioral (weight: 10%)`, `─────────────────────────────────────────`];
-      if (r.valid && !r.isStolen) lines.push(`+ 25 pts  Valid device: ${r.brand} ${r.model}`);
-      else if (r.isStolen || r.isLost) lines.push(`- 50 pts  Device STOLEN/LOST`);
-      else lines.push(`- 15 pts  Invalid IMEI`);
-      if (r.manufactureYear) {
-        const age = new Date().getFullYear() - r.manufactureYear;
-        if (age <= 5) lines.push(`+ 10 pts  Recent device (${r.deviceAge})`);
-        else if (age > 8) lines.push(`- 10 pts  Old device (${r.deviceAge})`);
-      }
-      return lines.join('\n');
-    },
-    forgeryCheck: (r) => {
-      const lines = [`Category: Document Integrity (weight: 5%)`, `─────────────────────────────────────────`];
-      if (r.status === 'genuine') lines.push(`+ 50 pts  Document genuine`);
-      else if (r.status === 'suspicious') lines.push(`+ 10 pts  Suspicious (score: ${r.forgeryScore})`);
-      else lines.push(`- 80 pts  FORGED document detected`);
-      if (r.forgeryScore < 0.3) lines.push(`+ 30 pts  Low forgery score`);
-      else if (r.forgeryScore >= 0.6) lines.push(`- 20 pts  High forgery score`);
-      if (r.anomalies?.length) lines.push(`          Anomalies: ${r.anomalies.join(', ')}`);
-      return lines.join('\n');
-    },
-  };
+// ─── Scoring Explanations ───────────────────────────────────────────────────
 
-  const fn = explanations[api.id];
+function getScoringExplanation(api) {
+  const fn = SCORING_EXPLANATIONS[api.id];
   if (fn) return fn(api.output.result);
   return 'Scoring logic not defined for this API';
+}
+
+const SCORING_EXPLANATIONS = {
+  panFetch: (r) => lines('Identity Verification', 10, [
+    r.isValid ? '+ 20 pts  PAN is valid' : '- 50 pts  PAN is INVALID',
+    r.panStatusLabel === 'VALID' ? '+ 10 pts  PAN status = VALID' : `- 50 pts  PAN status = ${r.panStatusLabel}`,
+    r.aadhaarSeedingStatus === 'Yes' ? '+ 10 pts  Aadhaar seeded' : '-  5 pts  Aadhaar NOT seeded',
+    r.individualTaxComplianceStatus === 'Operative' ? '+  5 pts  Tax operative' : '- 10 pts  Tax inoperative',
+  ]),
+  phoneToPan: (r) => lines('Identity Verification', 10, [
+    r.matchFound ? '+ 15 pts  Phone-to-PAN match' : '-  5 pts  No match',
+  ]),
+  phoneIntelligence: (r) => lines('Phone & Digital Trust', 7, [
+    r.riskScore < 300 ? `+ 20 pts  Risk ${r.riskScore} (low)` : r.riskScore >= 700 ? `- 30 pts  Risk ${r.riskScore} (HIGH)` : `+ 10 pts  Risk ${r.riskScore}`,
+    r.phoneType === 'mobile' ? '+ 10 pts  Mobile' : `- 25 pts  ${r.phoneType}`,
+    !r.isBlocklisted ? '+ 10 pts  Not blocklisted' : '- 40 pts  BLOCKLISTED',
+    r.simSwapDetected ? `- 15 pts  SIM swap (time-decay applied)` : null,
+    r.fraudSources?.length ? `- 40 pts  Fraud: ${r.fraudSources.join(', ')}` : null,
+  ]),
+  whatsappPresence: (r) => lines('Phone & Digital Trust', 7, [
+    r.isRegistered && r.accountType === 'personal' ? '+ 15 pts  WhatsApp personal' : r.isRegistered ? '+ 10 pts  WhatsApp registered' : '-  5 pts  No WhatsApp',
+  ]),
+  digitalIdentityScore: (r) => lines('Phone & Digital Trust', 7, [
+    r.score > 7 ? `+ 10 pts  Digital score: ${r.score}/10` : r.score <= 3 ? `- 10 pts  Score ${r.score}/10 (thin)` : `+  5 pts  Score ${r.score}/10`,
+    r.ecomPresence?.length >= 2 ? `+  5 pts  E-commerce: ${r.ecomPresence.join(', ')}` : null,
+    r.socialPresence?.length >= 1 ? `+  5 pts  Social: ${r.socialPresence.join(', ')}` : null,
+    r.phoneFirstSeen ? `          Phone first seen: ${r.phoneFirstSeen}` : '- 10 pts  Phone first seen: unknown',
+  ]),
+  phoneToAlternate: (r) => lines('Device & Hardware', 5, [
+    r.totalFound <= 2 ? `+ 15 pts  ${r.totalFound} alternate(s)` : r.totalFound <= 4 ? `+  5 pts  ${r.totalFound} alternates` : `- 15 pts  ${r.totalFound} alternates (suspicious)`,
+  ]),
+  phoneToIdentity: (r) => lines('Identity Verification', 10, [
+    r.identities?.length >= 2 ? `+ 10 pts  ${r.identities.length} identity docs` : r.identities?.length === 1 ? '+  5 pts  1 doc' : '- 10 pts  No docs',
+    r.consistencyScore >= 80 ? `+ 15 pts  Consistency: ${r.consistencyScore}%` : `- 10 pts  Consistency: ${r.consistencyScore}%`,
+  ]),
+
+  // ─── NEW Phase A APIs ───
+  velocityCheck: (r) => lines('Fraud Detection', 10, [
+    r.applicationsByPan.last7d === 0 ? '+ 10 pts  No repeat applications (7d)' : `- 20 pts  ${r.applicationsByPan.last7d} apps by PAN (7d)`,
+    r.applicationsByDevice.last7d > 3 ? `- 20 pts  ${r.applicationsByDevice.last7d} apps from device (7d)` : null,
+    r.sharedDeviceWithOtherPans ? '- 25 pts  Device shared across PANs' : null,
+    r.sharedIpWithOtherPans ? '- 10 pts  IP shared across PANs' : null,
+    r.sharedBankAccountWithOthers ? '- 30 pts  Shared bank account — MULE' : null,
+    r.loanStackingDetected ? '- 15 pts  Loan stacking detected' : null,
+    r.recentRejections >= 5 ? `- 15 pts  ${r.recentRejections} recent rejections` : r.recentRejections === 0 ? '+  5 pts  No recent rejections' : null,
+    `          Velocity risk: ${r.velocityRisk}`,
+  ]),
+  sessionBehavior: (r) => lines('Session Behavior', 5, [
+    r.totalFormTime >= 120 ? `+ 10 pts  Form time: ${r.totalFormTime}s (natural)` : r.totalFormTime < 30 ? `- 20 pts  Form time: ${r.totalFormTime}s (too fast)` : `          Form time: ${r.totalFormTime}s`,
+    r.copyPasteCount === 0 ? '+ 10 pts  No copy-paste' : `- ${r.copyPasteCount > 2 ? 15 : 5} pts  Copy-paste: ${r.copyPasteCount} fields`,
+    r.copyPasteDetected?.pan ? '-  5 pts  PAN was copy-pasted' : null,
+    r.hesitationOnIncomeField ? '-  5 pts  Hesitation on income field' : null,
+    r.isRooted || r.isJailbroken ? '- 20 pts  Rooted/jailbroken device' : null,
+    r.isEmulator ? '- 25 pts  EMULATOR detected' : null,
+    r.screenRecordingDetected ? '- 15 pts  Screen recording detected' : null,
+    r.typingPatternHuman && r.mouseMovementNatural ? '+ 10 pts  Human interaction patterns' : null,
+    !r.typingPatternHuman ? '- 15 pts  Non-human typing pattern' : null,
+    !r.mouseMovementNatural ? '- 10 pts  Unnatural mouse/touch' : null,
+    `          Behavior score: ${r.behaviorScore}/100`,
+  ]),
+
+  // ─── Phase B APIs ───
+  creditBureauFetch: (r) => lines('Credit Bureau (CIBIL)', 18, [
+    r.cibilScore >= 750 ? `+ 30 pts  CIBIL: ${r.cibilScore} (excellent)` : r.cibilScore >= 650 ? `+ 20 pts  CIBIL: ${r.cibilScore} (good)` : r.cibilScore >= 550 ? `+  5 pts  CIBIL: ${r.cibilScore} (fair)` : r.cibilScore >= 300 ? `- 20 pts  CIBIL: ${r.cibilScore} (poor)` : '- 10 pts  No credit history (NTC)',
+    r.maxDpdLast12Months === 0 ? '+ 15 pts  Zero DPD (12m)' : r.maxDpdLast12Months != null ? `- ${Math.min(30, Math.round(r.maxDpdLast12Months/3))} pts  Max DPD 12m: ${r.maxDpdLast12Months}d` : null,
+    r.recentDelinquency ? `          Recent delinquency: ${r.recentDelinquency} (time-decay applied)` : null,
+    r.hardInquiriesLast6Months <= 2 ? '+ 10 pts  Low inquiries (6m)' : `- ${r.hardInquiriesLast6Months > 5 ? 15 : 5} pts  ${r.hardInquiriesLast6Months} inquiries (6m)`,
+    r.writeOffs > 0 ? `- 30 pts  ${r.writeOffs} write-off(s)` : null,
+    r.settlements > 0 ? `- 15 pts  ${r.settlements} settlement(s)` : null,
+    r.creditUtilization != null ? `          Utilization: ${(r.creditUtilization*100).toFixed(0)}%` : null,
+    r.oldestAccountAge ? `          Account age: ${r.oldestAccountAge}` : null,
+    `          Active trades: ${r.totalActiveAccounts}, Outstanding: ₹${r.totalOutstanding?.toLocaleString()}`,
+  ]),
+  phoneToIncome: (r) => lines('Income & Capacity', 10, [
+    r.estimatedMonthlyIncome ? `+ 10 pts  Estimated: ₹${r.estimatedMonthlyIncome.toLocaleString()} (${r.confidence})` : '- 10 pts  No income estimate',
+    r.estimatedMonthlyIncome ? '          Income-to-EMI & consistency checks applied separately' : null,
+  ]),
+  phoneToPrefill: (r) => lines('Income & Capacity', 10, [
+    r.dataRichness === 'high' ? '+  5 pts  Rich prefill data' : r.dataRichness === 'none' ? '-  5 pts  No prefill data' : '          Medium prefill',
+  ]),
+  employmentVerification: (r) => lines('Financial Stability', 10, [
+    r.isEmployed ? `+ 20 pts  Employed at ${r.employerName}` : r.membershipStatus === 'not_found' ? '- 15 pts  No EPFO record' : `- 20 pts  Ended: ${r.dateOfExit}`,
+  ]),
+  advancedEmployment: (r) => lines('Financial Stability', 10, [
+    r.employmentHistory?.length >= 2 ? `+  5 pts  History: ${r.totalExperience}` : null,
+    r.pfFilingFrequency === 'monthly' ? '+ 10 pts  PF monthly' : r.pfFilingFrequency === 'quarterly' ? '+  3 pts  PF quarterly' : '- 10 pts  No PF',
+    r.employerGstinActive ? '+  5 pts  Employer GSTIN active' : null,
+    r.lastPfFiled ? `          Last PF: ${r.lastPfFiled} (time-decay applied)` : null,
+  ]),
+  itrVerification: (r) => lines('Income & Capacity', 10, [
+    r.itrFiled && r.consecutiveYearsFiled >= 3 ? `+ 15 pts  ITR filed ${r.consecutiveYearsFiled} consecutive years` : r.itrFiled ? `+  5 pts  ITR filed ${r.consecutiveYearsFiled} year(s)` : '- 10 pts  No ITR filed',
+    r.tdsMatchesItr ? '+  5 pts  TDS matches ITR' : r.tdsEntries26AS > 0 ? '-  5 pts  TDS/ITR mismatch' : null,
+    r.incomeGrowthTrend === 'positive' ? '+  5 pts  Positive income trend' : null,
+    r.itrIncomeVsDeclared ? `          ITR vs declared ratio: ${r.itrIncomeVsDeclared.ratio?.toFixed(2)}` : null,
+  ]),
+  gstVerification: (r) => lines('Income & Capacity', 10, [
+    !r.applicable ? '          GST not applicable (salaried)' : null,
+    r.applicable && r.gstStatus === 'active' && r.panGstMatch ? '+  5 pts  GST active, PAN matched' : null,
+    r.applicable && r.gstStatus === 'cancelled' ? '- 10 pts  GSTIN cancelled' : null,
+    r.applicable && r.filingFrequency === 'irregular' ? '-  5 pts  Irregular filings' : null,
+    r.applicable && r.annualTurnover ? `          Turnover: ₹${r.annualTurnover?.toLocaleString()}, Trend: ${r.turnoverTrend}` : null,
+  ]),
+
+  // ─── Phase C APIs ───
+  registeredAddress: (r) => lines('Address & Location', 5, [
+    r.addressFound ? `+ 20 pts  Found, match: ${r.matchScore}%` : '- 15 pts  No address found',
+    r.matchScore >= 80 ? '+ 15 pts  High match' : r.matchScore >= 50 ? '+  5 pts  Partial' : r.addressFound ? '- 10 pts  Mismatch' : null,
+  ]),
+  addressGeocode: (r) => lines('Address & Location', 5, [
+    r.confidence > 0.7 ? `+ 15 pts  Confidence: ${(r.confidence*100).toFixed(0)}%` : `-  5 pts  Low: ${(r.confidence*100).toFixed(0)}%`,
+    r.isInternationalBorder ? `- 10 pts  Border (${r.nearestBorderDistance}km)` : '+ 10 pts  Not near border',
+  ]),
+  pincodeDetails: (r) => lines('Address & Location', 5, [
+    r.isServiceable && !r.isBlacklisted ? '+ 10 pts  Serviceable' : null,
+    r.isBlacklisted ? '- 30 pts  BLACKLISTED' : null,
+    r.riskCategory === 'low' ? '+  5 pts  Low-risk area' : r.riskCategory === 'high' ? '- 10 pts  High-risk area' : null,
+  ]),
+  geoFencing: (r) => lines('Address & Location', 5, [
+    r.geoMatch && r.stateMatch ? `+ 20 pts  IP matches: ${r.ipCity}` : r.geoMatch ? '+  5 pts  Same country' : `- 20 pts  Mismatch: ${r.ipCountry}`,
+    (r.isTor || r.isVpn) ? '- 15 pts  Anonymizer detected' : null,
+  ]),
+  digitalIntegrity: (r) => lines('Phone & Digital Trust', 7, [
+    r.emailValid && !r.emailDisposable ? '+  5 pts  Valid email' : null,
+    r.emailDisposable ? '- 15 pts  Disposable email' : null,
+    r.ipBlocklisted ? '- 20 pts  IP BLOCKLISTED' : null,
+    r.botLikelihood > 0.5 ? `- 20 pts  Bot: ${(r.botLikelihood*100).toFixed(0)}%` : null,
+    `          Integrity: ${r.integrityScore}/100`,
+  ]),
+  eAadhaarXml: (r) => lines('Identity Verification', 10, [
+    r.digitalSignatureValid ? '+  5 pts  Signature valid' : !r.aadhaarValid ? '- 15 pts  FAILED' : null,
+  ]),
+  digilockerDetails: (r) => lines('Identity Verification', 10, [
+    r.totalDocuments >= 3 ? `+ 10 pts  ${r.totalDocuments} docs` : r.totalDocuments >= 1 ? `+  5 pts  ${r.totalDocuments} doc(s)` : '-  5 pts  No docs',
+  ]),
+  courtRecords: (r) => lines('Legal & Compliance', 6, [
+    r.wilfulDefaulter.isDefaulter ? '- 80 pts  RBI WILFUL DEFAULTER (auto-decline)' : '+ 15 pts  Not a wilful defaulter',
+    r.cersaiCheck.registered ? `- 10 pts  CERSAI: ${r.cersaiCheck.securedAssets} asset(s)` : '+  5 pts  No CERSAI',
+    r.courtCases.totalFound === 0 ? '+ 15 pts  No court cases' : null,
+    r.courtCases.criminalCases > 0 ? `- 25 pts  ${r.courtCases.criminalCases} criminal case(s)` : null,
+    r.courtCases.civilCases > 0 ? `- 10 pts  ${r.courtCases.civilCases} civil case(s)` : null,
+    r.insolvencyCheck.isBankrupt ? '- 40 pts  BANKRUPT' : null,
+    r.insolvencyCheck.ncltCases > 0 ? `- 15 pts  ${r.insolvencyCheck.ncltCases} NCLT case(s)` : null,
+    `          Legal risk: ${r.overallLegalRisk}`,
+  ]),
+  fraudRingDetection: (r) => lines('Fraud Detection', 10, [
+    r.clusterSize <= 1 ? '+ 10 pts  No ring connections' : r.clusterSize <= 5 ? `- 10 pts  Cluster: ${r.clusterSize}` : `- 30 pts  FRAUD RING: ${r.clusterSize} in cluster`,
+    r.networkRisk === 'critical' ? '- 20 pts  Critical network risk' : null,
+    r.referralChainAnomaly ? '- 10 pts  Referral chain anomaly' : null,
+    r.suspiciousPatterns?.length ? `          Patterns: ${r.suspiciousPatterns.join(', ')}` : null,
+    `          Graph density: ${r.graphDensity}`,
+  ]),
+
+  // ─── Phase D APIs ───
+  bankVerification: (r) => lines('Financial Stability', 10, [
+    r.accountActive ? '+ 25 pts  Account active' : '- 30 pts  Inactive/not found',
+    r.nameMatch && r.nameMatchScore >= 80 ? `+ 15 pts  Name match: ${r.nameMatchScore}%` : r.nameMatch ? `+  8 pts  Partial: ${r.nameMatchScore}%` : '- 20 pts  MISMATCH',
+    r.upiLinked ? '+  5 pts  UPI linked' : null,
+  ]),
+  ifscSearch: (r) => lines('Financial Stability', 10, [
+    r.valid ? `+  5 pts  IFSC valid: ${r.bankName}` : '- 10 pts  Invalid IFSC',
+  ]),
+  imeiFetch: (r) => lines('Device & Hardware', 5, [
+    r.valid && !r.isStolen ? `+ 25 pts  Valid: ${r.brand} ${r.model}` : r.isStolen ? '- 50 pts  STOLEN/LOST' : '- 15 pts  Invalid IMEI',
+    r.manufactureYear ? `          Age: ${r.deviceAge}` : null,
+  ]),
+  forgeryCheck: (r) => lines('Document Integrity', 4, [
+    r.status === 'genuine' ? '+ 50 pts  Genuine' : r.status === 'suspicious' ? `+ 10 pts  Suspicious (${r.forgeryScore})` : `- 80 pts  FORGED (${r.forgeryScore})`,
+    r.forgeryScore < 0.3 ? '+ 30 pts  Low forgery score' : r.forgeryScore >= 0.6 ? '- 20 pts  High forgery score' : null,
+    r.anomalies?.length ? `          Anomalies: ${r.anomalies.join(', ')}` : null,
+  ]),
+  bankStatementAnalysis: (r) => lines('Bank Statement (AA)', 10, [
+    r.salaryCredits.detected && r.salaryCredits.frequency === 'monthly' ? `+ 20 pts  Regular salary: ₹${r.salaryCredits.averageAmount?.toLocaleString()}/mo` : r.salaryCredits.detected ? `+  5 pts  Irregular income` : '- 15 pts  No salary credits',
+    r.bounceRate === 0 ? '+ 15 pts  Zero bounces' : `- 20 pts  Bounce rate: ${(r.bounceRate*100).toFixed(1)}%`,
+    r.cashFlowVolatility < 0.2 ? `+ 10 pts  Low volatility: ${(r.cashFlowVolatility*100).toFixed(0)}%` : r.cashFlowVolatility >= 0.5 ? `- 10 pts  High volatility: ${(r.cashFlowVolatility*100).toFixed(0)}%` : null,
+    `          Avg balance: ₹${r.averageMonthlyBalance?.toLocaleString()}`,
+    r.daysWithZeroBalance > 10 ? `- 15 pts  ${r.daysWithZeroBalance} zero-balance days` : null,
+    r.suspiciousTransactions.length > 0 ? `- 20 pts  ${r.suspiciousTransactions.length} suspicious txn(s)` : null,
+    r.circularTransactions ? '- 15 pts  Circular transactions' : null,
+    r.emiDebits.bounced > 0 ? `- 10 pts  ${r.emiDebits.bounced} EMI bounce(s)` : null,
+    `          Health: ${r.overallHealth}, Trend: ${r.endOfDayBalanceTrend}`,
+  ]),
+  productRiskAdjust: (r) => lines('Product-Aware (Modifier)', 0, [
+    `          Amount tier: ${r.amountTier} (${r.amountRisk})`,
+    `          Tenure: ${r.tenureCategory} (multiplier: ${r.tenureRiskMultiplier}x)`,
+    `          Borrower: ${r.repeatBorrowerStatus}`,
+    r.repeatBorrowerBonus !== 0 ? `${r.repeatBorrowerBonus > 0 ? '+' : ''}${r.repeatBorrowerBonus} pts  Repeat borrower adjustment` : null,
+    r.firstTimeBorrowerPenalty > 0 ? `- ${r.firstTimeBorrowerPenalty} pts  First-time penalty` : null,
+    `          Loan-to-income: ${r.loanToIncomeRatio?.toFixed(2)}`,
+    `          Suggested max: ₹${r.suggestedMaxLoan?.toLocaleString()}`,
+    `          Total adjustment: ${r.adjustmentPoints >= 0 ? '+' : ''}${r.adjustmentPoints} pts`,
+  ]),
+};
+
+function lines(category, weight, items) {
+  const header = weight > 0 ? `Category: ${category} (weight: ${weight}%)` : `${category}`;
+  return [header, '─'.repeat(45), ...items.filter(Boolean)].join('\n');
 }
 
 
@@ -429,22 +389,16 @@ function getScoringExplanation(api) {
 function renderScoring() {
   const r = currentResult;
 
-  // Final score ring
   const arc = document.getElementById('scoreArc');
-  const circumference = 2 * Math.PI * 54; // 339.3
-  const offset = circumference - (r.finalScore / 1000) * circumference;
-  arc.style.strokeDashoffset = offset;
-
-  // Color the arc
+  const circumference = 2 * Math.PI * 54;
+  arc.style.strokeDashoffset = circumference - (r.finalScore / 1000) * circumference;
   const color = getScoreColor(r.finalScore);
   arc.style.stroke = color;
 
-  // Score value
   const scoreEl = document.getElementById('finalScoreValue');
   scoreEl.style.color = color;
   animateNumber(scoreEl, r.finalScore);
 
-  // Label
   const labelEl = document.getElementById('scoreLabel');
   if (r.finalScore >= 800) labelEl.textContent = 'LOW RISK';
   else if (r.finalScore >= 600) labelEl.textContent = 'MEDIUM RISK';
@@ -453,12 +407,10 @@ function renderScoring() {
   else labelEl.textContent = 'VERY HIGH RISK';
   labelEl.style.color = color;
 
-  // Decision
   const decisionEl = document.getElementById('scoreDecision');
   decisionEl.textContent = r.decisionLabel;
   decisionEl.className = 'score-decision';
-  if (r.decision === 'approve') decisionEl.classList.add('decision-approve');
-  else if (r.decision === 'standard') decisionEl.classList.add('decision-approve');
+  if (r.decision === 'approve' || r.decision === 'standard') decisionEl.classList.add('decision-approve');
   else if (r.decision === 'elevated') decisionEl.classList.add('decision-elevated');
   else if (r.decision === 'review') decisionEl.classList.add('decision-review');
   else decisionEl.classList.add('decision-decline');
@@ -467,50 +419,54 @@ function renderScoring() {
   const barsContainer = document.getElementById('categoryBars');
   barsContainer.innerHTML = Object.entries(r.categoryScores).map(([cat, data]) => {
     const weight = CATEGORY_WEIGHTS[cat];
-    const contribution = Math.round(data.score * weight * 10);
     const barColor = CATEGORY_COLORS[cat];
     return `
       <div class="category-row">
         <div class="cat-name">${CATEGORY_LABELS[cat]}</div>
         <div class="cat-weight">${(weight * 100).toFixed(0)}%</div>
         <div class="cat-bar-track">
-          <div class="cat-bar-fill" style="width: ${data.score}%; background: ${barColor};" data-score="${data.score}"></div>
+          <div class="cat-bar-fill" style="width: 0%; background: ${barColor};" data-score="${data.score}"></div>
         </div>
         <div class="cat-score" style="color: ${getScoreColor(data.score * 10)}">${data.score}<span style="color:var(--text-muted);font-size:11px;font-weight:400">/100</span></div>
       </div>
     `;
   }).join('');
 
-  // Animate bars
   setTimeout(() => {
     barsContainer.querySelectorAll('.cat-bar-fill').forEach(bar => {
       bar.style.width = bar.dataset.score + '%';
     });
   }, 50);
 
+  // Modifiers
+  if (r.modifiers?.length > 0) {
+    document.getElementById('modifiersSection').style.display = 'block';
+    document.getElementById('modifiersList').innerHTML = r.modifiers.map(m =>
+      `<span class="flag-item" style="background: ${m.color}15; color: ${m.color}; border: 1px solid ${m.color}33;">
+        ${m.points >= 0 ? '+' : ''}${m.points} ${m.label}
+      </span>`
+    ).join('');
+  }
+
   // Flags
-  const flagsList = document.getElementById('flagsList');
-  flagsList.innerHTML = r.allFlags.map(f =>
+  document.getElementById('flagsList').innerHTML = r.allFlags.map(f =>
     `<span class="flag-item flag-${f.type}">${f.type === 'positive' ? '+' : f.type === 'negative' ? '!' : '~'} ${f.text}</span>`
   ).join('');
 
   // Phase progression
-  const progChart = document.getElementById('progressionChart');
-  progChart.innerHTML = Object.entries(r.phaseScores).map(([phase, score]) => {
+  document.getElementById('progressionChart').innerHTML = Object.entries(r.phaseScores).map(([phase, score]) => {
     const height = (score / 1000) * 100;
-    const color = getScoreColor(score);
+    const c = getScoreColor(score);
     return `
       <div class="progression-bar">
-        <div class="prog-score" style="color: ${color}">${score}</div>
-        <div class="prog-fill" style="height: ${height}%; background: ${color};"></div>
+        <div class="prog-score" style="color: ${c}">${score}</div>
+        <div class="prog-fill" style="height: ${height}%; background: ${c};"></div>
         <div class="prog-label">Phase ${phase}</div>
       </div>
     `;
   }).join('');
 }
 
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getScoreColor(score) {
   if (score >= 800) return 'var(--green)';
@@ -525,10 +481,7 @@ function animateNumber(el, target) {
   const step = Math.ceil(target / 40);
   const timer = setInterval(() => {
     current += step;
-    if (current >= target) {
-      current = target;
-      clearInterval(timer);
-    }
+    if (current >= target) { current = target; clearInterval(timer); }
     el.textContent = current;
   }, 25);
 }
