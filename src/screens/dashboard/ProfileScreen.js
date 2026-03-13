@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import { COLORS, APP_NAME } from '../../config/constants';
@@ -8,9 +9,14 @@ import { useAuth } from '../../store/AuthContext';
 const ProfileScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
 
-  const handleLogout = async () => {
-    await logout();
-    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  const handleLogout = () => {
+    logout()
+      .catch(() => {})
+      .finally(() => {
+        navigation.dispatch(
+          CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] })
+        );
+      });
   };
 
   const menuItems = [
@@ -53,9 +59,13 @@ const ProfileScreen = ({ navigation }) => {
           ))}
         </Card>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <Pressable
+          style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.7 }]}
+          onPress={handleLogout}
+          role="button"
+        >
           <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        </Pressable>
 
         <Text style={styles.version}>{APP_NAME} v1.0.0</Text>
         <View style={styles.bottomSpacer} />
