@@ -223,6 +223,49 @@ const PanVerificationScreen = ({ navigation }) => {
     navigation.navigate('InstituteSelection');
   };
 
+  // Use mock data to skip API calls and move the flow forward
+  const handleUseMockData = () => {
+    const mockPan = 'ABCDE1234F';
+    const mockName = state.borrowerDetails?.name || 'RAHUL SHARMA';
+    const mockPanDetails = {
+      name: mockName,
+      panNumber: mockPan,
+      panStatus: 'E',
+      panStatusLabel: 'VALID',
+      isIndividual: true,
+      isValid: true,
+      typeOfHolder: 'Individual',
+      aadhaarSeedingStatus: 'Y',
+      individualTaxComplianceStatus: 'Compliant',
+    };
+
+    setPan(mockPan);
+    setPanName(mockName);
+    setPanFetched(true);
+    setPanVerified(true);
+    setPanDetails(mockPanDetails);
+    setPanNotLinked(false);
+    setPanError(null);
+
+    dispatch({
+      type: 'SET_PAN',
+      payload: {
+        panNumber: mockPan,
+        name: mockName,
+        panStatus: 'E',
+        isIndividual: true,
+        aadhaarSeedingStatus: 'Y',
+      },
+    });
+
+    // Run mock credit check
+    const mockCredit = { score: 720, gatingPassed: true, cibilScore: 720 };
+    setCreditPassed(true);
+    dispatch({ type: 'SET_CREDIT_SCORE', payload: mockCredit });
+    feedCreditBureauData(mockCredit);
+    dispatch({ type: 'SET_STEP', payload: 2 });
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
@@ -283,13 +326,21 @@ const PanVerificationScreen = ({ navigation }) => {
           )}
 
           {!panVerified ? (
-            <Button
-              title="Verify PAN"
-              onPress={handleVerifyPan}
-              loading={loading}
-              disabled={!validatePan(pan)}
-              style={styles.btn}
-            />
+            <>
+              <Button
+                title="Verify PAN"
+                onPress={handleVerifyPan}
+                loading={loading}
+                disabled={!validatePan(pan)}
+                style={styles.btn}
+              />
+              <Button
+                title="Skip with Test Data"
+                onPress={handleUseMockData}
+                variant="outline"
+                style={styles.btn}
+              />
+            </>
           ) : (
             <View style={styles.verifiedBadge}>
               <Text style={[styles.verifiedText, { color: colors.teal }]}>✓ PAN Verified</Text>
