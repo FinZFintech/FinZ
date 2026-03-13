@@ -13,7 +13,6 @@ import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
-import { COLORS } from '../../../config/constants';
 import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
 import { useLoan } from '../../../store/LoanContext';
@@ -21,6 +20,7 @@ import { formatCurrency } from '../../../utils/helpers';
 
 const StudentDetailsScreen = ({ navigation }) => {
   const { colors } = useTheme();
+  const styles = getStyles(colors);
   const { state, dispatch } = useLoan();
   const isManualInstitute = state.instituteDetails?.isManual === true;
   const [regNo, setRegNo] = useState('');
@@ -242,34 +242,32 @@ const StudentDetailsScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (colors) => StyleSheet.create({
+  container: { flex: 1 },
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   bottomSpacer: { height: 100 },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.textPrimary,
     marginBottom: 14,
     letterSpacing: 0.2,
   },
   manualHint: {
     fontSize: 13,
-    color: COLORS.textSecondary,
     lineHeight: 20,
     marginBottom: 16,
   },
   detailsCard: { marginTop: 8 },
   feeHighlight: {
-    backgroundColor: COLORS.teal,
+    backgroundColor: colors.teal,
     padding: 20,
     borderRadius: 14,
     marginTop: 16,
     alignItems: 'center',
   },
-  feeLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5, textTransform: 'uppercase' },
-  feeAmount: { fontSize: 32, fontWeight: '900', color: COLORS.background, marginTop: 6 },
+  feeLabel: { fontSize: 12, color: colors.background, letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.8 },
+  feeAmount: { fontSize: 32, fontWeight: '900', color: colors.background, marginTop: 6 },
   proceedButton: { marginTop: 20 },
 });
 

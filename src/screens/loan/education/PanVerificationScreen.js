@@ -6,7 +6,6 @@ import Input from '../../../components/common/Input';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
-import { COLORS } from '../../../config/constants';
 import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
@@ -15,6 +14,7 @@ import { maskPan, validatePan } from '../../../utils/helpers';
 
 const PanVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
+  const styles = getStyles(colors);
   const { state, dispatch } = useLoan();
   const { executePhase, feedCreditBureauData, setExternalData } = useRisk();
   const [pan, setPan] = useState('');
@@ -383,55 +383,51 @@ const PanVerificationScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (colors) => StyleSheet.create({
+  container: { flex: 1 },
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.textPrimary,
     marginBottom: 12,
   },
   infoText: {
     fontSize: 13,
-    color: COLORS.textSecondary,
     marginBottom: 12,
     lineHeight: 20,
   },
   btn: { marginTop: 12 },
   btnSecondary: { marginTop: 8 },
-  errorCard: { alignItems: 'center', backgroundColor: 'rgba(255,107,107,0.08)', borderLeftWidth: 3, borderLeftColor: COLORS.error },
+  errorCard: { alignItems: 'center', backgroundColor: `${colors.error}14`, borderLeftWidth: 3, borderLeftColor: colors.error },
   errorIcon: { fontSize: 36, marginBottom: 6 },
   errorTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.error,
+    color: colors.error,
     marginBottom: 8,
   },
   errorText: {
     fontSize: 13,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 4,
   },
   panDetailsContainer: {
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
     borderRadius: 8,
     padding: 10,
     marginTop: 8,
     marginBottom: 4,
   },
   verifiedBadge: {
-    backgroundColor: 'rgba(74,237,196,0.08)',
+    backgroundColor: `${colors.teal}14`,
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 8,
   },
   verifiedText: {
-    color: COLORS.teal,
     fontWeight: '700',
     fontSize: 15,
   },
@@ -439,57 +435,51 @@ const styles = StyleSheet.create({
   checkingTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.teal,
     marginBottom: 8,
   },
-  successCard: { alignItems: 'center', backgroundColor: 'rgba(74,237,196,0.08)' },
+  successCard: { alignItems: 'center', backgroundColor: `${colors.teal}14` },
   successIcon: {
     fontSize: 48,
-    color: COLORS.teal,
     marginBottom: 8,
   },
   successTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: COLORS.teal,
     marginBottom: 8,
   },
   successText: {
     fontSize: 14,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
-  failCard: { alignItems: 'center', backgroundColor: 'rgba(255,107,107,0.08)' },
-  failIcon: { fontSize: 48, color: COLORS.error, marginBottom: 8 },
+  failCard: { alignItems: 'center', backgroundColor: `${colors.error}14` },
+  failIcon: { fontSize: 48, color: colors.error, marginBottom: 8 },
   failTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: COLORS.error,
     marginBottom: 8,
   },
   failText: {
     fontSize: 14,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
   warningText: {
     fontSize: 13,
-    color: '#E67E22',
+    color: colors.warning,
     marginBottom: 12,
     lineHeight: 20,
     fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalContent: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
@@ -500,24 +490,24 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.error,
+    color: colors.error,
     marginBottom: 10,
   },
   modalMessage: {
     fontSize: 14,
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 20,
   },
   modalButton: {
-    backgroundColor: COLORS.teal,
+    backgroundColor: colors.teal,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 40,
   },
   modalButtonText: {
-    color: COLORS.background,
+    color: colors.background,
     fontWeight: '700',
     fontSize: 15,
   },

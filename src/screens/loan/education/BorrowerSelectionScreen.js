@@ -13,7 +13,6 @@ import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
-import { COLORS } from '../../../config/constants';
 import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
 import { useLoan } from '../../../store/LoanContext';
@@ -26,6 +25,7 @@ import {
 
 const BorrowerSelectionScreen = ({ navigation }) => {
   const { colors } = useTheme();
+  const styles = getStyles(colors);
   const { state, dispatch } = useLoan();
   const student = state.studentDetails;
 
@@ -344,14 +344,13 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (colors) => StyleSheet.create({
+  container: { flex: 1 },
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.textPrimary,
     marginBottom: 12,
   },
   optionsRow: { flexDirection: 'row', gap: 12 },
@@ -360,20 +359,20 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     alignItems: 'center',
   },
   selectedOption: {
-    borderColor: COLORS.teal,
-    backgroundColor: 'rgba(74,237,196,0.08)',
+    borderColor: colors.teal,
+    backgroundColor: `${colors.teal}14`,
   },
   optionIcon: { fontSize: 32, marginBottom: 8 },
-  optionText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, textAlign: 'center' },
-  selectedText: { color: COLORS.teal },
+  optionText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  selectedText: { color: colors.teal },
   verifyBtn: { marginTop: -8, marginBottom: 16 },
   otpSection: { marginBottom: 8 },
   verifiedText: {
-    color: COLORS.success,
+    color: colors.success,
     fontWeight: '600',
     fontSize: 14,
     marginBottom: 12,
@@ -383,44 +382,42 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     marginBottom: 10,
   },
   selectedProduct: {
-    borderColor: COLORS.teal,
-    backgroundColor: 'rgba(74,237,196,0.08)',
+    borderColor: colors.teal,
+    backgroundColor: `${colors.teal}14`,
   },
-  productName: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
-  productRate: { fontSize: 13, color: COLORS.teal, marginTop: 4, fontWeight: '600' },
-  productFee: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  productName: { fontSize: 15, fontWeight: '700' },
+  productRate: { fontSize: 13, marginTop: 4, fontWeight: '600' },
+  productFee: { fontSize: 12, marginTop: 2 },
   tenureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tenureChip: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.cardBg,
+    borderColor: colors.border,
+    backgroundColor: colors.cardBg,
   },
   selectedTenure: {
-    borderColor: COLORS.teal,
-    backgroundColor: COLORS.teal,
+    borderColor: colors.teal,
+    backgroundColor: colors.teal,
   },
-  tenureText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  selectedTenureText: { color: COLORS.background },
+  tenureText: { fontSize: 13, fontWeight: '600' },
+  selectedTenureText: { color: colors.background },
   emiCard: {},
   emiHighlight: {
-    backgroundColor: '#151E30',
+    backgroundColor: colors.teal,
     padding: 20,
     borderRadius: 14,
     marginTop: 14,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(74,237,196,0.2)',
   },
-  emiLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5, textTransform: 'uppercase' },
-  emiAmount: { fontSize: 32, fontWeight: '900', color: COLORS.textLight, marginTop: 4 },
-  emiNote: { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 6 },
+  emiLabel: { fontSize: 11, color: colors.background, letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.8 },
+  emiAmount: { fontSize: 32, fontWeight: '900', color: colors.background, marginTop: 4 },
+  emiNote: { fontSize: 11, color: colors.background, marginTop: 6, opacity: 0.7 },
   applyButton: { marginTop: 16 },
   bottomSpacer: { height: 100 },
 });
