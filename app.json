@@ -2,6 +2,7 @@
   "expo": {
     "name": "FinZ",
     "slug": "FinZ",
+    "scheme": "finz",
     "version": "1.0.0",
     "platforms": ["ios", "android", "web"],
     "orientation": "portrait",
@@ -17,6 +18,13 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "pan",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [{ "scheme": "finz", "host": "kyc" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#0D1017",
         "foregroundImage": "./assets/android-icon-foreground.png",

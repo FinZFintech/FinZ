@@ -247,7 +247,7 @@ export const signzyService = {
    */
   async digilockerCreateUrl(options = {}) {
     const {
-      redirectUrl = 'https://www.finz.finance/',
+      redirectUrl = 'finz://kyc/digilocker-callback',
       callbackUrl,
       internalId,
     } = options;
@@ -258,9 +258,9 @@ export const signzyService = {
       redirectTime: '1',
       ...(callbackUrl ? { callbackUrl } : {}),
       successRedirectUrl: redirectUrl,
-      successRedirectTime: '5',
+      successRedirectTime: '3',
       failureRedirectUrl: redirectUrl,
-      failureRedirectTime: '5',
+      failureRedirectTime: '3',
       logoVisible: 'true',
       logo: 'https://www.finz.finance/logo.png',
       supportEmailVisible: 'true',
@@ -271,6 +271,7 @@ export const signzyService = {
       showLoaderState: true,
       ...(internalId ? { internalId } : {}),
       companyName: 'FinZ',
+      favIcon: 'https://www.finz.finance/favicon.png',
       getBase64Files: true,
       getEAadhaarPdf: true,
       getEAadhaarJpeg: true,
