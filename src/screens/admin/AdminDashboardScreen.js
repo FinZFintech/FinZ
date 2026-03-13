@@ -91,19 +91,19 @@ const AdminDashboardScreen = ({ navigation }) => {
             style={styles.actionItem}
             onPress={() => navigation.navigate('LoanQueue', { filter: 'manual_review' })}
           >
-            <Text>👁️ Manual Review Queue ({stats.manualReview})</Text>
+            <Text style={styles.actionText}>👁️ Manual Review Queue ({stats.manualReview})</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionItem}
             onPress={() => navigation.navigate('LoanQueue', { filter: 'pending' })}
           >
-            <Text>📋 All Pending Applications</Text>
+            <Text style={styles.actionText}>📋 All Pending Applications</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionItem}
             onPress={() => navigation.navigate('LoanQueue', { filter: 'all' })}
           >
-            <Text>📊 View All Applications</Text>
+            <Text style={styles.actionText}>📊 View All Applications</Text>
           </TouchableOpacity>
         </Card>
         <View style={styles.bottomSpacer} />
@@ -130,6 +130,7 @@ const styles = StyleSheet.create({
   disbursedAmount: { fontSize: 28, fontWeight: '900', color: COLORS.textLight, marginTop: 4 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   actionItem: { paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
+  actionText: { fontSize: 14, color: COLORS.textPrimary },
   bottomSpacer: { height: 100 },
 });
 
