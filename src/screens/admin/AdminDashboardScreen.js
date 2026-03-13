@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import { COLORS } from '../../config/constants';
@@ -35,7 +36,7 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   const onRefresh = useCallback(async () => { setRefreshing(true); await loadStats(); setRefreshing(false); }, [loadStats]);
 
-  const handleLogout = async () => { await logout(); navigation.reset({ index: 0, routes: [{ name: 'Login' }] }); };
+  const handleLogout = async () => { await logout(); navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] })); };
 
   if (!stats) return null;
 

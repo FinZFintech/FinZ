@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import { COLORS, APP_NAME } from '../../config/constants';
@@ -16,7 +17,9 @@ const ProfileScreen = ({ navigation }) => {
         style: 'destructive',
         onPress: async () => {
           await logout();
-          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          navigation.dispatch(
+            CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] })
+          );
         },
       },
     ]);
