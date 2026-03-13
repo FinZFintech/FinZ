@@ -70,8 +70,12 @@ const IncomeVerificationScreen = ({ navigation }) => {
         fipName: selectedBank.name,
       });
       setAaInitiated(true);
+      // TODO: Remove simulation once AA API is integrated
+      // Simulate AA consent approval after a short delay
+      setTimeout(() => { handleCheckAAStatus(); }, 1500);
     } catch {
-      setAaInitiated(true); // Mock
+      setAaInitiated(true);
+      setTimeout(() => { handleCheckAAStatus(); }, 1500);
     } finally {
       setLoading(false);
     }
@@ -85,24 +89,30 @@ const IncomeVerificationScreen = ({ navigation }) => {
         setIncomeResult(result.income);
         await runEligibilityCheck(result.income);
       } else {
-        Alert.alert('Pending', 'Account Aggregator consent is still pending. Please approve on your bank app.');
+        // TODO: Show pending alert once AA API is integrated
+        // For now, simulate success with mock data
+        const mockIncome = getMockIncomeData();
+        setIncomeResult(mockIncome);
+        await runEligibilityCheck(mockIncome);
       }
     } catch {
-      // Mock income data
-      const mockIncome = {
-        monthlyIncome: 45000,
-        averageBalance: 32000,
-        totalCredits: 270000,
-        totalDebits: 210000,
-        emiObligations: 8000,
-        bounceCount: 0,
-      };
+      // Simulate AA success with mock income data
+      const mockIncome = getMockIncomeData();
       setIncomeResult(mockIncome);
       await runEligibilityCheck(mockIncome);
     } finally {
       setLoading(false);
     }
   };
+
+  const getMockIncomeData = () => ({
+    monthlyIncome: 45000,
+    averageBalance: 32000,
+    totalCredits: 270000,
+    totalDebits: 210000,
+    emiObligations: 8000,
+    bounceCount: 0,
+  });
 
   // Bank Statement Upload
   const handlePickStatement = async () => {
@@ -132,14 +142,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
       setIncomeResult(result.income);
       await runEligibilityCheck(result.income);
     } catch {
-      const mockIncome = {
-        monthlyIncome: 45000,
-        averageBalance: 32000,
-        totalCredits: 270000,
-        totalDebits: 210000,
-        emiObligations: 8000,
-        bounceCount: 0,
-      };
+      const mockIncome = getMockIncomeData();
       setIncomeResult(mockIncome);
       await runEligibilityCheck(mockIncome);
     } finally {
