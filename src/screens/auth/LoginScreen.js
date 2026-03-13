@@ -6,7 +6,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { COLORS } from '../../config/constants';
 import Input from '../../components/common/Input';
@@ -27,16 +26,21 @@ const LoginScreen = ({ navigation }) => {
 
   const handleSendOtp = async () => {
     if (!validateMobile(mobile)) {
-      setError('Please enter a valid 10-digit mobile number');
+      setError('Please enter a valid 10-digit mobile number (starting with 6-9)');
       return;
     }
     setError('');
     setLoading(true);
     try {
+      console.log('[Login] Sending OTP to', mobile);
       await authService.sendOtp(mobile);
+      console.log('[Login] OTP sent successfully');
       setShowOtp(true);
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
+      console.log('[Login] Send OTP error:', err);
+      const msg =
+        err?.message || (typeof err === 'string' ? err : 'Failed to send OTP. Please try again.');
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -46,17 +50,23 @@ const LoginScreen = ({ navigation }) => {
     const code = otpValue || otp;
     if (code.length !== 6) return;
 
+    setError('');
     setLoading(true);
     try {
+      console.log('[Login] Verifying OTP for', mobile);
       const response = await login(mobile, code);
-      const role = response.user?.role || 'customer';
+      console.log('[Login] Login successful, navigating...');
+      const role = response?.user?.role || 'customer';
       if (role === 'customer') {
         navigation.replace('CustomerTabs');
       } else {
         navigation.replace('AdminTabs');
       }
     } catch (err) {
-      Alert.alert('Error', err.message || 'Invalid OTP. Please try again.');
+      console.log('[Login] Verify OTP error:', err);
+      const msg =
+        err?.message || (typeof err === 'string' ? err : 'Invalid OTP. Please try again.');
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -65,9 +75,9 @@ const LoginScreen = ({ navigation }) => {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.logoWrap}>
             <Logo size="medium" />
@@ -89,12 +99,13 @@ const LoginScreen = ({ navigation }) => {
                 label="Mobile Number"
                 value={mobile}
                 onChangeText={(text) => {
-                  setMobile(text.replace(/[^0-9]/g, ''));
+                  setMobile(text.replace(/[^0-9]/g, '').slice(0, 10));
                   setError('');
                 }}
                 placeholder="Enter 10-digit mobile number"
                 keyboardType="phone-pad"
                 maxLength={10}
+                prefix="+91"
                 error={error}
               />
               <Button
@@ -119,6 +130,7 @@ const LoginScreen = ({ navigation }) => {
                 }}
                 style={styles.otpInput}
               />
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
               <Button
                 title="Verify OTP"
                 onPress={() => handleVerifyOtp()}
@@ -131,6 +143,7 @@ const LoginScreen = ({ navigation }) => {
                 onPress={() => {
                   setShowOtp(false);
                   setOtp('');
+                  setError('');
                 }}
                 variant="outline"
                 style={styles.changeButton}
@@ -203,6 +216,12 @@ const styles = StyleSheet.create({
   },
   otpInput: {
     marginBottom: 24,
+  },
+  errorText: {
+    fontSize: 13,
+    color: COLORS.error,
+    textAlign: 'center',
+    marginBottom: 12,
   },
   verifyButton: {
     marginTop: 8,
