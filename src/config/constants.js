@@ -4,14 +4,59 @@ export const APP_VERSION = '1.0.0';
 // MOCK_MODE: When true, all API calls will use mock data (no backend needed)
 export const MOCK_MODE = true;
 
-// Signzy API Configuration - configurable keys for Phone-to-PAN & PAN Verification
+// Signzy API Configuration - configurable keys for all Signzy v3 APIs
 export const SIGNZY_CONFIG = {
   BASE_URL: 'https://api-preproduction.signzy.app/api/v3',
   AUTH_TOKEN: 'vqoNYa3hklTfQJBzUoEr1i1qahc6MtuR',
   CLIENT_ID: 'support@finz.finance',
   ENDPOINTS: {
+    // Identity & PAN
     PHONE_TO_PAN: '/phonekyc/phonetoPan',
     PAN_FETCH_V2: '/pan/fetchV2',
+    E_AADHAAR_XML: '/fetchEaadhaarXml',
+    DIGILOCKER_DETAILS: '/fetchDigilockerDetails',
+
+    // Phone KYC Suite
+    PHONE_TO_REGISTERED_ADDRESS: '/phonekyc/phoneToRegisteredAddress',
+    PHONE_TO_ALTERNATE_PHONE: '/phonekyc/phoneToAlternatePhone',
+    PHONE_TO_PREFILL: '/phonekyc/phoneToPrefill',
+    PHONE_TO_INCOME: '/phonekyc/phoneToIncome',
+    PHONE_TO_IDENTITY_DETAILS: '/phonekyc/phoneToIdentityDetails',
+
+    // Risk & Fraud
+    PHONE_INTELLIGENCE: '/phone-intelligence',
+    WHATSAPP_PRESENCE: '/whatsapp-presence',
+    DIGITAL_IDENTITY_SCORE: '/digital-identity-score',
+
+    // Banking
+    BANK_ACCOUNT_VERIFICATION: '/bankAccountVerification',
+    IFSC_SEARCH: '/ifsc/search',
+
+    // Employment
+    EMPLOYMENT_VERIFICATION: '/employmentVerification',
+    ADVANCED_EMPLOYMENT: '/advancedEmploymentVerification',
+
+    // Address
+    ADDRESS_GEOCODE: '/addressGeocode',
+    PINCODE_DETAILS: '/pincodeDetails',
+
+    // Device
+    IMEI_FETCH: '/imeiFetch',
+
+    // Document
+    FORGERY_CHECK: '/advanceForgeryLite',
+  },
+};
+
+// Signzy v2 Patron-based auth (Geo Fencing, Digital Integrity)
+export const SIGNZY_V2_CONFIG = {
+  BASE_URL: 'https://api-preproduction.signzy.app/api/v2/patrons',
+  USERNAME: 'support@finz.finance',
+  PASSWORD: 'vqoNYa3hklTfQJBzUoEr1i1qahc6MtuR',
+  ENDPOINTS: {
+    LOGIN: '/login',
+    GEO_FENCING: '/geoFencing',
+    DIGITAL_INTEGRITY: '/digitalIntegrityCheck',
   },
 };
 
@@ -199,5 +244,40 @@ export const API_ENDPOINTS = {
     CREDIT_SCORE_CHECK: '/engagement/credit-score',
     OFFERS: '/engagement/offers',
     REFERRAL: '/engagement/referral',
+  },
+  RISK: {
+    CALCULATE: '/risk/calculate',
+    SCORE: '/risk/{loanId}/score',
+    PROFILE: '/risk/{loanId}/profile',
+  },
+};
+
+// Risk Engine Configuration
+export const RISK_CONFIG = {
+  CATEGORY_WEIGHTS: {
+    identity:      0.10,
+    creditBureau:  0.18,
+    financial:     0.10,
+    bankStatement: 0.10,
+    phoneDigital:  0.07,
+    address:       0.05,
+    income:        0.10,
+    document:      0.04,
+    device:        0.05,
+    fraud:         0.10,
+    behavioral:    0.05,
+    legal:         0.06,
+  },
+  THRESHOLDS: {
+    AUTO_APPROVE: 800,
+    STANDARD: 600,
+    ELEVATED: 400,
+    MANUAL_REVIEW: 200,
+  },
+  PHASE_GATES: {
+    PHASE_A_MIN: 200,
+    PHASE_B_MIN: 300,
+    PHASE_C_MIN: 350,
+    AUTO_DECLINE: 200,
   },
 };

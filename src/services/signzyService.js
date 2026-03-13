@@ -1,5 +1,7 @@
 import axios from 'axios';
-import { SIGNZY_CONFIG, SIGNZY_OTP_CONFIG, PAN_STATUS_CODES } from '../config/constants';
+import { SIGNZY_CONFIG, SIGNZY_OTP_CONFIG, SIGNZY_V2_CONFIG, PAN_STATUS_CODES } from '../config/constants';
+
+// ─── Signzy v3 API client (token auth) ──────────────────────────────────────
 
 const signzyApi = axios.create({
   baseURL: SIGNZY_CONFIG.BASE_URL,
@@ -11,11 +13,9 @@ const signzyApi = axios.create({
   },
 });
 
-// Response interceptor to normalize Signzy error responses
 signzyApi.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Network error — no response received at all
     if (!error.response) {
       const networkErr = new Error(
         'Verification failed. Please check your internet connection and try again.',
@@ -37,16 +37,14 @@ signzyApi.interceptors.response.use(
       } else if (/required|empty/i.test(raw)) {
         message = 'PAN number is required. Please enter your PAN.';
       } else {
-        message = 'Invalid request. Please check your PAN and try again.';
+        message = 'Invalid request. Please check your input and try again.';
       }
     } else if (status === 401) {
       message = 'Verification failed. Please contact support.';
     } else if (status === 404) {
-      message = 'PAN number not found. Please check and re-enter.';
+      message = 'Record not found. Please check and re-enter.';
     } else if (status === 409) {
-      message = 'Verification is temporarily unavailable. Please try again later.';
-    } else {
-      message = 'Verification failed. Please try again.';
+      message = 'Service is temporarily unavailable. Please try again later.';
     }
 
     const err = new Error(message);
@@ -56,7 +54,8 @@ signzyApi.interceptors.response.use(
   },
 );
 
-// Signzy US OTP API instance (separate base URL from India PAN APIs)
+// ─── Signzy US OTP API client ───────────────────────────────────────────────
+
 const signzyOtpApi = axios.create({
   baseURL: SIGNZY_OTP_CONFIG.BASE_URL,
   timeout: 30000,
@@ -66,7 +65,6 @@ const signzyOtpApi = axios.create({
   },
 });
 
-// Response interceptor for OTP API error normalization
 signzyOtpApi.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -117,13 +115,58 @@ signzyOtpApi.interceptors.response.use(
   },
 );
 
+// ─── Signzy v2 Patron-based API client (login + token) ─────────────────────
+
+let v2AccessToken = null;
+let v2TokenExpiry = 0;
+
+async function getV2Token() {
+  if (v2AccessToken && Date.now() < v2TokenExpiry) return v2AccessToken;
+
+  const { data } = await axios.post(
+    `${SIGNZY_V2_CONFIG.BASE_URL}${SIGNZY_V2_CONFIG.ENDPOINTS.LOGIN}`,
+    {
+      email: SIGNZY_V2_CONFIG.USERNAME,
+      password: SIGNZY_V2_CONFIG.PASSWORD,
+    },
+    { headers: { 'Content-Type': 'application/json' }, timeout: 15000 },
+  );
+
+  v2AccessToken = data.id || data.accessToken;
+  v2TokenExpiry = Date.now() + 23 * 60 * 60 * 1000; // refresh after 23h
+  return v2AccessToken;
+}
+
+async function signzyV2Post(endpoint, body) {
+  const token = await getV2Token();
+  const { data } = await axios.post(
+    `${SIGNZY_V2_CONFIG.BASE_URL}${endpoint}`,
+    body,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: token,
+      },
+      timeout: 30000,
+    },
+  );
+  return data;
+}
+
+// ─── Helper to safely extract result ────────────────────────────────────────
+
+function extractResult(data) {
+  return data?.result || data?.response || data;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Signzy Service — All APIs
+// ═════════════════════════════════════════════════════════════════════════════
+
 export const signzyService = {
-  /**
-   * Fetch PAN number using phone number and name (Signzy Phone-to-PAN API)
-   * @param {string} phoneNumber - 10-digit mobile number
-   * @param {string} firstName - Borrower's first name
-   * @param {string} lastName - Borrower's last name
-   */
+
+  // ─── Identity & PAN ─────────────────────────────────────────────────────
+
   async phoneToPan(phoneNumber, firstName, lastName) {
     const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PHONE_TO_PAN, {
       phoneNumber,
@@ -143,10 +186,6 @@ export const signzyService = {
     };
   },
 
-  /**
-   * Verify PAN number and fetch detailed information (Signzy PAN fetchV2 API)
-   * @param {string} panNumber - PAN number to verify
-   */
   async verifyPan(panNumber) {
     const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PAN_FETCH_V2, {
       number: panNumber,
@@ -173,13 +212,314 @@ export const signzyService = {
     };
   },
 
-  /**
-   * Send OTP to a phone number via Signzy US OTP API
-   * @param {string} phoneNumber - Phone number in E.164 format (e.g., "+1-9907676111")
-   * @param {object} [options] - Optional configuration
-   * @param {string} [options.channel] - Delivery channel (default: "SMSOTP")
-   * @param {string} [options.customTextId] - OTP length/template ID: "4"-"8" for defaults, or custom ID (default: "6")
-   */
+  async getEAadhaarXml(requestId, options = {}) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.E_AADHAAR_XML, {
+      requestId,
+      ...options,
+    });
+    const r = extractResult(data);
+    return {
+      aadhaarValid: r.aadhaarValid ?? null,
+      digitalSignatureValid: r.digitalSignatureValid ?? null,
+      name: r.name || '',
+      dob: r.dob || '',
+      gender: r.gender || '',
+      address: r.address || '',
+    };
+  },
+
+  async getDigilockerDetails(requestId) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.DIGILOCKER_DETAILS, {
+      requestId,
+    });
+    const r = extractResult(data);
+    return {
+      totalDocuments: r.totalDocuments || 0,
+      documents: r.documents || [],
+      isVerified: r.isVerified ?? false,
+    };
+  },
+
+  // ─── Phone KYC Suite ────────────────────────────────────────────────────
+
+  async phoneToRegisteredAddress(phoneNumber, firstName, lastName, pan) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PHONE_TO_REGISTERED_ADDRESS, {
+      phoneNumber, firstName, lastName, pan,
+    });
+    const r = extractResult(data);
+    return {
+      addressFound: r.addressFound ?? false,
+      address: r.address || '',
+      city: r.city || '',
+      state: r.state || '',
+      pincode: r.pincode || '',
+      matchScore: r.matchScore ?? 0,
+    };
+  },
+
+  async phoneToAlternatePhone(phoneNumber, firstName, lastName, pan) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PHONE_TO_ALTERNATE_PHONE, {
+      phoneNumber, firstName, lastName, pan,
+    });
+    const r = extractResult(data);
+    return {
+      alternatePhones: r.alternatePhones || [],
+      totalFound: r.totalFound || 0,
+    };
+  },
+
+  async phoneToPrefill(phoneNumber, firstName, lastName, pan) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PHONE_TO_PREFILL, {
+      phoneNumber, firstName, lastName, pan,
+    });
+    const r = extractResult(data);
+    return {
+      addresses: r.addresses || [],
+      emails: r.emails || [],
+      dataRichness: r.dataRichness || 'none',
+    };
+  },
+
+  async phoneToIncome(phoneNumber, firstName, dob, address, pincode, lastName, pan) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PHONE_TO_INCOME, {
+      phoneNumber, firstName, dob, address, pincode, lastName, pan,
+    });
+    const r = extractResult(data);
+    return {
+      estimatedMonthlyIncome: r.estimatedMonthlyIncome ?? null,
+      incomeRange: r.incomeRange || '',
+      confidence: r.confidence ?? 0,
+    };
+  },
+
+  async phoneToIdentityDetails(phoneNumber, firstName, lastName, pan) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PHONE_TO_IDENTITY_DETAILS, {
+      phoneNumber, firstName, lastName, pan,
+    });
+    const r = extractResult(data);
+    return {
+      identities: r.identities || [],
+      nameOnRecords: r.nameOnRecords || '',
+      gender: r.gender || '',
+      dob: r.dob || '',
+      consistencyScore: r.consistencyScore ?? 0,
+    };
+  },
+
+  // ─── Risk & Fraud ──────────────────────────────────────────────────────
+
+  async getPhoneIntelligence(phoneNumber, originatingIp, emailAddress, deviceId) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PHONE_INTELLIGENCE, {
+      phoneNumber, originatingIp, emailAddress, deviceId,
+    });
+    const r = extractResult(data);
+    return {
+      riskScore: r.riskScore ?? 500,
+      riskLevel: r.riskLevel || 'unknown',
+      phoneType: r.phoneType || 'unknown',
+      carrier: r.carrier || '',
+      lineType: r.lineType || '',
+      isBlocklisted: r.isBlocklisted ?? false,
+      simSwapDetected: r.simSwapDetected ?? false,
+      simSwapLastDate: r.simSwapLastDate || null,
+      accountTenure: r.accountTenure || '',
+      isPorted: r.isPorted ?? false,
+      isRoaming: r.isRoaming ?? false,
+      fraudSources: r.fraudSources || [],
+    };
+  },
+
+  async checkWhatsAppPresence(mobile) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.WHATSAPP_PRESENCE, {
+      mobile,
+    });
+    const r = extractResult(data);
+    return {
+      isRegistered: r.isRegistered ?? false,
+      accountType: r.accountType || null,
+      profileExists: r.profileExists ?? false,
+    };
+  },
+
+  async getDigitalIdentityScore(phone, email, name, pincode) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.DIGITAL_IDENTITY_SCORE, {
+      phone, email, name, pincode,
+    });
+    const r = extractResult(data);
+    return {
+      score: r.score ?? 0,
+      maxScore: r.maxScore || 10,
+      phoneFirstSeen: r.phoneFirstSeen || null,
+      emailFirstSeen: r.emailFirstSeen || null,
+      ecomPresence: r.ecomPresence || [],
+      socialPresence: r.socialPresence || [],
+      nameEmailMatch: r.nameEmailMatch ?? false,
+      phoneEmailLinked: r.phoneEmailLinked ?? false,
+      riskBand: r.riskBand || 'unknown',
+    };
+  },
+
+  // ─── Banking ────────────────────────────────────────────────────────────
+
+  async verifyBankAccount(accountNumber, ifsc, name, mobile, options = {}) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.BANK_ACCOUNT_VERIFICATION, {
+      beneficiaryAccount: accountNumber,
+      beneficiaryIFSC: ifsc,
+      beneficiaryName: name,
+      beneficiaryMobile: mobile,
+      ...options,
+    });
+    const r = extractResult(data);
+    return {
+      accountActive: r.accountActive ?? false,
+      nameMatch: r.nameMatch ?? false,
+      nameMatchScore: r.nameMatchScore ?? 0,
+      upiLinked: r.upiLinked ?? false,
+      bankName: r.bankName || '',
+      accountType: r.accountType || '',
+    };
+  },
+
+  async searchBankByIfsc(ifscCode) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.IFSC_SEARCH, {
+      ifsc: ifscCode,
+    });
+    const r = extractResult(data);
+    return {
+      valid: r.valid ?? false,
+      bankName: r.bankName || r.bank || '',
+      branch: r.branch || '',
+      city: r.city || '',
+      state: r.state || '',
+    };
+  },
+
+  // ─── Employment ─────────────────────────────────────────────────────────
+
+  async verifyEmployment(mobile, panNumber) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.EMPLOYMENT_VERIFICATION, {
+      mobile, panNumber,
+    });
+    const r = extractResult(data);
+    return {
+      isEmployed: r.isEmployed ?? false,
+      employerName: r.employerName || '',
+      membershipStatus: r.membershipStatus || '',
+      dateOfExit: r.dateOfExit || null,
+    };
+  },
+
+  async advancedEmploymentVerification(params) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.ADVANCED_EMPLOYMENT, params);
+    const r = extractResult(data);
+    return {
+      employmentHistory: r.employmentHistory || [],
+      totalExperience: r.totalExperience || '',
+      pfFilingFrequency: r.pfFilingFrequency || 'none',
+      lastPfFiled: r.lastPfFiled || null,
+      employerGstinActive: r.employerGstinActive ?? false,
+    };
+  },
+
+  // ─── Address ────────────────────────────────────────────────────────────
+
+  async geocodeAddress(address, latitude, longitude) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.ADDRESS_GEOCODE, {
+      address, latitude, longitude,
+    });
+    const r = extractResult(data);
+    return {
+      confidence: r.confidence ?? 0,
+      formattedAddress: r.formattedAddress || '',
+      lat: r.lat || r.latitude || null,
+      lng: r.lng || r.longitude || null,
+      isInternationalBorder: r.isInternationalBorder ?? false,
+      nearestBorderDistance: r.nearestBorderDistance || null,
+      distanceFromDevice: r.distanceFromDevice || null,
+    };
+  },
+
+  async getPincodeDetails(pincode) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PINCODE_DETAILS, {
+      pincode,
+    });
+    const r = extractResult(data);
+    return {
+      isServiceable: r.isServiceable ?? true,
+      isBlacklisted: r.isBlacklisted ?? false,
+      area: r.area || '',
+      district: r.district || '',
+      state: r.state || '',
+      riskCategory: r.riskCategory || 'medium',
+    };
+  },
+
+  // ─── Device ─────────────────────────────────────────────────────────────
+
+  async fetchImeiDetails(imei) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.IMEI_FETCH, {
+      imei,
+    });
+    const r = extractResult(data);
+    return {
+      valid: r.valid ?? false,
+      brand: r.brand || '',
+      model: r.model || '',
+      isStolen: r.isStolen ?? false,
+      isLost: r.isLost ?? false,
+      manufactureYear: r.manufactureYear || null,
+    };
+  },
+
+  // ─── Document ───────────────────────────────────────────────────────────
+
+  async checkDocumentForgery(imageUrl, threshold = 0.5) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.FORGERY_CHECK, {
+      imageUrl, threshold,
+    });
+    const r = extractResult(data);
+    return {
+      status: r.status || 'unknown',
+      forgeryScore: r.forgeryScore ?? 0,
+      anomalies: r.anomalies || [],
+      metadataConsistent: r.metadataConsistent ?? true,
+    };
+  },
+
+  // ─── Patron-based APIs (v2) ─────────────────────────────────────────────
+
+  async checkGeoFencing(ip, country, state) {
+    const result = await signzyV2Post(SIGNZY_V2_CONFIG.ENDPOINTS.GEO_FENCING, {
+      ip, country, state,
+    });
+    const r = result?.result || result;
+    return {
+      geoMatch: r.geoMatch ?? false,
+      stateMatch: r.stateMatch ?? false,
+      ipCity: r.ipCity || '',
+      ipState: r.ipState || '',
+      ipCountry: r.ipCountry || '',
+      isTor: r.isTor ?? false,
+      isVpn: r.isVpn ?? false,
+      isProxy: r.isProxy ?? false,
+    };
+  },
+
+  async checkDigitalIntegrity(email, phone, ip) {
+    const result = await signzyV2Post(SIGNZY_V2_CONFIG.ENDPOINTS.DIGITAL_INTEGRITY, {
+      email, phone, ip,
+    });
+    const r = result?.result || result;
+    return {
+      emailValid: r.emailValid ?? false,
+      emailDisposable: r.emailDisposable ?? false,
+      ipBlocklisted: r.ipBlocklisted ?? false,
+      botLikelihood: r.botLikelihood ?? 0,
+    };
+  },
+
+  // ─── OTP ────────────────────────────────────────────────────────────────
+
   async sendOtp(phoneNumber, options = {}) {
     const {
       channel = SIGNZY_OTP_CONFIG.DEFAULT_CHANNEL,
@@ -200,11 +540,6 @@ export const signzyService = {
     };
   },
 
-  /**
-   * Verify OTP entered by the user via Signzy US OTP API
-   * @param {string} phoneNumber - Phone number in E.164 format (e.g., "+1-9907676111")
-   * @param {string} otp - The OTP entered by the user
-   */
   async verifyOtp(phoneNumber, otp) {
     const { data } = await signzyOtpApi.post(SIGNZY_OTP_CONFIG.ENDPOINTS.VERIFY_OTP, {
       clientId: SIGNZY_OTP_CONFIG.CLIENT_ID,
