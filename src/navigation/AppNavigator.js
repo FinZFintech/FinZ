@@ -61,7 +61,7 @@ const TabIcon = ({ label, icon, focused }) => (
     <Text
       style={{
         fontSize: 10,
-        color: focused ? COLORS.primary : COLORS.textSecondary,
+        color: focused ? COLORS.teal : COLORS.textSecondary,
         fontWeight: focused ? '700' : '400',
         marginTop: 2,
       }}
@@ -128,10 +128,10 @@ const ProfileStack = () => (
 const tabBarStyle = {
   height: 65,
   paddingBottom: 8,
-  backgroundColor: COLORS.surface,
-  borderTopWidth: 0.5,
+  backgroundColor: COLORS.headerBg,
+  borderTopWidth: 1,
   borderTopColor: COLORS.border,
-  elevation: 8,
+  elevation: 0,
 };
 
 const CustomerTabs = () => (
@@ -173,7 +173,7 @@ const CustomerTabs = () => (
               elevation: 4,
             }}
           >
-            <Text style={{ fontSize: 28, color: COLORS.textLight }}>+</Text>
+            <Text style={{ fontSize: 28, color: COLORS.background }}>+</Text>
           </View>
         ),
       }}

@@ -94,10 +94,10 @@ const MyLoansScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   tabs: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
-  tab: { flex: 1, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F0EDF5', alignItems: 'center' },
-  activeTab: { backgroundColor: COLORS.teal },
+  tab: { flex: 1, paddingVertical: 8, borderRadius: 20, backgroundColor: COLORS.cardBg, alignItems: 'center', borderWidth: 1, borderColor: COLORS.cardBorder },
+  activeTab: { backgroundColor: COLORS.teal, borderColor: COLORS.teal },
   tabText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  activeTabText: { color: COLORS.textLight },
+  activeTabText: { color: COLORS.background },
   list: { paddingHorizontal: 16, paddingBottom: 80 },
   loanHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   loanId: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },

@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.headerBg,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.teal,
   },
   active: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.teal,
   },
   circleText: {
     fontSize: 11,
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   activeLabel: {
-    color: COLORS.primary,
+    color: COLORS.teal,
     fontWeight: '600',
   },
 });

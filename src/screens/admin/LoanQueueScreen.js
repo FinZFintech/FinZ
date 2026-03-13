@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   list: { padding: 16, paddingBottom: 80 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   loanId: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
-  reasonBanner: { backgroundColor: '#FFF8E1', padding: 10, borderRadius: 8, marginTop: 8 },
+  reasonBanner: { backgroundColor: 'rgba(245,183,49,0.08)', padding: 10, borderRadius: 8, marginTop: 8 },
   reasonText: { fontSize: 12, color: COLORS.warning, fontWeight: '500' },
   actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   actionBtn: { flex: 1, paddingVertical: 10 },

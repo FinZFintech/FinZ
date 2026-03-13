@@ -260,14 +260,14 @@ const styles = StyleSheet.create({
   },
   detailsCard: { marginTop: 8 },
   feeHighlight: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.teal,
     padding: 20,
     borderRadius: 14,
     marginTop: 16,
     alignItems: 'center',
   },
   feeLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5, textTransform: 'uppercase' },
-  feeAmount: { fontSize: 32, fontWeight: '900', color: COLORS.textLight, marginTop: 6 },
+  feeAmount: { fontSize: 32, fontWeight: '900', color: COLORS.background, marginTop: 6 },
   proceedButton: { marginTop: 20 },
 });
 

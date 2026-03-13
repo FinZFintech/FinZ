@@ -16,7 +16,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(228,228,240,0.5)',
+    borderBottomColor: COLORS.border,
   },
   label: {
     fontSize: 13,

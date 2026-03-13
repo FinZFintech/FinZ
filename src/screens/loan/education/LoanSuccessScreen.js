@@ -60,7 +60,7 @@ const LoanSuccessScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
@@ -70,29 +70,29 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     width: 100, height: 100, borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(74,237,196,0.15)', alignItems: 'center', justifyContent: 'center',
     marginBottom: 24,
   },
   icon: { fontSize: 50 },
   title: {
-    fontSize: 28, fontWeight: '800', color: COLORS.textLight, marginBottom: 12,
+    fontSize: 28, fontWeight: '800', color: COLORS.teal, marginBottom: 12,
   },
   subtitle: {
-    fontSize: 15, color: 'rgba(255,255,255,0.85)', textAlign: 'center', lineHeight: 22,
+    fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22,
     marginBottom: 32,
   },
   summaryCard: {
-    backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16,
+    backgroundColor: COLORS.cardBg, borderRadius: 16,
     paddingHorizontal: 24, paddingVertical: 16, width: '100%', marginBottom: 24,
   },
   summaryRow: {
     flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.2)',
+    borderBottomWidth: 0.5, borderBottomColor: COLORS.border,
   },
-  summaryLabel: { fontSize: 14, color: 'rgba(255,255,255,0.7)' },
-  summaryValue: { fontSize: 16, fontWeight: '700', color: COLORS.textLight },
+  summaryLabel: { fontSize: 14, color: COLORS.textSecondary },
+  summaryValue: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
   note: {
-    fontSize: 13, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 20,
+    fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20,
     marginBottom: 32,
   },
   btn: { width: '100%' },

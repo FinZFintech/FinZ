@@ -125,8 +125,8 @@ const LoanDetailScreen = ({ route, navigation }) => {
                     styles.emiStatusBadge,
                     {
                       backgroundColor:
-                        emi.status === 'paid' ? '#E8F8F7' :
-                        emi.status === 'upcoming' ? '#E8F8F7' : '#F5F5F5',
+                        emi.status === 'paid' ? 'rgba(74,237,196,0.1)' :
+                        emi.status === 'upcoming' ? 'rgba(123,109,175,0.1)' : 'rgba(255,255,255,0.05)',
                     },
                   ]}
                 >
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
-  statusCard: { backgroundColor: COLORS.primary },
+  statusCard: { backgroundColor: '#151E30', borderColor: 'rgba(74,237,196,0.15)' },
   statusHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   loanName: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
   statusLoanName: { fontSize: 17, fontWeight: '700', color: COLORS.textLight },
