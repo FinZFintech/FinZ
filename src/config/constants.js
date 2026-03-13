@@ -216,6 +216,7 @@ export const API_ENDPOINTS = {
     IFSC_VALIDATE: '/bank/ifsc/validate',
   },
   INCOME: {
+    AA_FIP_LIST: '/income/account-aggregator/fip-list',
     AA_INITIATE: '/income/account-aggregator/initiate',
     AA_STATUS: '/income/account-aggregator/status',
     BANK_STATEMENT_UPLOAD: '/income/bank-statement/upload',

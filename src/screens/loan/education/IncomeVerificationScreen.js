@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
+  TextInput,
+  FlatList,
+  Modal,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Header from '../../../components/common/Header';
@@ -31,15 +34,41 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const [incomeResult, setIncomeResult] = useState(null);
   const [eligibilityResult, setEligibilityResult] = useState(null);
 
+  // Bank selection for AA
+  const [fipList, setFipList] = useState([]);
+  const [selectedBank, setSelectedBank] = useState(null);
+  const [bankSearch, setBankSearch] = useState('');
+  const [showBankPicker, setShowBankPicker] = useState(false);
+
   const loanAmount = state.studentDetails?.balanceFee || 0;
+
+  // Fetch FIP list when AA method is selected
+  useEffect(() => {
+    if (method === 'aa' && fipList.length === 0) {
+      bankService.getFIPList().then((res) => {
+        setFipList(res.fips || []);
+      }).catch(() => {});
+    }
+  }, [method]);
+
+  const filteredBanks = fipList.filter((b) =>
+    b.name.toLowerCase().includes(bankSearch.toLowerCase()) ||
+    b.code.toLowerCase().includes(bankSearch.toLowerCase())
+  );
 
   // Account Aggregator
   const handleInitiateAA = async () => {
+    if (!selectedBank) {
+      Alert.alert('Select Bank', 'Please select your bank to proceed with Account Aggregator.');
+      return;
+    }
     setLoading(true);
     try {
       await bankService.initiateAA({
         phone: state.borrowerDetails?.phone,
         pan: state.panDetails?.panNumber,
+        fipId: selectedBank.id,
+        fipName: selectedBank.name,
       });
       setAaInitiated(true);
     } catch {
@@ -256,16 +285,99 @@ const IncomeVerificationScreen = ({ navigation }) => {
           <Card>
             <Text style={styles.sectionTitle}>Account Aggregator</Text>
             <Text style={styles.infoText}>
-              We use Finarkein Account Aggregator to securely fetch your bank data.
+              Select your bank to securely fetch your financial data via Account Aggregator.
               You will receive a consent request on your bank app.
             </Text>
+
+            {/* Bank Selection */}
+            {!aaInitiated && (
+              <>
+                <Text style={styles.fieldLabel}>Select Your Bank</Text>
+                <TouchableOpacity
+                  style={[styles.bankSelector, selectedBank && styles.bankSelectorSelected]}
+                  onPress={() => setShowBankPicker(true)}
+                >
+                  {selectedBank ? (
+                    <View style={styles.selectedBankRow}>
+                      <View style={styles.bankCodeBadge}>
+                        <Text style={styles.bankCodeText}>{selectedBank.code}</Text>
+                      </View>
+                      <Text style={styles.selectedBankName}>{selectedBank.name}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.bankPlaceholder}>Tap to select bank...</Text>
+                  )}
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* Bank Picker Modal */}
+            <Modal visible={showBankPicker} animationType="slide" transparent>
+              <View style={styles.modalOverlay}>
+                <View style={[styles.modalContent, { backgroundColor: colors.surface || COLORS.surface }]}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Select Your Bank</Text>
+                    <TouchableOpacity onPress={() => setShowBankPicker(false)}>
+                      <Text style={styles.modalClose}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.searchBox}>
+                    <TextInput
+                      style={[styles.searchInput, { color: COLORS.textPrimary }]}
+                      placeholder="Search bank name..."
+                      placeholderTextColor={COLORS.textSecondary}
+                      value={bankSearch}
+                      onChangeText={setBankSearch}
+                      autoFocus
+                    />
+                  </View>
+                  <FlatList
+                    data={filteredBanks}
+                    keyExtractor={(item) => item.id}
+                    keyboardShouldPersistTaps="handled"
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.bankItem,
+                          selectedBank?.id === item.id && styles.bankItemSelected,
+                        ]}
+                        onPress={() => {
+                          setSelectedBank(item);
+                          setShowBankPicker(false);
+                          setBankSearch('');
+                        }}
+                      >
+                        <View style={styles.bankCodeBadge}>
+                          <Text style={styles.bankCodeText}>{item.code}</Text>
+                        </View>
+                        <Text style={styles.bankItemName}>{item.name}</Text>
+                        {selectedBank?.id === item.id && (
+                          <Text style={styles.checkMark}>✓</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                    ListEmptyComponent={
+                      <Text style={styles.emptyText}>No banks found</Text>
+                    }
+                  />
+                </View>
+              </View>
+            </Modal>
+
             {!aaInitiated ? (
-              <Button title="Initiate AA Consent" onPress={handleInitiateAA} loading={loading} />
+              <Button
+                title="Initiate AA Consent"
+                onPress={handleInitiateAA}
+                loading={loading}
+                disabled={!selectedBank}
+                style={styles.btn}
+              />
             ) : (
               <>
                 <View style={styles.pendingBanner}>
                   <Text style={styles.pendingText}>
-                    Consent request sent! Please approve on your bank app, then check status below.
+                    Consent request sent to {selectedBank?.name}! Please approve on your bank app, then check status below.
                   </Text>
                 </View>
                 <Button
@@ -394,6 +506,49 @@ const styles = StyleSheet.create({
   optionTitle: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, textAlign: 'center' },
   selectedText: { color: COLORS.teal },
   optionDesc: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
+  bankSelector: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: 10,
+    padding: 14, backgroundColor: COLORS.inputBg,
+  },
+  bankSelectorSelected: { borderColor: COLORS.teal },
+  selectedBankRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  selectedBankName: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginLeft: 10 },
+  bankPlaceholder: { fontSize: 14, color: COLORS.textSecondary },
+  dropdownArrow: { fontSize: 10, color: COLORS.textSecondary, marginLeft: 8 },
+  bankCodeBadge: {
+    backgroundColor: 'rgba(74,237,196,0.12)', paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 6, minWidth: 48, alignItems: 'center',
+  },
+  bankCodeText: { fontSize: 11, fontWeight: '700', color: COLORS.teal },
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    maxHeight: '75%', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    paddingBottom: 30,
+  },
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
+  modalClose: { fontSize: 20, color: COLORS.textSecondary, padding: 4 },
+  searchBox: { paddingHorizontal: 16, paddingVertical: 10 },
+  searchInput: {
+    backgroundColor: COLORS.inputBg, borderRadius: 10, paddingHorizontal: 14,
+    paddingVertical: 10, fontSize: 14, borderWidth: 1, borderColor: COLORS.border,
+  },
+  bankItem: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
+    paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  },
+  bankItemSelected: { backgroundColor: 'rgba(74,237,196,0.08)' },
+  bankItemName: { fontSize: 14, color: COLORS.textPrimary, marginLeft: 10, flex: 1 },
+  checkMark: { fontSize: 16, color: COLORS.teal, fontWeight: '700' },
+  emptyText: { padding: 20, textAlign: 'center', color: COLORS.textSecondary, fontSize: 14 },
   pendingBanner: { backgroundColor: 'rgba(74,237,196,0.08)', padding: 12, borderRadius: 8, marginBottom: 12 },
   pendingText: { fontSize: 13, color: COLORS.teal, lineHeight: 20 },
   btn: { marginTop: 12 },
