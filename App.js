@@ -62,21 +62,13 @@ function ThemedApp() {
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <LoanProvider>
-          <RiskProvider>
-            <NavigationContainer>
-              <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
-              <AppNavigator />
-            </NavigationContainer>
-          </RiskProvider>
-        </LoanProvider>
-      </AuthProvider>
       <ThemeProvider>
         <MobileContainer>
           <AuthProvider>
             <LoanProvider>
-              <ThemedApp />
+              <RiskProvider>
+                <ThemedApp />
+              </RiskProvider>
             </LoanProvider>
           </AuthProvider>
         </MobileContainer>
