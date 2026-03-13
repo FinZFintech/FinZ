@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from './src/store/AuthContext';
 import { LoanProvider } from './src/store/LoanContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import { navigationRef } from './src/navigation/navigationRef';
 import { COLORS } from './src/config/constants';
 
 const MAX_MOBILE_WIDTH = 480;
@@ -49,7 +50,7 @@ export default function App() {
       <MobileContainer>
         <AuthProvider>
           <LoanProvider>
-            <NavigationContainer theme={DarkNavTheme}>
+            <NavigationContainer ref={navigationRef} theme={DarkNavTheme}>
               <StatusBar backgroundColor={COLORS.background} barStyle="light-content" />
               <AppNavigator />
             </NavigationContainer>

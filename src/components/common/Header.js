@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
 import { COLORS } from '../../config/constants';
+import Logo from './Logo';
 
 const Header = ({ title, greeting, subtitle, onBack, rightAction, rightIcon, showLogo = true }) => (
   <View style={styles.container}>
@@ -26,8 +27,7 @@ const Header = ({ title, greeting, subtitle, onBack, rightAction, rightIcon, sho
       <View style={styles.rightSection}>
         {showLogo && (
           <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>F</Text>
-            <Text style={styles.logoZ}>Z</Text>
+            <Logo size="tiny" white />
           </View>
         )}
         {rightAction && (
@@ -124,26 +124,14 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   logoBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-  },
-  logoText: {
-    color: COLORS.textLight,
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  logoZ: {
-    color: COLORS.teal,
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarButton: {
     width: 36,
