@@ -4,7 +4,6 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, View, ActivityIndicator } from 'react-native';
 import { COLORS } from '../config/constants';
 import { useAuth } from '../store/AuthContext';
-import { Text, View } from 'react-native';
 import { useTheme } from '../store/ThemeContext';
 
 // Auth Screens
