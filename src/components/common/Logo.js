@@ -33,19 +33,21 @@ const Logo = ({ size = 'medium', white = false }) => {
         {/* "i" dot overlay — golden yellow circle */}
         <Circle cx="68" cy="14" r="8" fill={white ? '#FFFFFF' : GOLD} />
 
-        {/* ===== "Z" — geometric colored letter ===== */}
+        {/* ===== "Z" — geometric colored blocks ===== */}
         <G transform="translate(136, 2)">
-          {/* Top bar — purple */}
-          <Rect x="0" y="0" width="72" height="18" rx="4" fill={white ? 'rgba(255,255,255,0.7)' : PURPLE} />
+          {/* Top bar: purple left + navy right */}
+          <Rect x="0" y="0" width="42" height="22" rx="5" fill={white ? 'rgba(255,255,255,0.65)' : PURPLE} />
+          <Rect x="30" y="0" width="42" height="22" rx="5" fill={white ? 'rgba(255,255,255,0.85)' : NAVY_DARK} />
 
-          {/* Diagonal stroke — navy dark */}
+          {/* Diagonal stripe (teal) */}
           <Path
-            d="M50 18 L72 18 L22 58 L0 58 Z"
-            fill={white ? 'rgba(255,255,255,0.85)' : NAVY_DARK}
+            d="M55 9 L68 9 L17 69 L4 69 Z"
+            fill={white ? 'rgba(255,255,255,0.9)' : TEAL}
           />
 
-          {/* Bottom bar — golden yellow */}
-          <Rect x="0" y="58" width="72" height="18" rx="4" fill={white ? '#FFFFFF' : GOLD} />
+          {/* Bottom bar: teal left + golden right */}
+          <Rect x="0" y="56" width="42" height="22" rx="5" fill={white ? 'rgba(255,255,255,0.9)' : TEAL} />
+          <Rect x="30" y="56" width="42" height="22" rx="5" fill={white ? '#FFFFFF' : GOLD} />
         </G>
       </Svg>
     </View>

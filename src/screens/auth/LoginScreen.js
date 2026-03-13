@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
@@ -12,7 +13,6 @@ import { COLORS } from '../../config/constants';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import OtpInput from '../../components/common/OtpInput';
-import Logo from '../../components/common/Logo';
 import { authService } from '../../services/authService';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
@@ -133,7 +133,11 @@ const LoginScreen = ({ navigation }) => {
 
         <View style={styles.header}>
           <View style={styles.logoWrap}>
-            <Logo size="medium" white={isDark} />
+            <Image
+              source={require('../../../assets/logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={[styles.welcomeText, dynamicStyles.welcomeText]}>
             {showOtp ? 'Verify OTP' : 'Welcome! Login to continue'}
@@ -263,6 +267,11 @@ const styles = StyleSheet.create({
   },
   logoWrap: {
     marginBottom: 24,
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: 200,
+    height: 70,
   },
   welcomeText: {
     fontSize: 24,
