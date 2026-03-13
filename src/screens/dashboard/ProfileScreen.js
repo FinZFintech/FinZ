@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import { COLORS, APP_NAME } from '../../config/constants';
