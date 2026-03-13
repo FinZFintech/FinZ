@@ -5,17 +5,14 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  Linking,
   TouchableOpacity,
 } from 'react-native';
-import * as DocumentPicker from 'expo-document-picker';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
-import Input from '../../../components/common/Input';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import OtpInput from '../../../components/common/OtpInput';
-import { COLORS, KYC_METHODS } from '../../../config/constants';
+import { KYC_METHODS } from '../../../config/constants';
 import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
@@ -25,18 +22,27 @@ const KycVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const { executePhase } = useRisk();
-  const [currentMethod, setCurrentMethod] = useState(KYC_METHODS.CKYC);
+  const [currentMethod, setCurrentMethod] = useState(null); // null = selection screen
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [kycCompleted, setKycCompleted] = useState(false);
   const [kycFailed, setKycFailed] = useState(false);
-  const [ckycFailed, setCkycFailed] = useState(false);
-  const [digilockerFailed, setDigilockerFailed] = useState(false);
-  const [aadhaarFile, setAadhaarFile] = useState(null);
   const [pincodeBlacklisted, setPincodeBlacklisted] = useState(false);
 
-  // CKYC Flow
+  const tealBg = `${colors.teal}14`;
+  const warningBg = `${colors.warning}14`;
+  const errorBg = `${colors.error}14`;
+
+  const getMockKycData = () => ({
+    name: state.borrowerDetails?.name || 'RAHUL SHARMA',
+    address: '123, ABC Colony, Bangalore - 560001',
+    pincode: '560001',
+    dob: '1998-05-15',
+    photo: 'base64_photo_data_here',
+  });
+
+  // CKYC Flow — simulated for now
   const handleInitiateCkyc = async () => {
     setLoading(true);
     try {
@@ -47,7 +53,7 @@ const KycVerificationScreen = ({ navigation }) => {
       });
       setOtpSent(true);
     } catch {
-      // Mock - OTP sent
+      // TODO: Replace simulation once CKYC API is integrated
       setOtpSent(true);
     } finally {
       setLoading(false);
@@ -65,30 +71,14 @@ const KycVerificationScreen = ({ navigation }) => {
       });
       await handleKycSuccess(result, KYC_METHODS.CKYC);
     } catch {
-      // Mock success
-      await handleKycSuccess(
-        {
-          name: 'RAHUL SHARMA',
-          address: '123, ABC Colony, Bangalore - 560001',
-          pincode: '560001',
-          dob: '1998-05-15',
-          photo: 'base64_photo_data_here',
-        },
-        KYC_METHODS.CKYC
-      );
+      // TODO: Replace simulation once CKYC API is integrated
+      await handleKycSuccess(getMockKycData(), KYC_METHODS.CKYC);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCkycFailed = () => {
-    setCkycFailed(true);
-    setCurrentMethod(KYC_METHODS.DIGILOCKER);
-    setOtpSent(false);
-    setOtp('');
-  };
-
-  // DigiLocker Flow
+  // DigiLocker Flow — simulated for now
   const handleInitiateDigilocker = async () => {
     setLoading(true);
     try {
@@ -96,84 +86,21 @@ const KycVerificationScreen = ({ navigation }) => {
         pan: state.panDetails?.panNumber,
         phone: state.borrowerDetails?.phone,
       });
-      // In production, this would open DigiLocker in WebView
       if (result.redirectUrl) {
-        Linking.openURL(result.redirectUrl);
+        // In production, open DigiLocker in WebView
+        // For now, simulate success
+        await handleKycSuccess(getMockKycData(), KYC_METHODS.DIGILOCKER);
       }
     } catch {
-      // Mock - show digilocker failed option
-      Alert.alert(
-        'DigiLocker',
-        'DigiLocker verification initiated. For testing, choose result:',
-        [
-          {
-            text: 'Success',
-            onPress: () =>
-              handleKycSuccess(
-                {
-                  name: 'RAHUL SHARMA',
-                  address: '123, ABC Colony, Bangalore - 560001',
-                  pincode: '560001',
-                  dob: '1998-05-15',
-                  photo: 'base64_photo_data',
-                },
-                KYC_METHODS.DIGILOCKER
-              ),
-          },
-          { text: 'Failed', onPress: handleDigilockerFailed },
-        ]
-      );
-    } finally {
-      setLoading(false);
+      // TODO: Replace simulation once DigiLocker API is integrated
+      // Simulate DigiLocker consent + data fetch after brief delay
+      setTimeout(async () => {
+        await handleKycSuccess(getMockKycData(), KYC_METHODS.DIGILOCKER);
+        setLoading(false);
+      }, 1200);
+      return; // Don't set loading false yet
     }
-  };
-
-  const handleDigilockerFailed = () => {
-    setDigilockerFailed(true);
-    setCurrentMethod(KYC_METHODS.AADHAAR_XML);
-  };
-
-  // Aadhaar XML Flow
-  const handlePickAadhaarXml = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/xml', 'application/zip', 'text/xml'],
-      });
-      if (!result.canceled && result.assets?.[0]) {
-        setAadhaarFile(result.assets[0]);
-      }
-    } catch {
-      Alert.alert('Error', 'Could not pick file');
-    }
-  };
-
-  const handleUploadAadhaarXml = async () => {
-    if (!aadhaarFile) return;
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', {
-        uri: aadhaarFile.uri,
-        type: aadhaarFile.mimeType,
-        name: aadhaarFile.name,
-      });
-      const result = await kycService.uploadAadhaarXml(formData);
-      await handleKycSuccess(result, KYC_METHODS.AADHAAR_XML);
-    } catch {
-      // Mock success
-      await handleKycSuccess(
-        {
-          name: 'RAHUL SHARMA',
-          address: '123, ABC Colony, Bangalore - 560001',
-          pincode: '560001',
-          dob: '1998-05-15',
-          photo: 'base64_photo_data',
-        },
-        KYC_METHODS.AADHAAR_XML
-      );
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   };
 
   // Common KYC success handler
@@ -198,7 +125,6 @@ const KycVerificationScreen = ({ navigation }) => {
         borrowerName: state.borrowerDetails?.name,
       });
       if (nameMatchResult.score < 70) {
-        // Route to manual queue
         dispatch({ type: 'SET_KYC_DATA', payload: { ...kycData, method, nameMatchFailed: true } });
         dispatch({ type: 'SET_KYC_METHOD', payload: method });
         Alert.alert(
@@ -246,12 +172,71 @@ const KycVerificationScreen = ({ navigation }) => {
       <Header title="KYC Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={4} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        {/* CKYC */}
-        {!kycCompleted && currentMethod === KYC_METHODS.CKYC && (
+
+        {/* Method Selection */}
+        {!kycCompleted && !kycFailed && !currentMethod && (
           <Card>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>CKYC Verification</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Choose KYC Method</Text>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              We will verify your identity via Central KYC Registry (CKYC).
+              Select how you would like to verify your identity. Both methods are quick and secure.
+            </Text>
+
+            <View style={styles.optionsCol}>
+              <TouchableOpacity
+                style={[styles.methodCard, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                onPress={() => setCurrentMethod(KYC_METHODS.CKYC)}
+              >
+                <View style={styles.methodHeader}>
+                  <View style={[styles.methodIconWrap, { backgroundColor: `${colors.purple}20` }]}>
+                    <Text style={styles.methodIcon}>🏛️</Text>
+                  </View>
+                  <View style={styles.methodInfo}>
+                    <Text style={[styles.methodTitle, { color: colors.textPrimary }]}>CKYC</Text>
+                    <Text style={[styles.methodSubtitle, { color: colors.textSecondary }]}>Central KYC Registry</Text>
+                  </View>
+                  <Text style={[styles.methodArrow, { color: colors.textSecondary }]}>›</Text>
+                </View>
+                <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>
+                  Verify via PAN-linked KYC records. OTP will be sent to your registered mobile number.
+                </Text>
+                <View style={[styles.methodBadge, { backgroundColor: tealBg }]}>
+                  <Text style={[styles.methodBadgeText, { color: colors.teal }]}>Recommended</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.methodCard, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                onPress={() => setCurrentMethod(KYC_METHODS.DIGILOCKER)}
+              >
+                <View style={styles.methodHeader}>
+                  <View style={[styles.methodIconWrap, { backgroundColor: `${colors.teal}20` }]}>
+                    <Text style={styles.methodIcon}>📱</Text>
+                  </View>
+                  <View style={styles.methodInfo}>
+                    <Text style={[styles.methodTitle, { color: colors.textPrimary }]}>DigiLocker</Text>
+                    <Text style={[styles.methodSubtitle, { color: colors.textSecondary }]}>Aadhaar-based verification</Text>
+                  </View>
+                  <Text style={[styles.methodArrow, { color: colors.textSecondary }]}>›</Text>
+                </View>
+                <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>
+                  Link your Aadhaar via DigiLocker to fetch verified identity documents instantly.
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
+        )}
+
+        {/* CKYC Flow */}
+        {!kycCompleted && !kycFailed && currentMethod === KYC_METHODS.CKYC && (
+          <Card>
+            <View style={styles.methodHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>CKYC Verification</Text>
+              <TouchableOpacity onPress={() => { setCurrentMethod(null); setOtpSent(false); setOtp(''); }}>
+                <Text style={[styles.changeMethod, { color: colors.teal }]}>Change</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              We will verify your identity via Central KYC Registry.
               An OTP will be sent to your registered mobile.
             </Text>
 
@@ -263,7 +248,12 @@ const KycVerificationScreen = ({ navigation }) => {
               />
             ) : (
               <>
-                <Text style={[styles.otpLabel, { color: colors.textPrimary }]}>Enter OTP received:</Text>
+                <View style={[styles.otpBanner, { backgroundColor: tealBg }]}>
+                  <Text style={[styles.otpBannerText, { color: colors.teal }]}>
+                    OTP sent to {state.borrowerDetails?.phone ? `******${state.borrowerDetails.phone.slice(-4)}` : 'your mobile'}
+                  </Text>
+                </View>
+                <Text style={[styles.otpLabel, { color: colors.textPrimary }]}>Enter OTP:</Text>
                 <OtpInput
                   length={6}
                   onComplete={(code) => {
@@ -280,8 +270,8 @@ const KycVerificationScreen = ({ navigation }) => {
                   style={styles.btn}
                 />
                 <Button
-                  title="Didn't receive OTP? Try DigiLocker"
-                  onPress={handleCkycFailed}
+                  title="Try DigiLocker Instead"
+                  onPress={() => { setCurrentMethod(KYC_METHODS.DIGILOCKER); setOtpSent(false); setOtp(''); }}
                   variant="outline"
                   style={styles.btn}
                 />
@@ -290,96 +280,49 @@ const KycVerificationScreen = ({ navigation }) => {
           </Card>
         )}
 
-        {/* DigiLocker */}
-        {!kycCompleted && currentMethod === KYC_METHODS.DIGILOCKER && (
+        {/* DigiLocker Flow */}
+        {!kycCompleted && !kycFailed && currentMethod === KYC_METHODS.DIGILOCKER && (
           <Card>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>DigiLocker Verification</Text>
-            {ckycFailed && (
-              <View style={styles.warningBanner}>
-                <Text style={styles.warningText}>
-                  CKYC was not successful. Let's try DigiLocker.
-                </Text>
-              </View>
-            )}
+            <View style={styles.methodHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>DigiLocker Verification</Text>
+              <TouchableOpacity onPress={() => setCurrentMethod(null)}>
+                <Text style={[styles.changeMethod, { color: colors.teal }]}>Change</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               Verify your identity by linking your Aadhaar through DigiLocker.
-              You will be redirected to DigiLocker portal.
+              Your documents will be fetched securely.
             </Text>
+
+            <View style={[styles.stepsCard, { backgroundColor: `${colors.primary}08` }]}>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>1. You will be redirected to DigiLocker</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>2. Login with your Aadhaar number</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>3. Approve consent to share documents</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>4. Your KYC will be verified automatically</Text>
+            </View>
+
             <Button
               title="Open DigiLocker"
               onPress={handleInitiateDigilocker}
               loading={loading}
             />
             <Button
-              title="DigiLocker not working? Upload Aadhaar XML"
-              onPress={handleDigilockerFailed}
+              title="Try CKYC Instead"
+              onPress={() => setCurrentMethod(KYC_METHODS.CKYC)}
               variant="outline"
               style={styles.btn}
             />
           </Card>
         )}
 
-        {/* Aadhaar XML */}
-        {!kycCompleted && currentMethod === KYC_METHODS.AADHAAR_XML && (
-          <Card>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Upload Aadhaar XML</Text>
-            {digilockerFailed && (
-              <View style={styles.warningBanner}>
-                <Text style={styles.warningText}>
-                  DigiLocker was not successful. Please upload Aadhaar XML.
-                </Text>
-              </View>
-            )}
-            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              Download your Aadhaar XML from the UIDAI website:
-            </Text>
-            <TouchableOpacity
-              onPress={() => Linking.openURL('https://myaadhaar.uidai.gov.in')}
-            >
-              <Text style={[styles.linkText, { color: colors.teal }]}>Visit myaadhaar.uidai.gov.in →</Text>
-            </TouchableOpacity>
-
-            <View style={styles.steps}>
-              <Text style={[styles.stepText, { color: colors.textSecondary }]}>1. Visit myaadhaar.uidai.gov.in</Text>
-              <Text style={[styles.stepText, { color: colors.textSecondary }]}>2. Login with your Aadhaar number</Text>
-              <Text style={[styles.stepText, { color: colors.textSecondary }]}>3. Go to "Download Aadhaar" section</Text>
-              <Text style={[styles.stepText, { color: colors.textSecondary }]}>4. Download the XML/ZIP file</Text>
-              <Text style={[styles.stepText, { color: colors.textSecondary }]}>5. Upload the file below</Text>
-            </View>
-
-            <Button
-              title={aadhaarFile ? `Selected: ${aadhaarFile.name}` : 'Select Aadhaar XML File'}
-              onPress={handlePickAadhaarXml}
-              variant={aadhaarFile ? 'success' : 'outline'}
-              style={styles.btn}
-            />
-
-            {aadhaarFile && (
-              <>
-                <Input
-                  label="Share Code (4-digit password set during download)"
-                  placeholder="Enter 4-digit share code"
-                  keyboardType="number-pad"
-                  maxLength={4}
-                />
-                <Button
-                  title="Upload & Verify"
-                  onPress={handleUploadAadhaarXml}
-                  loading={loading}
-                  style={styles.btn}
-                />
-              </>
-            )}
-          </Card>
-        )}
-
         {/* KYC Completed */}
         {kycCompleted && !kycFailed && (
-          <Card style={styles.successCard}>
-            <Text style={[styles.successIcon, { color: colors.teal }]}>✓</Text>
-            <Text style={[styles.successTitle, { color: colors.teal }]}>KYC Verified!</Text>
-            <Text style={[styles.successText, { color: colors.textSecondary }]}>
-              Your identity has been successfully verified.
+          <Card style={[styles.resultCard, { backgroundColor: tealBg }]}>
+            <Text style={[styles.resultIcon, { color: colors.teal }]}>✓</Text>
+            <Text style={[styles.resultTitle, { color: colors.teal }]}>KYC Verified!</Text>
+            <Text style={[styles.resultText, { color: colors.textSecondary }]}>
+              Your identity has been successfully verified
+              via {currentMethod === KYC_METHODS.CKYC ? 'CKYC' : 'DigiLocker'}.
             </Text>
             <Button title="Continue" onPress={handleProceed} style={styles.btn} />
           </Card>
@@ -387,10 +330,10 @@ const KycVerificationScreen = ({ navigation }) => {
 
         {/* KYC Failed */}
         {kycFailed && (
-          <Card style={styles.failCard}>
-            <Text style={styles.failIcon}>✕</Text>
-            <Text style={[styles.failTitle, { color: colors.error }]}>KYC Failed</Text>
-            <Text style={[styles.failText, { color: colors.textSecondary }]}>
+          <Card style={[styles.resultCard, { backgroundColor: errorBg }]}>
+            <Text style={[styles.resultIcon, { color: colors.error }]}>✕</Text>
+            <Text style={[styles.resultTitle, { color: colors.error }]}>KYC Failed</Text>
+            <Text style={[styles.resultText, { color: colors.textSecondary }]}>
               {pincodeBlacklisted
                 ? 'Your pincode is not serviceable at this time.'
                 : 'KYC verification failed. Our team will review your application and contact you.'}
@@ -405,38 +348,45 @@ const KycVerificationScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
-  infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 12 },
-  otpLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 12 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  infoText: { fontSize: 13, lineHeight: 20, marginBottom: 16 },
+  optionsCol: { gap: 12 },
+  methodCard: {
+    borderWidth: 1.5, borderRadius: 14, padding: 16,
+  },
+  methodHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  methodIconWrap: {
+    width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+  },
+  methodIcon: { fontSize: 22 },
+  methodInfo: { flex: 1, marginLeft: 12 },
+  methodTitle: { fontSize: 16, fontWeight: '700' },
+  methodSubtitle: { fontSize: 12, marginTop: 2 },
+  methodArrow: { fontSize: 28, fontWeight: '300' },
+  methodDesc: { fontSize: 12, lineHeight: 18 },
+  methodBadge: {
+    alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 6, marginTop: 10,
+  },
+  methodBadgeText: { fontSize: 11, fontWeight: '700' },
+  methodHeaderRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
+  },
+  changeMethod: { fontSize: 14, fontWeight: '600' },
+  otpBanner: { padding: 10, borderRadius: 8, marginBottom: 14 },
+  otpBannerText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  otpLabel: { fontSize: 14, fontWeight: '600', marginBottom: 12 },
   otpInput: { marginBottom: 16 },
+  stepsCard: { padding: 14, borderRadius: 10, marginBottom: 16 },
+  stepText: { fontSize: 13, lineHeight: 26 },
   btn: { marginTop: 12 },
-  warningBanner: {
-    backgroundColor: 'rgba(245,183,49,0.08)',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  warningText: { fontSize: 13, color: COLORS.warning, fontWeight: '600' },
-  linkText: {
-    color: COLORS.teal,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 16,
-    textDecorationLine: 'underline',
-  },
-  steps: { marginBottom: 16 },
-  stepText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 24 },
-  successCard: { alignItems: 'center', backgroundColor: 'rgba(74,237,196,0.08)' },
-  successIcon: { fontSize: 48, color: COLORS.teal, marginBottom: 8 },
-  successTitle: { fontSize: 22, fontWeight: '800', color: COLORS.teal, marginBottom: 8 },
-  successText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' },
-  failCard: { alignItems: 'center', backgroundColor: 'rgba(255,107,107,0.08)' },
-  failIcon: { fontSize: 48, color: COLORS.error, marginBottom: 8 },
-  failTitle: { fontSize: 22, fontWeight: '800', color: COLORS.error, marginBottom: 8 },
-  failText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
+  resultCard: { alignItems: 'center' },
+  resultIcon: { fontSize: 48, marginBottom: 8 },
+  resultTitle: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
+  resultText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
   bottomSpacer: { height: 100 },
 });
 
