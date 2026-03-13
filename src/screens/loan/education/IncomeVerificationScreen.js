@@ -15,7 +15,6 @@ import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
-import { COLORS } from '../../../config/constants';
 import { bankService } from '../../../services/bankService';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
@@ -242,6 +241,11 @@ const IncomeVerificationScreen = ({ navigation }) => {
     navigation.navigate('InstituteSelection');
   };
 
+  const tealBg = `${colors.teal}14`;
+  const warningBg = `${colors.warning}14`;
+  const errorBg = `${colors.error}14`;
+  const tealBadgeBg = `${colors.teal}1F`;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Income Verification" onBack={() => navigation.goBack()} />
@@ -250,31 +254,31 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {/* Method Selection */}
         {!incomeResult && (
           <Card>
-            <Text style={styles.sectionTitle}>Verify Your Income</Text>
-            <Text style={styles.infoText}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Verify Your Income</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               Choose a method to verify your income. This helps us determine your loan eligibility.
             </Text>
 
             <View style={styles.optionsRow}>
               <TouchableOpacity
-                style={[styles.option, method === 'aa' && styles.selectedOption]}
+                style={[styles.option, { borderColor: colors.border }, method === 'aa' && { borderColor: colors.teal, backgroundColor: tealBg }]}
                 onPress={() => setMethod('aa')}
               >
                 <Text style={styles.optionIcon}>🏦</Text>
-                <Text style={[styles.optionTitle, method === 'aa' && styles.selectedText]}>
+                <Text style={[styles.optionTitle, { color: colors.textSecondary }, method === 'aa' && { color: colors.teal }]}>
                   Account Aggregator
                 </Text>
-                <Text style={styles.optionDesc}>Instant & Secure</Text>
+                <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>Instant & Secure</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.option, method === 'statement' && styles.selectedOption]}
+                style={[styles.option, { borderColor: colors.border }, method === 'statement' && { borderColor: colors.teal, backgroundColor: tealBg }]}
                 onPress={() => setMethod('statement')}
               >
                 <Text style={styles.optionIcon}>📄</Text>
-                <Text style={[styles.optionTitle, method === 'statement' && styles.selectedText]}>
+                <Text style={[styles.optionTitle, { color: colors.textSecondary }, method === 'statement' && { color: colors.teal }]}>
                   Bank Statement
                 </Text>
-                <Text style={styles.optionDesc}>Upload PDF</Text>
+                <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>Upload PDF</Text>
               </TouchableOpacity>
             </View>
           </Card>
@@ -283,8 +287,8 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {/* Account Aggregator */}
         {method === 'aa' && !incomeResult && (
           <Card>
-            <Text style={styles.sectionTitle}>Account Aggregator</Text>
-            <Text style={styles.infoText}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Account Aggregator</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               Select your bank to securely fetch your financial data via Account Aggregator.
               You will receive a consent request on your bank app.
             </Text>
@@ -292,22 +296,22 @@ const IncomeVerificationScreen = ({ navigation }) => {
             {/* Bank Selection */}
             {!aaInitiated && (
               <>
-                <Text style={styles.fieldLabel}>Select Your Bank</Text>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Select Your Bank</Text>
                 <TouchableOpacity
-                  style={[styles.bankSelector, selectedBank && styles.bankSelectorSelected]}
+                  style={[styles.bankSelector, { borderColor: colors.border, backgroundColor: colors.inputBg }, selectedBank && { borderColor: colors.teal }]}
                   onPress={() => setShowBankPicker(true)}
                 >
                   {selectedBank ? (
                     <View style={styles.selectedBankRow}>
-                      <View style={styles.bankCodeBadge}>
-                        <Text style={styles.bankCodeText}>{selectedBank.code}</Text>
+                      <View style={[styles.bankCodeBadge, { backgroundColor: tealBadgeBg }]}>
+                        <Text style={[styles.bankCodeText, { color: colors.teal }]}>{selectedBank.code}</Text>
                       </View>
-                      <Text style={styles.selectedBankName}>{selectedBank.name}</Text>
+                      <Text style={[styles.selectedBankName, { color: colors.textPrimary }]}>{selectedBank.name}</Text>
                     </View>
                   ) : (
-                    <Text style={styles.bankPlaceholder}>Tap to select bank...</Text>
+                    <Text style={[styles.bankPlaceholder, { color: colors.textSecondary }]}>Tap to select bank...</Text>
                   )}
-                  <Text style={styles.dropdownArrow}>▼</Text>
+                  <Text style={[styles.dropdownArrow, { color: colors.textSecondary }]}>▼</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -315,18 +319,18 @@ const IncomeVerificationScreen = ({ navigation }) => {
             {/* Bank Picker Modal */}
             <Modal visible={showBankPicker} animationType="slide" transparent>
               <View style={styles.modalOverlay}>
-                <View style={[styles.modalContent, { backgroundColor: colors.surface || COLORS.surface }]}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Select Your Bank</Text>
+                <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+                  <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Select Your Bank</Text>
                     <TouchableOpacity onPress={() => setShowBankPicker(false)}>
-                      <Text style={styles.modalClose}>✕</Text>
+                      <Text style={[styles.modalClose, { color: colors.textSecondary }]}>✕</Text>
                     </TouchableOpacity>
                   </View>
                   <View style={styles.searchBox}>
                     <TextInput
-                      style={[styles.searchInput, { color: COLORS.textPrimary }]}
+                      style={[styles.searchInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.textPrimary }]}
                       placeholder="Search bank name..."
-                      placeholderTextColor={COLORS.textSecondary}
+                      placeholderTextColor={colors.textSecondary}
                       value={bankSearch}
                       onChangeText={setBankSearch}
                       autoFocus
@@ -340,7 +344,8 @@ const IncomeVerificationScreen = ({ navigation }) => {
                       <TouchableOpacity
                         style={[
                           styles.bankItem,
-                          selectedBank?.id === item.id && styles.bankItemSelected,
+                          { borderBottomColor: colors.border },
+                          selectedBank?.id === item.id && { backgroundColor: tealBg },
                         ]}
                         onPress={() => {
                           setSelectedBank(item);
@@ -348,17 +353,17 @@ const IncomeVerificationScreen = ({ navigation }) => {
                           setBankSearch('');
                         }}
                       >
-                        <View style={styles.bankCodeBadge}>
-                          <Text style={styles.bankCodeText}>{item.code}</Text>
+                        <View style={[styles.bankCodeBadge, { backgroundColor: tealBadgeBg }]}>
+                          <Text style={[styles.bankCodeText, { color: colors.teal }]}>{item.code}</Text>
                         </View>
-                        <Text style={styles.bankItemName}>{item.name}</Text>
+                        <Text style={[styles.bankItemName, { color: colors.textPrimary }]}>{item.name}</Text>
                         {selectedBank?.id === item.id && (
-                          <Text style={styles.checkMark}>✓</Text>
+                          <Text style={[styles.checkMark, { color: colors.teal }]}>✓</Text>
                         )}
                       </TouchableOpacity>
                     )}
                     ListEmptyComponent={
-                      <Text style={styles.emptyText}>No banks found</Text>
+                      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No banks found</Text>
                     }
                   />
                 </View>
@@ -375,8 +380,8 @@ const IncomeVerificationScreen = ({ navigation }) => {
               />
             ) : (
               <>
-                <View style={styles.pendingBanner}>
-                  <Text style={styles.pendingText}>
+                <View style={[styles.pendingBanner, { backgroundColor: tealBg }]}>
+                  <Text style={[styles.pendingText, { color: colors.teal }]}>
                     Consent request sent to {selectedBank?.name}! Please approve on your bank app, then check status below.
                   </Text>
                 </View>
@@ -400,8 +405,8 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {/* Bank Statement Upload */}
         {method === 'statement' && !incomeResult && (
           <Card>
-            <Text style={styles.sectionTitle}>Upload Bank Statement</Text>
-            <Text style={styles.infoText}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Upload Bank Statement</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               Upload your latest 6-month bank statement (PDF format).
             </Text>
             <Button
@@ -423,23 +428,23 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {/* Income Summary */}
         {incomeResult && (
           <Card>
-            <Text style={styles.sectionTitle}>Income Analysis</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Income Analysis</Text>
             <View style={styles.incomeGrid}>
-              <View style={styles.incomeItem}>
-                <Text style={styles.incomeLabel}>Monthly Income</Text>
-                <Text style={styles.incomeValue}>{formatCurrency(incomeResult.monthlyIncome)}</Text>
+              <View style={[styles.incomeItem, { backgroundColor: tealBg }]}>
+                <Text style={[styles.incomeLabel, { color: colors.textSecondary }]}>Monthly Income</Text>
+                <Text style={[styles.incomeValue, { color: colors.textPrimary }]}>{formatCurrency(incomeResult.monthlyIncome)}</Text>
               </View>
-              <View style={styles.incomeItem}>
-                <Text style={styles.incomeLabel}>Avg Balance</Text>
-                <Text style={styles.incomeValue}>{formatCurrency(incomeResult.averageBalance)}</Text>
+              <View style={[styles.incomeItem, { backgroundColor: tealBg }]}>
+                <Text style={[styles.incomeLabel, { color: colors.textSecondary }]}>Avg Balance</Text>
+                <Text style={[styles.incomeValue, { color: colors.textPrimary }]}>{formatCurrency(incomeResult.averageBalance)}</Text>
               </View>
-              <View style={styles.incomeItem}>
-                <Text style={styles.incomeLabel}>EMI Obligations</Text>
-                <Text style={styles.incomeValue}>{formatCurrency(incomeResult.emiObligations)}</Text>
+              <View style={[styles.incomeItem, { backgroundColor: tealBg }]}>
+                <Text style={[styles.incomeLabel, { color: colors.textSecondary }]}>EMI Obligations</Text>
+                <Text style={[styles.incomeValue, { color: colors.textPrimary }]}>{formatCurrency(incomeResult.emiObligations)}</Text>
               </View>
-              <View style={styles.incomeItem}>
-                <Text style={styles.incomeLabel}>Bounces</Text>
-                <Text style={styles.incomeValue}>{incomeResult.bounceCount}</Text>
+              <View style={[styles.incomeItem, { backgroundColor: tealBg }]}>
+                <Text style={[styles.incomeLabel, { color: colors.textSecondary }]}>Bounces</Text>
+                <Text style={[styles.incomeValue, { color: colors.textPrimary }]}>{incomeResult.bounceCount}</Text>
               </View>
             </View>
           </Card>
@@ -447,19 +452,19 @@ const IncomeVerificationScreen = ({ navigation }) => {
 
         {/* Eligibility Result */}
         {eligibilityResult?.status === 'fully_eligible' && (
-          <Card style={styles.successCard}>
-            <Text style={styles.successIcon}>🎉</Text>
-            <Text style={styles.successTitle}>Congratulations!</Text>
-            <Text style={styles.successText}>{eligibilityResult.message}</Text>
+          <Card style={[styles.resultCard, { backgroundColor: tealBg }]}>
+            <Text style={styles.resultIcon}>🎉</Text>
+            <Text style={[styles.resultTitle, { color: colors.teal }]}>Congratulations!</Text>
+            <Text style={[styles.resultText, { color: colors.textSecondary }]}>{eligibilityResult.message}</Text>
             <Button title="Continue" onPress={handleProceed} style={styles.btn} />
           </Card>
         )}
 
         {eligibilityResult?.status === 'partially_eligible' && (
-          <Card style={styles.warningCard}>
-            <Text style={styles.warningIcon}>⚠️</Text>
-            <Text style={styles.warningTitle}>Partially Eligible</Text>
-            <Text style={styles.warningText}>{eligibilityResult.message}</Text>
+          <Card style={[styles.resultCard, { backgroundColor: warningBg }]}>
+            <Text style={styles.resultIcon}>⚠️</Text>
+            <Text style={[styles.resultTitle, { color: colors.warning }]}>Partially Eligible</Text>
+            <Text style={[styles.resultText, { color: colors.textSecondary }]}>{eligibilityResult.message}</Text>
             <Button title="Add Co-Borrower" onPress={handleAddCoBorrower} style={styles.btn} />
             <Button
               title="Apply with Different Borrower"
@@ -471,10 +476,10 @@ const IncomeVerificationScreen = ({ navigation }) => {
         )}
 
         {eligibilityResult?.status === 'not_eligible' && (
-          <Card style={styles.failCard}>
-            <Text style={styles.failIcon}>😔</Text>
-            <Text style={styles.failTitle}>Not Eligible</Text>
-            <Text style={styles.failText}>{eligibilityResult.message}</Text>
+          <Card style={[styles.resultCard, { backgroundColor: errorBg }]}>
+            <Text style={styles.resultIcon}>😔</Text>
+            <Text style={[styles.resultTitle, { color: colors.error }]}>Not Eligible</Text>
+            <Text style={[styles.resultText, { color: colors.textSecondary }]}>{eligibilityResult.message}</Text>
             <Button
               title="Apply with Different Borrower"
               onPress={handleRetryDifferentBorrower}
@@ -491,85 +496,65 @@ const IncomeVerificationScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
-  infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 16 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  infoText: { fontSize: 13, lineHeight: 20, marginBottom: 16 },
   optionsRow: { flexDirection: 'row', gap: 12 },
   option: {
-    flex: 1, padding: 16, borderRadius: 12, borderWidth: 2,
-    borderColor: COLORS.border, alignItems: 'center',
+    flex: 1, padding: 16, borderRadius: 12, borderWidth: 2, alignItems: 'center',
   },
-  selectedOption: { borderColor: COLORS.teal, backgroundColor: 'rgba(74,237,196,0.08)' },
   optionIcon: { fontSize: 32, marginBottom: 8 },
-  optionTitle: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, textAlign: 'center' },
-  selectedText: { color: COLORS.teal },
-  optionDesc: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
+  optionTitle: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  optionDesc: { fontSize: 11, marginTop: 2 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
   bankSelector: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: 10,
-    padding: 14, backgroundColor: COLORS.inputBg,
+    borderWidth: 1.5, borderRadius: 10, padding: 14,
   },
-  bankSelectorSelected: { borderColor: COLORS.teal },
   selectedBankRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  selectedBankName: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginLeft: 10 },
-  bankPlaceholder: { fontSize: 14, color: COLORS.textSecondary },
-  dropdownArrow: { fontSize: 10, color: COLORS.textSecondary, marginLeft: 8 },
+  selectedBankName: { fontSize: 14, fontWeight: '600', marginLeft: 10 },
+  bankPlaceholder: { fontSize: 14 },
+  dropdownArrow: { fontSize: 10, marginLeft: 8 },
   bankCodeBadge: {
-    backgroundColor: 'rgba(74,237,196,0.12)', paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 6, minWidth: 48, alignItems: 'center',
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, minWidth: 48, alignItems: 'center',
   },
-  bankCodeText: { fontSize: 11, fontWeight: '700', color: COLORS.teal },
+  bankCodeText: { fontSize: 11, fontWeight: '700' },
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end',
   },
   modalContent: {
-    maxHeight: '75%', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    paddingBottom: 30,
+    maxHeight: '75%', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30,
   },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    padding: 16, borderBottomWidth: 1,
   },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
-  modalClose: { fontSize: 20, color: COLORS.textSecondary, padding: 4 },
+  modalTitle: { fontSize: 17, fontWeight: '700' },
+  modalClose: { fontSize: 20, padding: 4 },
   searchBox: { paddingHorizontal: 16, paddingVertical: 10 },
   searchInput: {
-    backgroundColor: COLORS.inputBg, borderRadius: 10, paddingHorizontal: 14,
-    paddingVertical: 10, fontSize: 14, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, borderWidth: 1,
   },
   bankItem: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
-    paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    paddingHorizontal: 16, borderBottomWidth: 1,
   },
-  bankItemSelected: { backgroundColor: 'rgba(74,237,196,0.08)' },
-  bankItemName: { fontSize: 14, color: COLORS.textPrimary, marginLeft: 10, flex: 1 },
-  checkMark: { fontSize: 16, color: COLORS.teal, fontWeight: '700' },
-  emptyText: { padding: 20, textAlign: 'center', color: COLORS.textSecondary, fontSize: 14 },
-  pendingBanner: { backgroundColor: 'rgba(74,237,196,0.08)', padding: 12, borderRadius: 8, marginBottom: 12 },
-  pendingText: { fontSize: 13, color: COLORS.teal, lineHeight: 20 },
+  bankItemName: { fontSize: 14, marginLeft: 10, flex: 1 },
+  checkMark: { fontSize: 16, fontWeight: '700' },
+  emptyText: { padding: 20, textAlign: 'center', fontSize: 14 },
+  pendingBanner: { padding: 12, borderRadius: 8, marginBottom: 12 },
+  pendingText: { fontSize: 13, lineHeight: 20 },
   btn: { marginTop: 12 },
   incomeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  incomeItem: {
-    width: '47%', backgroundColor: 'rgba(74,237,196,0.08)', padding: 12, borderRadius: 10, alignItems: 'center',
-  },
-  incomeLabel: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 4 },
-  incomeValue: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
-  successCard: { alignItems: 'center', backgroundColor: 'rgba(74,237,196,0.08)' },
-  successIcon: { fontSize: 48, marginBottom: 8 },
-  successTitle: { fontSize: 22, fontWeight: '800', color: COLORS.teal, marginBottom: 8 },
-  successText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' },
-  warningCard: { alignItems: 'center', backgroundColor: 'rgba(245,183,49,0.08)' },
-  warningIcon: { fontSize: 48, marginBottom: 8 },
-  warningTitle: { fontSize: 22, fontWeight: '800', color: COLORS.warning, marginBottom: 8 },
-  warningText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
-  failCard: { alignItems: 'center', backgroundColor: 'rgba(255,107,107,0.08)' },
-  failIcon: { fontSize: 48, marginBottom: 8 },
-  failTitle: { fontSize: 22, fontWeight: '800', color: COLORS.error, marginBottom: 8 },
-  failText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
+  incomeItem: { width: '47%', padding: 12, borderRadius: 10, alignItems: 'center' },
+  incomeLabel: { fontSize: 11, marginBottom: 4 },
+  incomeValue: { fontSize: 16, fontWeight: '700' },
+  resultCard: { alignItems: 'center' },
+  resultIcon: { fontSize: 48, marginBottom: 8 },
+  resultTitle: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
+  resultText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
   bottomSpacer: { height: 100 },
 });
 
