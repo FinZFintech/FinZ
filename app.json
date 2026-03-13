@@ -24,7 +24,14 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "FinZ - Education & Employee Loans",
+      "shortName": "FinZ",
+      "description": "Apply for education loans and employee loans with FinZ",
+      "backgroundColor": "#F5F6FB",
+      "themeColor": "#2D2B6B"
     }
   }
 }

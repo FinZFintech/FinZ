@@ -1,5 +1,6 @@
 import api from './api';
-import { API_ENDPOINTS } from '../config/constants';
+import { API_ENDPOINTS, SUPABASE_MODE } from '../config/constants';
+import { supabaseLoanService } from './supabaseLoanService';
 
 const replaceParams = (url, params) => {
   let result = url;
@@ -9,7 +10,7 @@ const replaceParams = (url, params) => {
   return result;
 };
 
-export const loanService = {
+const apiLoanService = {
   // Institute & Student
   async getInstitutes(search = '') {
     return api.get(API_ENDPOINTS.INSTITUTE.LIST, { params: { search } });
@@ -95,3 +96,6 @@ export const loanService = {
     return api.get(replaceParams(API_ENDPOINTS.LOAN.ESIGN_STATUS, { id: loanId }));
   },
 };
+
+// Route to the appropriate service based on configuration
+export const loanService = SUPABASE_MODE ? supabaseLoanService : apiLoanService;

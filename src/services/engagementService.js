@@ -1,7 +1,8 @@
 import api from './api';
-import { API_ENDPOINTS } from '../config/constants';
+import { API_ENDPOINTS, SUPABASE_MODE } from '../config/constants';
+import { supabaseEngagementService } from './supabaseEngagementService';
 
-export const engagementService = {
+const apiEngagementService = {
   async getDailyTip() {
     return api.get(API_ENDPOINTS.ENGAGEMENT.DAILY_TIP);
   },
@@ -18,3 +19,5 @@ export const engagementService = {
     return api.post(API_ENDPOINTS.ENGAGEMENT.REFERRAL, data);
   },
 };
+
+export const engagementService = SUPABASE_MODE ? supabaseEngagementService : apiEngagementService;

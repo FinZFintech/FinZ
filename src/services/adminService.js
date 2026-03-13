@@ -1,7 +1,8 @@
 import api from './api';
-import { API_ENDPOINTS } from '../config/constants';
+import { API_ENDPOINTS, SUPABASE_MODE } from '../config/constants';
+import { supabaseAdminService } from './supabaseAdminService';
 
-export const adminService = {
+const apiAdminService = {
   async getPendingLoans(filters = {}) {
     return api.get(API_ENDPOINTS.ADMIN.PENDING_LOANS, { params: filters });
   },
@@ -21,3 +22,5 @@ export const adminService = {
     return api.get(API_ENDPOINTS.ADMIN.DASHBOARD_STATS);
   },
 };
+
+export const adminService = SUPABASE_MODE ? supabaseAdminService : apiAdminService;

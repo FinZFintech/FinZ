@@ -4,6 +4,12 @@ export const APP_VERSION = '1.0.0';
 // MOCK_MODE: When true, all API calls will use mock data (no backend needed)
 export const MOCK_MODE = true;
 
+// SUPABASE_MODE: When true, persistence uses Supabase instead of mock data or backend API.
+// Set MOCK_MODE=false and SUPABASE_MODE=true to use Supabase for all data operations.
+export const SUPABASE_MODE = !!(
+  process.env.EXPO_PUBLIC_SUPABASE_URL && process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+);
+
 // Signzy API Configuration - configurable keys for Phone-to-PAN & PAN Verification
 export const SIGNZY_CONFIG = {
   BASE_URL: 'https://api-preproduction.signzy.app/api/v3',
