@@ -16,6 +16,10 @@ export const SIGNZY_CONFIG = {
     E_AADHAAR_XML: '/fetchEaadhaarXml',
     DIGILOCKER_DETAILS: '/fetchDigilockerDetails',
 
+    // DigiLocker (Signzy)
+    DIGILOCKER_CREATE_URL: '/digilocker/createUrl',
+    DIGILOCKER_GET_EAADHAAR: '/digilocker/geteaadhaarwithxml',
+
     // Phone KYC Suite
     PHONE_TO_REGISTERED_ADDRESS: '/phonekyc/phoneToRegisteredAddress',
     PHONE_TO_ALTERNATE_PHONE: '/phonekyc/phoneToAlternatePhone',

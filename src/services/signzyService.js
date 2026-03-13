@@ -240,6 +240,76 @@ export const signzyService = {
     };
   },
 
+  /**
+   * DigiLocker Step 1 — Create authorization URL.
+   * Returns a URL to redirect the user to DigiLocker consent screen,
+   * and a requestId to poll for eAadhaar data after consent.
+   */
+  async digilockerCreateUrl(options = {}) {
+    const {
+      redirectUrl = 'https://www.finz.finance/',
+      callbackUrl,
+      internalId,
+    } = options;
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.DIGILOCKER_CREATE_URL, {
+      signup: 'true',
+      redirectUrl,
+      redirectTime: '1',
+      ...(callbackUrl ? { callbackUrl } : {}),
+      successRedirectUrl: redirectUrl,
+      successRedirectTime: '5',
+      failureRedirectUrl: redirectUrl,
+      failureRedirectTime: '5',
+      logoVisible: 'true',
+      logo: 'https://www.finz.finance/logo.png',
+      supportEmailVisible: 'true',
+      supportEmail: 'support@finz.finance',
+      purpose: 'kyc',
+      getScope: 'true',
+      consentValidTill: String(Math.floor(Date.now() / 1000) + 86400 * 30), // 30 days
+      showLoaderState: true,
+      ...(internalId ? { internalId } : {}),
+      companyName: 'FinZ',
+      getBase64Files: true,
+      getEAadhaarPdf: true,
+      getEAadhaarJpeg: true,
+    });
+
+    const r = extractResult(data);
+    return {
+      url: r.url || '',
+      requestId: r.requestId || '',
+    };
+  },
+
+  /**
+   * DigiLocker Step 2 — Fetch eAadhaar data after user completes consent.
+   * Call with the requestId from digilockerCreateUrl.
+   */
+  async digilockerGetEAadhaar(requestId) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.DIGILOCKER_GET_EAADHAAR, {
+      requestId,
+      getEAadhaarPdf: true,
+      getEAadhaarJpeg: true,
+    });
+
+    const r = extractResult(data);
+    return {
+      name: r.name || '',
+      uid: r.uid || '',
+      dob: r.dob || '',
+      gender: r.gender || '',
+      address: r.address || '',
+      photo: r.photo || '',
+      splitAddress: r.splitAddress || {},
+      aadhaarJpeg: r.aadhaarJpeg || '',
+      aadhaarPdf: r.aadhaarPdf || '',
+      xmlFileLink: r.xmlFileLink || '',
+      signatureValid: r.x509Data?.validAadhaarDSC === 'yes',
+    };
+  },
+
   // ─── Phone KYC Suite ────────────────────────────────────────────────────
 
   async phoneToRegisteredAddress(phoneNumber, firstName, lastName, pan) {

@@ -50,13 +50,33 @@ export const kycService = {
     return api.post(API_ENDPOINTS.KYC.CKYC_VERIFY, data);
   },
 
-  // DigiLocker
-  async initiateDigilocker(data) {
-    return api.post(API_ENDPOINTS.KYC.DIGILOCKER_INITIATE, data);
+  // DigiLocker — calls Signzy DigiLocker API directly (2-step flow)
+
+  /**
+   * Step 1: Create DigiLocker authorization URL.
+   * Returns { url, requestId }.
+   */
+  async initiateDigilocker(options = {}) {
+    console.log('[kycService] initiateDigilocker → calling signzyService.digilockerCreateUrl');
+    const result = await signzyService.digilockerCreateUrl(options);
+    console.log('[kycService] digilockerCreateUrl result: requestId =', result.requestId);
+    return result;
   },
 
-  async handleDigilockerCallback(data) {
-    return api.post(API_ENDPOINTS.KYC.DIGILOCKER_CALLBACK, data);
+  /**
+   * Step 2: Fetch eAadhaar data after user completes DigiLocker consent.
+   * Returns KYC data (name, dob, address, photo, uid, etc.).
+   */
+  async fetchDigilockerEAadhaar(requestId) {
+    console.log('[kycService] fetchDigilockerEAadhaar → calling signzyService.digilockerGetEAadhaar');
+    const result = await signzyService.digilockerGetEAadhaar(requestId);
+    console.log('[kycService] digilockerGetEAadhaar result:', JSON.stringify({
+      name: result.name,
+      uid: result.uid,
+      dob: result.dob,
+      address: result.address,
+    }));
+    return result;
   },
 
   // Aadhaar XML

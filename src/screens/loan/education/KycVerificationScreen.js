@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Alert,
+  Linking,
   TouchableOpacity,
+  AppState,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
@@ -18,6 +20,9 @@ import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 
+const POLL_INTERVAL_MS = 4000;
+const MAX_POLL_ATTEMPTS = 45; // ~3 minutes
+
 const KycVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, dispatch } = useLoan();
@@ -28,11 +33,38 @@ const KycVerificationScreen = ({ navigation }) => {
   const [otp, setOtp] = useState('');
   const [kycCompleted, setKycCompleted] = useState(false);
   const [kycFailed, setKycFailed] = useState(false);
+  const [kycErrorMsg, setKycErrorMsg] = useState('');
   const [pincodeBlacklisted, setPincodeBlacklisted] = useState(false);
 
+  // DigiLocker state
+  const [digilockerRequestId, setDigilockerRequestId] = useState(null);
+  const [digilockerWaiting, setDigilockerWaiting] = useState(false);
+  const [digilockerPolling, setDigilockerPolling] = useState(false);
+  const pollTimerRef = useRef(null);
+  const pollCountRef = useRef(0);
+
   const tealBg = `${colors.teal}14`;
-  const warningBg = `${colors.warning}14`;
   const errorBg = `${colors.error}14`;
+
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, []);
+
+  // When app returns to foreground while waiting for DigiLocker, start polling
+  useEffect(() => {
+    if (!digilockerWaiting || !digilockerRequestId) return;
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && digilockerWaiting && digilockerRequestId) {
+        pollForDigilockerData(digilockerRequestId);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [digilockerWaiting, digilockerRequestId]);
 
   const getMockKycData = () => ({
     name: state.borrowerDetails?.name || 'RAHUL SHARMA',
@@ -42,7 +74,7 @@ const KycVerificationScreen = ({ navigation }) => {
     photo: 'base64_photo_data_here',
   });
 
-  // CKYC Flow — simulated for now
+  // ─── CKYC Flow — simulated for now ──────────────────────────────────────
   const handleInitiateCkyc = async () => {
     setLoading(true);
     try {
@@ -78,32 +110,162 @@ const KycVerificationScreen = ({ navigation }) => {
     }
   };
 
-  // DigiLocker Flow — simulated for now
+  // ─── DigiLocker Flow — Signzy 2-step integration ────────────────────────
+
+  /**
+   * Step 1: Call Signzy createUrl → get DigiLocker consent URL + requestId.
+   * Open the URL in device browser for the user to complete consent.
+   */
   const handleInitiateDigilocker = async () => {
     setLoading(true);
+    setKycErrorMsg('');
     try {
-      const result = await kycService.initiateDigilocker({
-        pan: state.panDetails?.panNumber,
-        phone: state.borrowerDetails?.phone,
+      const { url, requestId } = await kycService.initiateDigilocker({
+        internalId: state.borrowerDetails?.phone || '',
       });
-      if (result.redirectUrl) {
-        // In production, open DigiLocker in WebView
-        // For now, simulate success
-        await handleKycSuccess(getMockKycData(), KYC_METHODS.DIGILOCKER);
+
+      if (!url || !requestId) {
+        throw new Error('DigiLocker service returned an invalid response. Please try again.');
       }
-    } catch {
-      // TODO: Replace simulation once DigiLocker API is integrated
-      // Simulate DigiLocker consent + data fetch after brief delay
-      setTimeout(async () => {
-        await handleKycSuccess(getMockKycData(), KYC_METHODS.DIGILOCKER);
-        setLoading(false);
-      }, 1200);
-      return; // Don't set loading false yet
+
+      setDigilockerRequestId(requestId);
+      setDigilockerWaiting(true);
+      setLoading(false);
+
+      // Open DigiLocker consent page in external browser
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Error', 'Unable to open DigiLocker. Please try again.');
+        setDigilockerWaiting(false);
+      }
+    } catch (err) {
+      setLoading(false);
+      const msg = err?.message || 'Failed to initiate DigiLocker. Please try again.';
+      Alert.alert('DigiLocker Error', msg);
     }
+  };
+
+  /**
+   * Step 2: Poll Signzy geteaadhaarwithxml with requestId.
+   * Called when user returns to the app after DigiLocker consent.
+   * Retries until data is available or max attempts reached.
+   */
+  const pollForDigilockerData = useCallback(async (requestId) => {
+    if (digilockerPolling) return; // avoid duplicate polling
+    setDigilockerPolling(true);
+    setLoading(true);
+    pollCountRef.current = 0;
+
+    const attempt = async () => {
+      pollCountRef.current += 1;
+
+      try {
+        const eAadhaar = await kycService.fetchDigilockerEAadhaar(requestId);
+
+        // Success — got data
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+        setDigilockerPolling(false);
+        setDigilockerWaiting(false);
+        setLoading(false);
+
+        // Extract pincode from splitAddress
+        const pincode = eAadhaar.splitAddress?.pincode || '';
+
+        await handleKycSuccess({
+          name: eAadhaar.name,
+          address: eAadhaar.address,
+          pincode,
+          dob: eAadhaar.dob,
+          photo: eAadhaar.photo || eAadhaar.aadhaarJpeg || '',
+          uid: eAadhaar.uid,
+          gender: eAadhaar.gender,
+          aadhaarJpeg: eAadhaar.aadhaarJpeg,
+          aadhaarPdf: eAadhaar.aadhaarPdf,
+          signatureValid: eAadhaar.signatureValid,
+        }, KYC_METHODS.DIGILOCKER);
+        return;
+      } catch (err) {
+        const status = err?.statusCode;
+        const reason = err?.signzyError?.reason || '';
+        const message = err?.message || '';
+
+        // 401 AUTH_FAIL = user hasn't completed consent yet → keep polling
+        if (status === 401 && /auth_fail|not completed/i.test(reason + message)) {
+          if (pollCountRef.current < MAX_POLL_ATTEMPTS) {
+            pollTimerRef.current = setTimeout(attempt, POLL_INTERVAL_MS);
+            return;
+          }
+        }
+
+        // 404 = requestId not found (expired or wrong)
+        if (status === 404) {
+          if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+          setDigilockerPolling(false);
+          setDigilockerWaiting(false);
+          setLoading(false);
+          Alert.alert('Session Expired', 'DigiLocker session has expired. Please try again.');
+          setDigilockerRequestId(null);
+          return;
+        }
+
+        // 400 = user denied consent or cancelled
+        if (status === 400) {
+          if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+          setDigilockerPolling(false);
+          setDigilockerWaiting(false);
+          setLoading(false);
+          Alert.alert(
+            'Consent Required',
+            'DigiLocker consent was not granted. Please try again or choose CKYC.',
+          );
+          setDigilockerRequestId(null);
+          return;
+        }
+
+        // Max attempts reached
+        if (pollCountRef.current >= MAX_POLL_ATTEMPTS) {
+          if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+          setDigilockerPolling(false);
+          setDigilockerWaiting(false);
+          setLoading(false);
+          Alert.alert(
+            'Timed Out',
+            'DigiLocker verification took too long. Please try again.',
+          );
+          setDigilockerRequestId(null);
+          return;
+        }
+
+        // Other errors — retry a few times
+        if (pollCountRef.current < MAX_POLL_ATTEMPTS) {
+          pollTimerRef.current = setTimeout(attempt, POLL_INTERVAL_MS);
+        }
+      }
+    };
+
+    attempt();
+  }, [digilockerPolling]);
+
+  /**
+   * Manual "I've completed DigiLocker" button — triggers polling.
+   */
+  const handleDigilockerReturn = () => {
+    if (digilockerRequestId) {
+      pollForDigilockerData(digilockerRequestId);
+    }
+  };
+
+  const handleCancelDigilocker = () => {
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    setDigilockerPolling(false);
+    setDigilockerWaiting(false);
+    setDigilockerRequestId(null);
     setLoading(false);
   };
 
-  // Common KYC success handler
+  // ─── Common KYC success handler ─────────────────────────────────────────
   const handleKycSuccess = async (kycData, method) => {
     // Check pincode blacklist
     try {
@@ -285,33 +447,89 @@ const KycVerificationScreen = ({ navigation }) => {
           <Card>
             <View style={styles.methodHeaderRow}>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>DigiLocker Verification</Text>
-              <TouchableOpacity onPress={() => setCurrentMethod(null)}>
-                <Text style={[styles.changeMethod, { color: colors.teal }]}>Change</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              Verify your identity by linking your Aadhaar through DigiLocker.
-              Your documents will be fetched securely.
-            </Text>
-
-            <View style={[styles.stepsCard, { backgroundColor: `${colors.primary}08` }]}>
-              <Text style={[styles.stepText, { color: colors.textSecondary }]}>1. You will be redirected to DigiLocker</Text>
-              <Text style={[styles.stepText, { color: colors.textSecondary }]}>2. Login with your Aadhaar number</Text>
-              <Text style={[styles.stepText, { color: colors.textSecondary }]}>3. Approve consent to share documents</Text>
-              <Text style={[styles.stepText, { color: colors.textSecondary }]}>4. Your KYC will be verified automatically</Text>
+              {!digilockerWaiting && (
+                <TouchableOpacity onPress={() => { handleCancelDigilocker(); setCurrentMethod(null); }}>
+                  <Text style={[styles.changeMethod, { color: colors.teal }]}>Change</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
-            <Button
-              title="Open DigiLocker"
-              onPress={handleInitiateDigilocker}
-              loading={loading}
-            />
-            <Button
-              title="Try CKYC Instead"
-              onPress={() => setCurrentMethod(KYC_METHODS.CKYC)}
-              variant="outline"
-              style={styles.btn}
-            />
+            {/* Before initiation */}
+            {!digilockerWaiting && !digilockerPolling && (
+              <>
+                <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                  Verify your identity by linking your Aadhaar through DigiLocker.
+                  Your documents will be fetched securely.
+                </Text>
+
+                <View style={[styles.stepsCard, { backgroundColor: `${colors.primary}08` }]}>
+                  <Text style={[styles.stepText, { color: colors.textSecondary }]}>1. You will be redirected to DigiLocker</Text>
+                  <Text style={[styles.stepText, { color: colors.textSecondary }]}>2. Login with your Aadhaar number</Text>
+                  <Text style={[styles.stepText, { color: colors.textSecondary }]}>3. Approve consent to share documents</Text>
+                  <Text style={[styles.stepText, { color: colors.textSecondary }]}>4. Return to FinZ — we fetch your KYC automatically</Text>
+                </View>
+
+                <Button
+                  title="Open DigiLocker"
+                  onPress={handleInitiateDigilocker}
+                  loading={loading}
+                />
+                <Button
+                  title="Try CKYC Instead"
+                  onPress={() => setCurrentMethod(KYC_METHODS.CKYC)}
+                  variant="outline"
+                  style={styles.btn}
+                />
+              </>
+            )}
+
+            {/* Waiting for user to complete DigiLocker consent */}
+            {digilockerWaiting && !digilockerPolling && (
+              <>
+                <View style={[styles.waitingBanner, { backgroundColor: `${colors.warning}14` }]}>
+                  <Text style={[styles.waitingTitle, { color: colors.warning }]}>Waiting for DigiLocker</Text>
+                  <Text style={[styles.waitingText, { color: colors.textSecondary }]}>
+                    Complete the verification in DigiLocker and return here.
+                    Your data will be fetched automatically.
+                  </Text>
+                </View>
+
+                <Button
+                  title="I've Completed DigiLocker"
+                  onPress={handleDigilockerReturn}
+                  style={styles.btn}
+                />
+                <Button
+                  title="Re-open DigiLocker"
+                  onPress={() => {
+                    if (digilockerRequestId) {
+                      // Re-initiate to get a fresh URL
+                      handleInitiateDigilocker();
+                    }
+                  }}
+                  variant="outline"
+                  style={styles.btn}
+                />
+                <Button
+                  title="Cancel"
+                  onPress={() => { handleCancelDigilocker(); setCurrentMethod(null); }}
+                  variant="outline"
+                  style={styles.btn}
+                />
+              </>
+            )}
+
+            {/* Polling for eAadhaar data */}
+            {digilockerPolling && (
+              <View style={styles.pollingWrap}>
+                <Text style={[styles.pollingTitle, { color: colors.teal }]}>
+                  Fetching your Aadhaar data...
+                </Text>
+                <Text style={[styles.pollingText, { color: colors.textSecondary }]}>
+                  Please wait while we retrieve your verified documents from DigiLocker. This may take a moment.
+                </Text>
+              </View>
+            )}
           </Card>
         )}
 
@@ -336,7 +554,7 @@ const KycVerificationScreen = ({ navigation }) => {
             <Text style={[styles.resultText, { color: colors.textSecondary }]}>
               {pincodeBlacklisted
                 ? 'Your pincode is not serviceable at this time.'
-                : 'KYC verification failed. Our team will review your application and contact you.'}
+                : kycErrorMsg || 'KYC verification failed. Our team will review your application and contact you.'}
             </Text>
           </Card>
         )}
@@ -382,6 +600,12 @@ const styles = StyleSheet.create({
   otpInput: { marginBottom: 16 },
   stepsCard: { padding: 14, borderRadius: 10, marginBottom: 16 },
   stepText: { fontSize: 13, lineHeight: 26 },
+  waitingBanner: { padding: 16, borderRadius: 10, marginBottom: 16 },
+  waitingTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
+  waitingText: { fontSize: 13, lineHeight: 20 },
+  pollingWrap: { alignItems: 'center', paddingVertical: 20 },
+  pollingTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  pollingText: { fontSize: 13, lineHeight: 20, textAlign: 'center' },
   btn: { marginTop: 12 },
   resultCard: { alignItems: 'center' },
   resultIcon: { fontSize: 48, marginBottom: 8 },
