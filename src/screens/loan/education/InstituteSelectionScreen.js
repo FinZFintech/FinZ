@@ -144,7 +144,7 @@ const InstituteSelectionScreen = ({ navigation }) => {
           style={styles.searchInput}
         />
         {loading ? (
-          <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
+          <ActivityIndicator size="large" color={COLORS.teal} style={styles.loader} />
         ) : (
           <FlatList
             data={institutes}
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#EEEDF5',
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   instituteInfo: { flex: 1 },
   instituteName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
   instituteCity: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
-  coursesCount: { fontSize: 12, color: COLORS.primary, marginTop: 2 },
+  coursesCount: { fontSize: 12, color: COLORS.teal, marginTop: 2 },
   arrow: { fontSize: 20, color: COLORS.textSecondary },
   loader: { marginTop: 40 },
   emptyText: { textAlign: 'center', marginTop: 40, color: COLORS.textSecondary },
@@ -204,19 +204,19 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 20,
     borderWidth: 1.5,
-    borderColor: COLORS.primary,
+    borderColor: COLORS.teal,
     borderRadius: 12,
     borderStyle: 'dashed',
-    backgroundColor: '#EEEDF5',
+    backgroundColor: 'rgba(74,237,196,0.05)',
   },
   manualEntryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: COLORS.teal,
   },
   manualEntryArrow: {
     fontSize: 16,
-    color: COLORS.primary,
+    color: COLORS.teal,
     marginLeft: 8,
   },
   manualContent: {

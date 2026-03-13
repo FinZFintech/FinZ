@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 12 },
   btn: { marginTop: 12 },
   doneBadge: {
-    backgroundColor: '#E8F8F7', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 12,
+    backgroundColor: 'rgba(74,237,196,0.08)', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 12,
   },
   doneText: { color: COLORS.teal, fontWeight: '700', fontSize: 15 },
   disabledNote: {

@@ -70,28 +70,28 @@ export const generateRepaymentSchedule = (principal, ratePerAnnum, tenureMonths,
 
 export const getStatusColor = (status) => {
   const statusColors = {
-    draft: '#9E9E9E',
+    draft: '#6B7280',
     institute_verified: '#7B6DAF',
     pan_verified: '#7B6DAF',
-    credit_check_passed: '#2CC5BE',
-    credit_check_failed: '#D32F2F',
-    kyc_completed: '#2CC5BE',
-    kyc_failed: '#D32F2F',
-    selfie_verified: '#2CC5BE',
-    bank_verified: '#2CC5BE',
-    income_verified: '#2CC5BE',
-    fully_eligible: '#2D2B6B',
+    credit_check_passed: '#4AEDC4',
+    credit_check_failed: '#FF6B6B',
+    kyc_completed: '#4AEDC4',
+    kyc_failed: '#FF6B6B',
+    selfie_verified: '#4AEDC4',
+    bank_verified: '#4AEDC4',
+    income_verified: '#4AEDC4',
+    fully_eligible: '#4AEDC4',
     partially_eligible: '#F5B731',
-    not_eligible: '#D32F2F',
-    enach_done: '#2CC5BE',
-    esign_done: '#2CC5BE',
-    vkyc_done: '#2CC5BE',
-    disbursed: '#2D2B6B',
-    active: '#2D2B6B',
-    closed: '#9E9E9E',
+    not_eligible: '#FF6B6B',
+    enach_done: '#4AEDC4',
+    esign_done: '#4AEDC4',
+    vkyc_done: '#4AEDC4',
+    disbursed: '#4AEDC4',
+    active: '#4AEDC4',
+    closed: '#6B7280',
     manual_review: '#F5B731',
   };
-  return statusColors[status] || '#9E9E9E';
+  return statusColors[status] || '#6B7280';
 };
 
 export const getStatusLabel = (status) => {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
-import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 
 const Input = ({
   label,
@@ -18,25 +18,27 @@ const Input = ({
   prefix,
   style,
 }) => {
+  const { colors } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
 
   return (
     <View style={[styles.container, style]}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? <Text style={[styles.label, { color: colors.textPrimary }]}>{label}</Text> : null}
       <View
         style={[
           styles.inputContainer,
-          isFocused && styles.focused,
-          error && styles.errorBorder,
-          !editable && styles.disabled,
+          { borderColor: colors.border, backgroundColor: colors.inputBg },
+          isFocused && { borderColor: colors.teal, backgroundColor: colors.surface },
+          error && { borderColor: colors.error, backgroundColor: 'rgba(255,107,107,0.08)' },
+          !editable && { backgroundColor: colors.cardBg, opacity: 0.6 },
         ]}
       >
-        {prefix ? <Text style={styles.prefix}>{prefix}</Text> : null}
+        {prefix ? <Text style={[styles.prefix, { color: colors.textSecondary }]}>{prefix}</Text> : null}
         <TextInput
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor={COLORS.disabled}
+          placeholderTextColor={colors.disabled}
           keyboardType={keyboardType}
           maxLength={maxLength}
           editable={editable}
@@ -45,11 +47,11 @@ const Input = ({
           multiline={multiline}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          style={[styles.input, multiline && styles.multiline]}
+          style={[styles.input, { color: colors.textPrimary }, multiline && styles.multiline]}
         />
         {rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
     </View>
   );
 };
@@ -61,7 +63,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textPrimary,
     marginBottom: 7,
     letterSpacing: 0.2,
   },
@@ -69,26 +70,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: COLORS.border,
     borderRadius: 12,
-    backgroundColor: COLORS.background,
-  },
-  focused: {
-    borderColor: COLORS.teal,
-    backgroundColor: COLORS.surface,
-  },
-  errorBorder: {
-    borderColor: COLORS.error,
-    backgroundColor: '#FFF8F7',
-  },
-  disabled: {
-    backgroundColor: '#F0F0F8',
-    opacity: 0.8,
   },
   prefix: {
     paddingLeft: 14,
     fontSize: 15,
-    color: COLORS.textSecondary,
     fontWeight: '500',
   },
   input: {
@@ -96,7 +82,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: COLORS.textPrimary,
   },
   multiline: {
     minHeight: 80,
@@ -107,7 +92,6 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 12,
-    color: COLORS.error,
     marginTop: 5,
     marginLeft: 4,
   },

@@ -1,6 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
-import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 
 const Button = ({
   title,
@@ -13,7 +13,24 @@ const Button = ({
   icon,
   small = false,
 }) => {
+  const { colors } = useTheme();
   const isDisabled = disabled || loading;
+
+  const variantStyles = {
+    primary: { backgroundColor: colors.teal },
+    secondary: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.cardBorder },
+    outline: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.teal },
+    danger: { backgroundColor: colors.error },
+    success: { backgroundColor: colors.teal },
+  };
+
+  const variantTextStyles = {
+    primary: { color: colors.background },
+    secondary: { color: colors.textPrimary },
+    outline: { color: colors.teal },
+    danger: { color: colors.textLight },
+    success: { color: colors.background },
+  };
 
   return (
     <TouchableOpacity
@@ -21,7 +38,7 @@ const Button = ({
       disabled={isDisabled}
       style={[
         styles.button,
-        styles[variant],
+        variantStyles[variant],
         isDisabled && styles.disabled,
         small && styles.small,
         style,
@@ -31,19 +48,19 @@ const Button = ({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'outline' ? COLORS.primary : COLORS.textLight}
+          color={variant === 'outline' ? colors.teal : colors.background}
         />
       ) : (
         <View style={styles.inner}>
           {icon && (
-            <Text style={[styles.icon, variant === 'outline' && styles.outlineIcon]}>
+            <Text style={[styles.icon, { color: variant === 'outline' ? colors.teal : colors.background }]}>
               {icon}
             </Text>
           )}
           <Text
             style={[
               styles.text,
-              styles[`${variant}Text`],
+              variantTextStyles[variant],
               small && styles.smallText,
               textStyle,
             ]}
@@ -76,23 +93,6 @@ const styles = StyleSheet.create({
     minHeight: 40,
     borderRadius: 10,
   },
-  primary: {
-    backgroundColor: COLORS.primary,
-  },
-  secondary: {
-    backgroundColor: COLORS.teal,
-  },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-  },
-  danger: {
-    backgroundColor: COLORS.error,
-  },
-  success: {
-    backgroundColor: COLORS.teal,
-  },
   disabled: {
     opacity: 0.45,
   },
@@ -104,28 +104,9 @@ const styles = StyleSheet.create({
   smallText: {
     fontSize: 13,
   },
-  primaryText: {
-    color: COLORS.textLight,
-  },
-  secondaryText: {
-    color: COLORS.textLight,
-  },
-  outlineText: {
-    color: COLORS.primary,
-  },
-  dangerText: {
-    color: COLORS.textLight,
-  },
-  successText: {
-    color: COLORS.textLight,
-  },
   icon: {
     marginRight: 8,
     fontSize: 16,
-    color: COLORS.textLight,
-  },
-  outlineIcon: {
-    color: COLORS.primary,
   },
 });
 

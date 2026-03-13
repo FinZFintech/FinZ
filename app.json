@@ -3,13 +3,14 @@
     "name": "FinZ",
     "slug": "FinZ",
     "version": "1.0.0",
+    "platforms": ["ios", "android", "web"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0D1017"
     },
     "ios": {
       "supportsTablet": true
@@ -17,14 +18,21 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0D1017",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "FinZ - Education & Employee Loans",
+      "shortName": "FinZ",
+      "description": "Apply for education loans and employee loans with FinZ",
+      "backgroundColor": "#0D1017",
+      "themeColor": "#0D1017"
     }
   }
 }

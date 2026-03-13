@@ -12,12 +12,14 @@ import Header from '../../components/common/Header';
 import StatusBadge from '../../components/common/StatusBadge';
 import { COLORS } from '../../config/constants';
 import { useAuth } from '../../store/AuthContext';
+import { useTheme } from '../../store/ThemeContext';
 import { loanService } from '../../services/loanService';
 import { engagementService } from '../../services/engagementService';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
+  const { colors } = useTheme();
   const [loans, setLoans] = useState([]);
   const [dailyTip, setDailyTip] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -70,7 +72,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
         greeting={getGreeting()}
         title={user?.name || 'User'}
@@ -81,16 +83,16 @@ const HomeScreen = ({ navigation }) => {
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.teal]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.teal]} />}
         showsVerticalScrollIndicator={false}
       >
         {/* Quick Actions */}
         <View style={styles.quickActions}>
           {[
-            { key: 'edu', label: 'Education\nLoan', icon: '🎓', bg: '#EEEDF5', screen: 'InstituteSelection' },
-            { key: 'emp', label: 'Employee\nLoan', icon: '💼', bg: '#E8F8F7', screen: 'EmployeeLoan' },
-            { key: 'credit', label: 'Credit\nScore', icon: '📊', bg: '#F0EDF5', screen: 'CreditScore' },
-            { key: 'refer', label: 'Refer &\nEarn', icon: '🎁', bg: '#FFF5DC', screen: 'Referral' },
+            { key: 'edu', label: 'Education\nLoan', icon: '🎓', screen: 'InstituteSelection' },
+            { key: 'emp', label: 'Employee\nLoan', icon: '💼', screen: 'EmployeeLoan' },
+            { key: 'credit', label: 'Credit\nScore', icon: '📊', screen: 'CreditScore' },
+            { key: 'refer', label: 'Refer &\nEarn', icon: '🎁', screen: 'Referral' },
           ].map((item) => (
             <TouchableOpacity
               key={item.key}
@@ -98,10 +100,10 @@ const HomeScreen = ({ navigation }) => {
               onPress={() => navigation.navigate(item.screen)}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: item.bg }]}>
+              <View style={[styles.actionIcon, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
                 <Text style={styles.actionEmoji}>{item.icon}</Text>
               </View>
-              <Text style={styles.actionText}>{item.label}</Text>
+              <Text style={[styles.actionText, { color: colors.textSecondary }]}>{item.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -110,23 +112,23 @@ const HomeScreen = ({ navigation }) => {
         {creditScore && (
           <Card
             onPress={() => navigation.navigate('CreditScore')}
-            style={styles.creditCard}
+            style={{ borderColor: 'rgba(74,237,196,0.15)' }}
           >
             <View style={styles.creditRow}>
               <View>
-                <Text style={styles.creditLabel}>CIBIL Score</Text>
-                <Text style={styles.creditScoreNum}>{creditScore}</Text>
-                <Text style={styles.creditRating}>
+                <Text style={[styles.creditLabel, { color: colors.textSecondary }]}>CIBIL Score</Text>
+                <Text style={[styles.creditScoreNum, { color: colors.textPrimary }]}>{creditScore}</Text>
+                <Text style={[styles.creditRating, { color: colors.teal }]}>
                   {creditScore >= 750 ? 'Excellent' : creditScore >= 650 ? 'Good' : 'Fair'}
                 </Text>
               </View>
               <View style={styles.creditRight}>
                 <View style={styles.creditGauge}>
-                  <View style={[styles.gaugeBar, { width: `${(creditScore / 900) * 100}%` }]} />
+                  <View style={[styles.gaugeBar, { width: `${(creditScore / 900) * 100}%`, backgroundColor: colors.teal }]} />
                 </View>
                 <View style={styles.gaugeLabels}>
-                  <Text style={styles.gaugeLabel}>300</Text>
-                  <Text style={styles.gaugeLabel}>900</Text>
+                  <Text style={[styles.gaugeLabel, { color: colors.textSecondary }]}>300</Text>
+                  <Text style={[styles.gaugeLabel, { color: colors.textSecondary }]}>900</Text>
                 </View>
               </View>
             </View>
@@ -135,51 +137,51 @@ const HomeScreen = ({ navigation }) => {
 
         {/* Active Loans */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Your Loans</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Your Loans</Text>
           <TouchableOpacity onPress={() => navigation.navigate('MyLoans')}>
-            <Text style={styles.viewAll}>View All →</Text>
+            <Text style={[styles.viewAll, { color: colors.teal }]}>View All →</Text>
           </TouchableOpacity>
         </View>
 
         {loans.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyText}>No loans yet</Text>
-            <Text style={styles.emptySubtext}>Apply for a loan to get started</Text>
+            <Text style={[styles.emptyText, { color: colors.textPrimary }]}>No loans yet</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Apply for a loan to get started</Text>
           </Card>
         ) : (
           loans.map((loan) => (
             <Card
               key={loan.id}
               onPress={() => navigation.navigate('LoanDetail', { loanId: loan.id })}
-              accent={COLORS.teal}
+              accent={colors.teal}
               style={styles.loanCard}
             >
               <View style={styles.loanHeader}>
                 <View style={styles.loanLeft}>
-                  <Text style={styles.loanType}>
+                  <Text style={[styles.loanType, { color: colors.textPrimary }]}>
                     {loan.type === 'education' ? '🎓' : '💼'}{' '}
                     {loan.instituteName || loan.companyName}
                   </Text>
-                  <Text style={styles.loanId}>#{loan.id}</Text>
+                  <Text style={[styles.loanId, { color: colors.textSecondary }]}>#{loan.id}</Text>
                 </View>
                 <StatusBadge status={loan.status} />
               </View>
-              <View style={styles.loanDivider} />
+              <View style={[styles.loanDivider, { backgroundColor: colors.border }]} />
               <View style={styles.loanDetails}>
                 <View style={styles.loanDetail}>
-                  <Text style={styles.loanDetailLabel}>Amount</Text>
-                  <Text style={styles.loanDetailValue}>{formatCurrency(loan.amount)}</Text>
+                  <Text style={[styles.loanDetailLabel, { color: colors.textSecondary }]}>Amount</Text>
+                  <Text style={[styles.loanDetailValue, { color: colors.textPrimary }]}>{formatCurrency(loan.amount)}</Text>
                 </View>
                 <View style={[styles.loanDetail, styles.loanDetailCenter]}>
-                  <Text style={styles.loanDetailLabel}>Monthly EMI</Text>
-                  <Text style={[styles.loanDetailValue, { color: COLORS.teal }]}>
+                  <Text style={[styles.loanDetailLabel, { color: colors.textSecondary }]}>Monthly EMI</Text>
+                  <Text style={[styles.loanDetailValue, { color: colors.teal }]}>
                     {formatCurrency(loan.emi)}
                   </Text>
                 </View>
                 <View style={styles.loanDetail}>
-                  <Text style={styles.loanDetailLabel}>Next EMI</Text>
-                  <Text style={styles.loanDetailValue}>{formatDate(loan.nextEmiDate)}</Text>
+                  <Text style={[styles.loanDetailLabel, { color: colors.textSecondary }]}>Next EMI</Text>
+                  <Text style={[styles.loanDetailValue, { color: colors.textPrimary }]}>{formatDate(loan.nextEmiDate)}</Text>
                 </View>
               </View>
             </Card>
@@ -188,9 +190,9 @@ const HomeScreen = ({ navigation }) => {
 
         {/* Daily Tip */}
         {dailyTip && (
-          <Card accent={COLORS.secondary} style={styles.tipCard}>
-            <Text style={styles.tipTitle}>💡 {dailyTip.title}</Text>
-            <Text style={styles.tipContent}>{dailyTip.content}</Text>
+          <Card accent={colors.secondary} style={{ backgroundColor: 'rgba(245,183,49,0.08)', borderColor: 'rgba(245,183,49,0.15)' }}>
+            <Text style={[styles.tipTitle, { color: colors.textPrimary }]}>💡 {dailyTip.title}</Text>
+            <Text style={[styles.tipContent, { color: colors.textSecondary }]}>{dailyTip.content}</Text>
           </Card>
         )}
 
@@ -201,7 +203,7 @@ const HomeScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   content: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
   quickActions: {
@@ -220,37 +222,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
+    borderWidth: 1,
   },
   actionEmoji: { fontSize: 24 },
   actionText: {
     fontSize: 10,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     fontWeight: '600',
     lineHeight: 14,
-  },
-  creditCard: {
-    backgroundColor: COLORS.primary,
-    borderColor: 'transparent',
   },
   creditRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  creditLabel: { fontSize: 11, color: 'rgba(255,255,255,0.6)', letterSpacing: 1, fontWeight: '600' },
-  creditScoreNum: { fontSize: 40, fontWeight: '900', color: COLORS.textLight, marginVertical: 2 },
-  creditRating: { fontSize: 13, color: COLORS.teal, fontWeight: '700' },
+  creditLabel: { fontSize: 11, letterSpacing: 1, fontWeight: '600' },
+  creditScoreNum: { fontSize: 40, fontWeight: '900', marginVertical: 2 },
+  creditRating: { fontSize: 13, fontWeight: '700' },
   creditRight: { alignItems: 'flex-end' },
   creditGauge: {
     width: 110,
     height: 6,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(128,128,128,0.2)',
     borderRadius: 3,
   },
   gaugeBar: {
     height: 6,
-    backgroundColor: COLORS.teal,
     borderRadius: 3,
   },
   gaugeLabels: {
@@ -259,7 +256,7 @@ const styles = StyleSheet.create({
     width: 110,
     marginTop: 3,
   },
-  gaugeLabel: { fontSize: 9, color: 'rgba(255,255,255,0.4)' },
+  gaugeLabel: { fontSize: 9 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -267,12 +264,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 4,
   },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
-  viewAll: { fontSize: 13, color: COLORS.teal, fontWeight: '600' },
+  sectionTitle: { fontSize: 17, fontWeight: '700' },
+  viewAll: { fontSize: 13, fontWeight: '600' },
   emptyCard: { alignItems: 'center', paddingVertical: 36 },
   emptyIcon: { fontSize: 40, marginBottom: 8 },
-  emptyText: { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary },
-  emptySubtext: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
+  emptyText: { fontSize: 16, fontWeight: '600' },
+  emptySubtext: { fontSize: 13, marginTop: 4 },
   loanCard: { marginBottom: 2 },
   loanHeader: {
     flexDirection: 'row',
@@ -280,21 +277,19 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   loanLeft: { flex: 1, marginRight: 8 },
-  loanType: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
-  loanId: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+  loanType: { fontSize: 15, fontWeight: '700' },
+  loanId: { fontSize: 11, marginTop: 2 },
   loanDivider: {
     height: 1,
-    backgroundColor: COLORS.border,
     marginVertical: 12,
   },
   loanDetails: { flexDirection: 'row', justifyContent: 'space-between' },
   loanDetail: {},
   loanDetailCenter: { alignItems: 'center' },
-  loanDetailLabel: { fontSize: 10, color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  loanDetailValue: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginTop: 3 },
-  tipCard: { backgroundColor: '#FFFDF5' },
-  tipTitle: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 6 },
-  tipContent: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20 },
+  loanDetailLabel: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  loanDetailValue: { fontSize: 15, fontWeight: '700', marginTop: 3 },
+  tipTitle: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
+  tipContent: { fontSize: 13, lineHeight: 20 },
   bottomSpacer: { height: 100 },
 });
 

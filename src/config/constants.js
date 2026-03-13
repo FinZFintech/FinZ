@@ -79,29 +79,36 @@ export const COLORS = {
   primaryDark: '#1E1C4E',
   secondary: '#F5B731',     // Golden yellow (logo dot on "i" & Z bottom)
   secondaryLight: '#F7C95C',
-  teal: '#2CC5BE',          // Teal (logo Z diagonal stroke)
+  teal: '#4AEDC4',          // Teal/mint green accent
   purple: '#7B6DAF',        // Purple (logo Z top portion)
-  accent: '#2CC5BE',
-  background: '#F5F6FB',
-  surface: '#FFFFFF',
-  error: '#D32F2F',
-  success: '#2CC5BE',
+  accent: '#4AEDC4',
+  background: '#0D1017',    // Very dark background
+  surface: '#151A24',       // Slightly lighter dark surface
+  cardBg: '#1A1E2E',       // Card background
+  cardBorder: 'rgba(255,255,255,0.08)', // Subtle card border
+  error: '#FF6B6B',
+  success: '#4AEDC4',
   warning: '#F5B731',
   info: '#7B6DAF',
-  textPrimary: '#2D2B6B',
-  textSecondary: '#6E6E8A',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#8E95A8',
   textLight: '#FFFFFF',
-  border: '#E4E4F0',
-  disabled: '#B8B8CE',
-  overlay: 'rgba(45,43,107,0.5)',
-  cardShadow: 'rgba(45,43,107,0.08)',
+  border: 'rgba(255,255,255,0.1)',
+  disabled: '#3A3F4E',
+  overlay: 'rgba(0,0,0,0.6)',
+  cardShadow: 'rgba(0,0,0,0.3)',
+  headerBg: '#111520',     // Header background
+  inputBg: '#1A1E2E',      // Input field background
+  selectedBorder: '#4AEDC4', // Selected item border
+  buttonGreen: '#4AEDC4',   // Primary CTA button color
+  buttonGreenDark: '#3AAF8F', // Pressed state
 };
 
 export const FONTS = {
   regular: { fontSize: 14, color: COLORS.textPrimary },
   medium: { fontSize: 16, fontWeight: '500', color: COLORS.textPrimary },
   bold: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
-  heading: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary },
+  heading: { fontSize: 24, fontWeight: '800', color: COLORS.textPrimary },
   subheading: { fontSize: 18, fontWeight: '600', color: COLORS.textPrimary },
   caption: { fontSize: 12, color: COLORS.textSecondary },
 };

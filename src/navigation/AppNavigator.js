@@ -4,6 +4,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, View, ActivityIndicator } from 'react-native';
 import { COLORS } from '../config/constants';
 import { useAuth } from '../store/AuthContext';
+import { Text, View } from 'react-native';
+import { useTheme } from '../store/ThemeContext';
 
 // Auth Screens
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -58,13 +60,13 @@ const AdminHomeStackNav = createStackNavigator();
 
 const noHeader = { headerShown: false };
 
-const TabIcon = ({ label, icon, focused }) => (
+const TabIcon = ({ label, icon, focused, colors }) => (
   <View style={{ alignItems: 'center', paddingTop: 4 }}>
     <Text style={{ fontSize: 22 }}>{icon}</Text>
     <Text
       style={{
         fontSize: 10,
-        color: focused ? COLORS.primary : COLORS.textSecondary,
+        color: focused ? colors.teal : colors.textSecondary,
         fontWeight: focused ? '700' : '400',
         marginTop: 2,
       }}
@@ -132,75 +134,78 @@ const ProfileStack = () => (
   </ProfileStackNav.Navigator>
 );
 
-const tabBarStyle = {
-  height: 65,
-  paddingBottom: 8,
-  backgroundColor: COLORS.surface,
-  borderTopWidth: 0.5,
-  borderTopColor: COLORS.border,
-  elevation: 8,
-};
+const CustomerTabs = () => {
+  const { colors } = useTheme();
+  const tabBarStyle = {
+    height: 65,
+    paddingBottom: 8,
+    backgroundColor: colors.headerBg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    elevation: 0,
+  };
 
-const CustomerTabs = () => (
-  <Tab.Navigator
-    screenOptions={{
-      headerShown: false,
-      tabBarStyle,
-      tabBarShowLabel: false,
-    }}
-  >
-    <Tab.Screen
-      name="Home"
-      component={HomeStack}
-      options={{
-        tabBarIcon: ({ focused }) => <TabIcon label="Home" icon="🏠" focused={focused} />,
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle,
+        tabBarShowLabel: false,
       }}
-    />
-    <Tab.Screen
-      name="LoansTab"
-      component={LoansStack}
-      options={{
-        tabBarIcon: ({ focused }) => <TabIcon label="Loans" icon="📋" focused={focused} />,
-      }}
-    />
-    <Tab.Screen
-      name="ApplyTab"
-      component={InstituteSelectionScreen}
-      options={{
-        tabBarIcon: ({ focused }) => (
-          <View
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              backgroundColor: COLORS.teal,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginTop: -20,
-              elevation: 4,
-            }}
-          >
-            <Text style={{ fontSize: 28, color: COLORS.textLight }}>+</Text>
-          </View>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="EngageTab"
-      component={DailyCheckInScreen}
-      options={{
-        tabBarIcon: ({ focused }) => <TabIcon label="Engage" icon="🔥" focused={focused} />,
-      }}
-    />
-    <Tab.Screen
-      name="ProfileTab"
-      component={ProfileStack}
-      options={{
-        tabBarIcon: ({ focused }) => <TabIcon label="Profile" icon="👤" focused={focused} />,
-      }}
-    />
-  </Tab.Navigator>
-);
+    >
+      <Tab.Screen
+        name="Home"
+        component={HomeStack}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Home" icon="🏠" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="LoansTab"
+        component={LoansStack}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Loans" icon="📋" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="ApplyTab"
+        component={InstituteSelectionScreen}
+        options={{
+          tabBarIcon: () => (
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: colors.teal,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: -20,
+                elevation: 4,
+              }}
+            >
+              <Text style={{ fontSize: 28, color: colors.background }}>+</Text>
+            </View>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="EngageTab"
+        component={DailyCheckInScreen}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Engage" icon="🔥" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileStack}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Profile" icon="👤" focused={focused} colors={colors} />,
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
 
 const AdminHomeStack = () => (
   <AdminHomeStackNav.Navigator screenOptions={noHeader}>
@@ -212,40 +217,48 @@ const AdminHomeStack = () => (
   </AdminHomeStackNav.Navigator>
 );
 
-const AdminTabs = () => (
-  <Tab.Navigator
-    screenOptions={{
-      headerShown: false,
-      tabBarStyle: {
-        ...tabBarStyle,
-        elevation: undefined,
-      },
-      tabBarShowLabel: false,
-    }}
-  >
-    <Tab.Screen
-      name="AdminHome"
-      component={AdminHomeStack}
-      options={{
-        tabBarIcon: ({ focused }) => <TabIcon label="Dashboard" icon="📊" focused={focused} />,
+const AdminTabs = () => {
+  const { colors } = useTheme();
+  const tabBarStyle = {
+    height: 65,
+    paddingBottom: 8,
+    backgroundColor: colors.headerBg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  };
+
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle,
+        tabBarShowLabel: false,
       }}
-    />
-    <Tab.Screen
-      name="QueueTab"
-      component={LoanQueueScreen}
-      options={{
-        tabBarIcon: ({ focused }) => <TabIcon label="Queue" icon="📋" focused={focused} />,
-      }}
-    />
-    <Tab.Screen
-      name="AdminProfile"
-      component={ProfileScreen}
-      options={{
-        tabBarIcon: ({ focused }) => <TabIcon label="Profile" icon="👤" focused={focused} />,
-      }}
-    />
-  </Tab.Navigator>
-);
+    >
+      <Tab.Screen
+        name="AdminHome"
+        component={AdminHomeStack}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Dashboard" icon="📊" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="QueueTab"
+        component={LoanQueueScreen}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Queue" icon="📋" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="AdminProfile"
+        component={ProfileScreen}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Profile" icon="👤" focused={focused} colors={colors} />,
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
 
 const AppNavigator = () => {
   const { isAuthenticated, isLoading, user } = useAuth();

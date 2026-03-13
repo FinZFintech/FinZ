@@ -6,7 +6,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { COLORS } from '../../config/constants';
 import Input from '../../components/common/Input';
@@ -15,10 +15,12 @@ import OtpInput from '../../components/common/OtpInput';
 import Logo from '../../components/common/Logo';
 import { authService } from '../../services/authService';
 import { useAuth } from '../../store/AuthContext';
+import { useTheme } from '../../store/ThemeContext';
 import { validateMobile } from '../../utils/helpers';
 
 const LoginScreen = ({ navigation }) => {
   const { login } = useAuth();
+  const { isDark, toggleTheme, colors } = useTheme();
   const [mobile, setMobile] = useState('');
   const [showOtp, setShowOtp] = useState(false);
   const [otp, setOtp] = useState('');
@@ -39,16 +41,21 @@ const LoginScreen = ({ navigation }) => {
 
   const handleSendOtp = async () => {
     if (!validateMobile(mobile)) {
-      setError('Please enter a valid 10-digit mobile number');
+      setError('Please enter a valid 10-digit mobile number (starting with 6-9)');
       return;
     }
     setError('');
     setLoading(true);
     try {
+      console.log('[Login] Sending OTP to', mobile);
       await authService.sendOtp(mobile);
+      console.log('[Login] OTP sent successfully');
       setShowOtp(true);
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
+      console.log('[Login] Send OTP error:', err);
+      const msg =
+        err?.message || (typeof err === 'string' ? err : 'Failed to send OTP. Please try again.');
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -58,31 +65,80 @@ const LoginScreen = ({ navigation }) => {
     const code = otpValue || otp;
     if (code.length !== 6) return;
 
+    setError('');
     setLoading(true);
     try {
       // Just call login — the navigator conditionally renders based on isAuthenticated
       await login(mobile, code);
+      console.log('[Login] Verifying OTP for', mobile);
+      const response = await login(mobile, code);
+      console.log('[Login] Login successful, navigating...');
+      const role = response?.user?.role || 'customer';
+      if (role === 'customer') {
+        navigation.replace('CustomerTabs');
+      } else {
+        navigation.replace('AdminTabs');
+      }
     } catch (err) {
-      Alert.alert('Error', err.message || 'Invalid OTP. Please try again.');
+      console.log('[Login] Verify OTP error:', err);
+      const msg =
+        err?.message || (typeof err === 'string' ? err : 'Invalid OTP. Please try again.');
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
+  const dynamicStyles = {
+    container: { backgroundColor: colors.background },
+    welcomeText: { color: colors.textPrimary },
+    subText: { color: colors.textSecondary },
+    otpInfoBox: { backgroundColor: colors.cardBg, borderColor: colors.cardBorder },
+    otpInfo: { color: colors.textSecondary },
+    terms: { color: colors.textSecondary },
+    link: { color: colors.teal },
+    toggleTrack: {
+      backgroundColor: isDark ? 'rgba(74,237,196,0.2)' : 'rgba(0,0,0,0.1)',
+      borderColor: isDark ? 'rgba(74,237,196,0.3)' : 'rgba(0,0,0,0.15)',
+    },
+    toggleThumb: {
+      backgroundColor: isDark ? colors.teal : colors.primary,
+      left: isDark ? 22 : 2,
+    },
+    toggleLabel: { color: colors.textSecondary },
+  };
+
   return (
     <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, dynamicStyles.container]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {/* Theme toggle */}
+        <View style={styles.themeToggleRow}>
+          <Text style={[styles.toggleLabel, dynamicStyles.toggleLabel]}>
+            {isDark ? '🌙' : '☀️'}
+          </Text>
+          <TouchableOpacity
+            style={[styles.toggleTrack, dynamicStyles.toggleTrack]}
+            onPress={toggleTheme}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.toggleThumb, dynamicStyles.toggleThumb]} />
+          </TouchableOpacity>
+          <Text style={[styles.toggleLabel, dynamicStyles.toggleLabel]}>
+            {isDark ? 'Dark' : 'Light'}
+          </Text>
+        </View>
+
         <View style={styles.header}>
           <View style={styles.logoWrap}>
-            <Logo size="medium" />
+            <Logo size="medium" white={isDark} />
           </View>
-          <Text style={styles.welcomeText}>
+          <Text style={[styles.welcomeText, dynamicStyles.welcomeText]}>
             {showOtp ? 'Verify OTP' : 'Welcome! Login to continue'}
           </Text>
-          <Text style={styles.subText}>
+          <Text style={[styles.subText, dynamicStyles.subText]}>
             {showOtp
               ? 'Enter the 6-digit code sent to your mobile'
               : 'Enter your mobile number to get started'}
@@ -96,12 +152,13 @@ const LoginScreen = ({ navigation }) => {
                 label="Mobile Number"
                 value={mobile}
                 onChangeText={(text) => {
-                  setMobile(text.replace(/[^0-9]/g, ''));
+                  setMobile(text.replace(/[^0-9]/g, '').slice(0, 10));
                   setError('');
                 }}
                 placeholder="Enter 10-digit mobile number"
                 keyboardType="phone-pad"
                 maxLength={10}
+                prefix="+91"
                 error={error}
               />
               <Button
@@ -113,8 +170,8 @@ const LoginScreen = ({ navigation }) => {
             </>
           ) : (
             <>
-              <View style={styles.otpInfoBox}>
-                <Text style={styles.otpInfo}>
+              <View style={[styles.otpInfoBox, dynamicStyles.otpInfoBox]}>
+                <Text style={[styles.otpInfo, dynamicStyles.otpInfo]}>
                   OTP sent to +91 {mobile.slice(0, 2)}XXXXXX{mobile.slice(-2)}
                 </Text>
               </View>
@@ -126,6 +183,7 @@ const LoginScreen = ({ navigation }) => {
                 }}
                 style={styles.otpInput}
               />
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
               <Button
                 title="Verify OTP"
                 onPress={() => handleVerifyOtp()}
@@ -138,6 +196,7 @@ const LoginScreen = ({ navigation }) => {
                 onPress={() => {
                   setShowOtp(false);
                   setOtp('');
+                  setError('');
                 }}
                 variant="outline"
                 style={styles.changeButton}
@@ -148,15 +207,15 @@ const LoginScreen = ({ navigation }) => {
 
         <View style={styles.footer}>
           <View style={styles.colorBar}>
-            <View style={[styles.colorSegment, { backgroundColor: COLORS.primary, flex: 3 }]} />
-            <View style={[styles.colorSegment, { backgroundColor: COLORS.purple, flex: 1 }]} />
-            <View style={[styles.colorSegment, { backgroundColor: COLORS.teal, flex: 2 }]} />
-            <View style={[styles.colorSegment, { backgroundColor: COLORS.secondary, flex: 1 }]} />
+            <View style={[styles.colorSegment, { backgroundColor: colors.primary, flex: 3 }]} />
+            <View style={[styles.colorSegment, { backgroundColor: colors.purple, flex: 1 }]} />
+            <View style={[styles.colorSegment, { backgroundColor: colors.teal, flex: 2 }]} />
+            <View style={[styles.colorSegment, { backgroundColor: colors.secondary, flex: 1 }]} />
           </View>
-          <Text style={styles.terms}>
+          <Text style={[styles.terms, dynamicStyles.terms]}>
             By continuing, you agree to our{' '}
-            <Text style={styles.link}>Terms of Service</Text> and{' '}
-            <Text style={styles.link}>Privacy Policy</Text>
+            <Text style={[styles.link, dynamicStyles.link]}>Terms of Service</Text> and{' '}
+            <Text style={[styles.link, dynamicStyles.link]}>Privacy Policy</Text>
           </Text>
         </View>
       </ScrollView>
@@ -167,12 +226,36 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.surface,
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
+  },
+  themeToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    paddingTop: 16,
+    marginBottom: 8,
+  },
+  toggleTrack: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+  },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    position: 'absolute',
+  },
+  toggleLabel: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   header: {
     alignItems: 'center',
@@ -182,13 +265,11 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   welcomeText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
-    color: COLORS.primary,
   },
   subText: {
     fontSize: 14,
-    color: COLORS.textSecondary,
     marginTop: 6,
   },
   form: {
@@ -198,18 +279,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.background,
     padding: 12,
     borderRadius: 10,
     marginBottom: 24,
+    borderWidth: 1,
   },
   otpInfo: {
     fontSize: 14,
-    color: COLORS.textSecondary,
     fontWeight: '500',
   },
   otpInput: {
     marginBottom: 24,
+  },
+  errorText: {
+    fontSize: 13,
+    color: COLORS.error,
+    textAlign: 'center',
+    marginBottom: 12,
   },
   verifyButton: {
     marginTop: 8,
@@ -234,11 +320,9 @@ const styles = StyleSheet.create({
   terms: {
     textAlign: 'center',
     fontSize: 12,
-    color: COLORS.textSecondary,
     lineHeight: 18,
   },
   link: {
-    color: COLORS.teal,
     fontWeight: '600',
   },
 });
