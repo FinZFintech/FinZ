@@ -8,8 +8,10 @@ import StepIndicator from '../../../components/common/StepIndicator';
 import { COLORS } from '../../../config/constants';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
+import { useTheme } from '../../../store/ThemeContext';
 
 const SelfieVerificationScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const [selfieUri, setSelfieUri] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -67,20 +69,20 @@ const SelfieVerificationScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Selfie Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={5} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Card>
-          <Text style={styles.sectionTitle}>Take a Live Selfie</Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Take a Live Selfie</Text>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             Please take a clear selfie for identity verification. Ensure good lighting
             and look directly at the camera.
           </Text>
 
           {requiresVkyc && (
             <View style={styles.vkycNote}>
-              <Text style={styles.vkycNoteText}>
+              <Text style={[styles.vkycNoteText, { color: colors.teal }]}>
                 Note: Since your loan amount is ₹{loanAmount.toLocaleString('en-IN')} (≥₹60,000),
                 video KYC (vKYC) will be required at a later step as per RBI guidelines.
               </Text>
@@ -111,7 +113,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
             </>
           ) : (
             <View style={styles.verifiedBadge}>
-              <Text style={styles.verifiedText}>✓ Selfie Verified</Text>
+              <Text style={[styles.verifiedText, { color: colors.teal }]}>✓ Selfie Verified</Text>
             </View>
           )}
         </Card>

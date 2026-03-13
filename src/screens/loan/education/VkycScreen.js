@@ -7,8 +7,10 @@ import StepIndicator from '../../../components/common/StepIndicator';
 import { COLORS } from '../../../config/constants';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
+import { useTheme } from '../../../store/ThemeContext';
 
 const VkycScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const [loading, setLoading] = useState(false);
   const [vkycInitiated, setVkycInitiated] = useState(false);
@@ -46,7 +48,7 @@ const VkycScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Video KYC" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={5} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 
 const steps = [
   'Institute',
@@ -13,35 +13,35 @@ const steps = [
 ];
 
 const StepIndicator = React.memo(({ currentStep, totalSteps, labels }) => {
+  const { colors } = useTheme();
   const stepLabels = labels || steps;
   const total = totalSteps || stepLabels.length;
 
   return (
-    <View style={styles.container}>
-      {/* Progress bar */}
-      <View style={styles.progressTrack}>
+    <View style={[styles.container, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+      <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
         <View
           style={[
             styles.progressFill,
-            { width: `${Math.min((currentStep / (total - 1)) * 100, 100)}%` },
+            { width: `${Math.min((currentStep / (total - 1)) * 100, 100)}%`, backgroundColor: colors.teal },
           ]}
         />
       </View>
-      {/* Step dots */}
       <View style={styles.stepsRow}>
         {Array.from({ length: total }, (_, i) => (
           <View key={stepLabels[i] || `step-${i}`} style={styles.stepItem}>
             <View
               style={[
                 styles.circle,
-                i < currentStep && styles.completed,
-                i === currentStep && styles.active,
+                { backgroundColor: colors.border },
+                (i <= currentStep) && { backgroundColor: colors.teal },
               ]}
             >
               <Text
                 style={[
                   styles.circleText,
-                  (i <= currentStep) && styles.activeText,
+                  { color: colors.textSecondary },
+                  (i <= currentStep) && { color: colors.textLight },
                 ]}
               >
                 {i < currentStep ? '✓' : i + 1}
@@ -51,7 +51,8 @@ const StepIndicator = React.memo(({ currentStep, totalSteps, labels }) => {
               <Text
                 style={[
                   styles.label,
-                  i <= currentStep && styles.activeLabel,
+                  { color: colors.textSecondary },
+                  i <= currentStep && { color: colors.teal, fontWeight: '600' },
                 ]}
                 numberOfLines={1}
               >
@@ -69,20 +70,16 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: COLORS.headerBg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   progressTrack: {
     height: 3,
-    backgroundColor: COLORS.border,
     borderRadius: 2,
     marginBottom: 12,
     overflow: 'hidden',
   },
   progressFill: {
     height: 3,
-    backgroundColor: COLORS.teal,
     borderRadius: 2,
   },
   stepsRow: {
@@ -97,33 +94,17 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  completed: {
-    backgroundColor: COLORS.teal,
-  },
-  active: {
-    backgroundColor: COLORS.teal,
   },
   circleText: {
     fontSize: 11,
     fontWeight: '700',
-    color: COLORS.textSecondary,
-  },
-  activeText: {
-    color: COLORS.textLight,
   },
   label: {
     fontSize: 9,
-    color: COLORS.textSecondary,
     marginTop: 4,
     textAlign: 'center',
-  },
-  activeLabel: {
-    color: COLORS.teal,
-    fontWeight: '600',
   },
 });
 

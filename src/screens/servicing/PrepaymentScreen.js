@@ -6,10 +6,12 @@ import Input from '../../components/common/Input';
 import Card from '../../components/common/Card';
 import InfoRow from '../../components/common/InfoRow';
 import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 import { loanService } from '../../services/loanService';
 import { formatCurrency } from '../../utils/helpers';
 
 const PrepaymentScreen = ({ route, navigation }) => {
+  const { colors } = useTheme();
   const { loanId, type } = route.params;
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,16 +47,16 @@ const PrepaymentScreen = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title={titles[type]} onBack={() => navigation.goBack()} />
       <ScrollView style={styles.content}>
         <Card>
-          <Text style={styles.sectionTitle}>{titles[type]}</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{titles[type]}</Text>
           <InfoRow label="Loan ID" value={`#${loanId}`} />
 
           {type === 'foreclosure' ? (
             <>
-              <Text style={styles.infoText}>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                 Foreclosure will close your loan account. Foreclosure charges as per
                 your loan agreement will apply.
               </Text>
@@ -67,7 +69,7 @@ const PrepaymentScreen = ({ route, navigation }) => {
             </>
           ) : (
             <>
-              <Text style={styles.infoText}>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                 {type === 'emi'
                   ? 'Pay your upcoming EMI before the due date.'
                   : 'Make a part payment to reduce your outstanding principal.'}
@@ -80,7 +82,7 @@ const PrepaymentScreen = ({ route, navigation }) => {
                 keyboardType="number-pad"
               />
               {amount && (
-                <Text style={styles.amountPreview}>
+                <Text style={[styles.amountPreview, { color: colors.teal }]}>
                   Amount: {formatCurrency(Number(amount))}
                 </Text>
               )}

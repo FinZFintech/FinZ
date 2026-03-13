@@ -4,9 +4,11 @@ import Header from '../../components/common/Header';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 import { engagementService } from '../../services/engagementService';
 
 const CreditScoreScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const [score, setScore] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -44,14 +46,14 @@ const CreditScoreScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Credit Score" onBack={() => navigation.goBack()} />
       <ScrollView style={styles.content}>
         {!score ? (
           <Card style={styles.checkCard}>
             <Text style={styles.checkIcon}>📊</Text>
-            <Text style={styles.checkTitle}>Check Your Credit Score</Text>
-            <Text style={styles.checkText}>
+            <Text style={[styles.checkTitle, { color: colors.textPrimary }]}>Check Your Credit Score</Text>
+            <Text style={[styles.checkText, { color: colors.textSecondary }]}>
               Know your credit score for free. Checking does not affect your score.
             </Text>
             <Button title="Check Now" onPress={handleCheckScore} loading={loading} />
@@ -81,10 +83,10 @@ const CreditScoreScreen = ({ navigation }) => {
             </Card>
 
             <Card>
-              <Text style={styles.sectionTitle}>Score Factors</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Score Factors</Text>
               {score.factors.map((f) => (
                 <View key={f.label} style={styles.factorRow}>
-                  <Text style={styles.factorLabel}>{f.label}</Text>
+                  <Text style={[styles.factorLabel, { color: colors.textPrimary }]}>{f.label}</Text>
                   <Text
                     style={[
                       styles.factorScore,
@@ -102,9 +104,9 @@ const CreditScoreScreen = ({ navigation }) => {
             </Card>
 
             <Card style={styles.tipsCard}>
-              <Text style={styles.sectionTitle}>Tips to Improve</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Tips to Improve</Text>
               {score.tips.map((tip) => (
-                <Text key={tip} style={styles.tipItem}>💡 {tip}</Text>
+                <Text key={tip} style={[styles.tipItem, { color: colors.textSecondary }]}>💡 {tip}</Text>
               ))}
             </Card>
           </>

@@ -6,10 +6,12 @@ import Button from '../../components/common/Button';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
 import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 import { adminService } from '../../services/adminService';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 
 const LoanQueueScreen = ({ route, navigation }) => {
+  const { colors } = useTheme();
   const filter = route.params?.filter || 'all';
   const [loans, setLoans] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,7 +52,7 @@ const LoanQueueScreen = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Loan Queue" subtitle={filter} onBack={() => navigation.goBack()} />
       <FlatList
         data={loans}
@@ -60,7 +62,7 @@ const LoanQueueScreen = ({ route, navigation }) => {
         renderItem={({ item }) => (
           <Card>
             <View style={styles.header}>
-              <Text style={styles.loanId}>#{item.id}</Text>
+              <Text style={[styles.loanId, { color: colors.textPrimary }]}>#{item.id}</Text>
               <StatusBadge status={item.status} />
             </View>
             <InfoRow label="Borrower" value={item.borrowerName} />
@@ -96,7 +98,7 @@ const LoanQueueScreen = ({ route, navigation }) => {
           </Card>
         )}
         ListEmptyComponent={
-          <View style={styles.empty}><Text style={styles.emptyText}>No loans in queue</Text></View>
+          <View style={styles.empty}><Text style={[styles.emptyText, { color: colors.textSecondary }]}>No loans in queue</Text></View>
         }
       />
     </View>

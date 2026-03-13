@@ -10,8 +10,10 @@ import { loanService } from '../../../services/loanService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { formatCurrency, calculateEmi } from '../../../utils/helpers';
+import { useTheme } from '../../../store/ThemeContext';
 
 const EnachEsignScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const { state: riskState } = useRisk();
   const [enachLoading, setEnachLoading] = useState(false);
@@ -75,7 +77,7 @@ const EnachEsignScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="eNACH & eSign" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={6} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>

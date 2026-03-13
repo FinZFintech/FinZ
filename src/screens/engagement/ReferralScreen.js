@@ -5,10 +5,12 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Card from '../../components/common/Card';
 import { COLORS, APP_NAME } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 import { engagementService } from '../../services/engagementService';
 import { validateMobile } from '../../utils/helpers';
 
 const ReferralScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,38 +48,38 @@ const ReferralScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Refer & Earn" onBack={() => navigation.goBack()} />
       <ScrollView style={styles.content}>
         <Card style={styles.heroCard}>
           <Text style={styles.heroIcon}>🎁</Text>
-          <Text style={styles.heroTitle}>Refer a Friend, Earn Rewards!</Text>
-          <Text style={styles.heroText}>
+          <Text style={[styles.heroTitle, { color: colors.teal }]}>Refer a Friend, Earn Rewards!</Text>
+          <Text style={[styles.heroText, { color: colors.textSecondary }]}>
             Refer your friends and earn ₹500 for every successful loan disbursement.
           </Text>
         </Card>
 
         <Card>
-          <Text style={styles.sectionTitle}>Your Referral Code</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Your Referral Code</Text>
           <View style={styles.codeBox}>
-            <Text style={styles.codeText}>{referralCode}</Text>
+            <Text style={[styles.codeText, { color: colors.teal }]}>{referralCode}</Text>
           </View>
           <Button title="Share Referral Link" onPress={handleShare} variant="outline" icon="📤" />
         </Card>
 
         <Card>
-          <Text style={styles.sectionTitle}>Refer Someone</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Refer Someone</Text>
           <Input label="Name" value={name} onChangeText={setName} placeholder="Friend's name" autoCapitalize="words" />
           <Input label="Mobile" value={mobile} onChangeText={(t) => setMobile(t.replace(/[^0-9]/g, ''))} placeholder="10-digit mobile" keyboardType="phone-pad" maxLength={10} />
           <Button title="Send Referral" onPress={handleRefer} loading={loading} />
         </Card>
 
         <Card style={styles.stepsCard}>
-          <Text style={styles.sectionTitle}>How it Works</Text>
-          <Text style={styles.stepItem}>1. Share your referral code with friends</Text>
-          <Text style={styles.stepItem}>2. They apply for a loan using your code</Text>
-          <Text style={styles.stepItem}>3. Once loan is disbursed, you earn ₹500</Text>
-          <Text style={styles.stepItem}>4. Rewards credited to your bank account</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>How it Works</Text>
+          <Text style={[styles.stepItem, { color: colors.textSecondary }]}>1. Share your referral code with friends</Text>
+          <Text style={[styles.stepItem, { color: colors.textSecondary }]}>2. They apply for a loan using your code</Text>
+          <Text style={[styles.stepItem, { color: colors.textSecondary }]}>3. Once loan is disbursed, you earn ₹500</Text>
+          <Text style={[styles.stepItem, { color: colors.textSecondary }]}>4. Rewards credited to your bank account</Text>
         </Card>
         <View style={styles.bottomSpacer} />
       </ScrollView>

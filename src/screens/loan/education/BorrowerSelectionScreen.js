@@ -14,6 +14,7 @@ import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
 import { COLORS } from '../../../config/constants';
+import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
 import { useLoan } from '../../../store/LoanContext';
 import {
@@ -24,6 +25,7 @@ import {
 } from '../../../utils/helpers';
 
 const BorrowerSelectionScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const student = state.studentDetails;
 
@@ -142,7 +144,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const loanAmount = student?.balanceFee || 0;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
         title="Apply for Loan"
         subtitle={student?.courseName}
@@ -157,14 +159,14 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       >
         {/* Borrower Type Selection */}
         <Card>
-          <Text style={styles.sectionTitle}>Who is the Borrower?</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Who is the Borrower?</Text>
           <View style={styles.optionsRow}>
             <TouchableOpacity
               style={[styles.option, borrowerType === 'self' && styles.selectedOption]}
               onPress={handleSelfBorrower}
             >
               <Text style={styles.optionIcon}>👤</Text>
-              <Text style={[styles.optionText, borrowerType === 'self' && styles.selectedText]}>
+              <Text style={[styles.optionText, { color: colors.textSecondary }, borrowerType === 'self' && { color: colors.teal }]}>
                 I am the Borrower
               </Text>
             </TouchableOpacity>
@@ -173,7 +175,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               onPress={handleParentBorrower}
             >
               <Text style={styles.optionIcon}>👨‍👧</Text>
-              <Text style={[styles.optionText, borrowerType === 'parent' && styles.selectedText]}>
+              <Text style={[styles.optionText, { color: colors.textSecondary }, borrowerType === 'parent' && { color: colors.teal }]}>
                 Parent is Borrower
               </Text>
             </TouchableOpacity>
@@ -183,7 +185,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         {/* Borrower Details */}
         {borrowerType && (
           <Card>
-            <Text style={styles.sectionTitle}>Borrower Details</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Borrower Details</Text>
             <Input
               label="Borrower Name"
               value={borrowerName}
@@ -239,7 +241,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         {/* Loan Products */}
         {borrowerType && (
           <Card>
-            <Text style={styles.sectionTitle}>Select Loan Product</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Loan Product</Text>
             {products.map((product) => (
               <TouchableOpacity
                 key={product.id}
@@ -252,14 +254,14 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                   setSelectedTenure(null);
                 }}
               >
-                <Text style={styles.productName}>{product.name}</Text>
-                <Text style={styles.productRate}>
+                <Text style={[styles.productName, { color: colors.textPrimary }]}>{product.name}</Text>
+                <Text style={[styles.productRate, { color: colors.teal }]}>
                   Interest Rate: {product.interestRate}% p.a.
                 </Text>
-                <Text style={styles.productFee}>
+                <Text style={[styles.productFee, { color: colors.textSecondary }]}>
                   Processing Fee: {product.processingFee}
                 </Text>
-                <Text style={styles.productFee}>
+                <Text style={[styles.productFee, { color: colors.textSecondary }]}>
                   Foreclosure: {product.foreclosureCharges}
                 </Text>
               </TouchableOpacity>
@@ -270,7 +272,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         {/* Tenure Selection */}
         {selectedProduct && (
           <Card>
-            <Text style={styles.sectionTitle}>Select Tenure</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Tenure</Text>
             <View style={styles.tenureRow}>
               {selectedProduct.tenures.map((tenure) => (
                 <TouchableOpacity
@@ -284,6 +286,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                   <Text
                     style={[
                       styles.tenureText,
+                      { color: colors.textSecondary },
                       selectedTenure === tenure && styles.selectedTenureText,
                     ]}
                   >
@@ -298,7 +301,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         {/* EMI Preview */}
         {selectedTenure && (
           <Card style={styles.emiCard}>
-            <Text style={styles.sectionTitle}>Repayment Summary</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Repayment Summary</Text>
             <InfoRow label="Loan Amount" value={formatCurrency(loanAmount)} />
             <InfoRow label="Interest Rate" value={`${selectedProduct.interestRate}% p.a.`} />
             <InfoRow label="Tenure" value={`${selectedTenure} months`} />

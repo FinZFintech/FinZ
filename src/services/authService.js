@@ -60,7 +60,9 @@ export const authService = {
   },
 
   async logout() {
-    await AsyncStorage.multiRemove(['auth_token', 'refresh_token', 'user_data']);
+    await AsyncStorage.removeItem('auth_token');
+    await AsyncStorage.removeItem('refresh_token');
+    await AsyncStorage.removeItem('user_data');
   },
 
   async isAuthenticated() {

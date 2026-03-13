@@ -5,10 +5,12 @@ import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const DailyCheckInScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const [streak, setStreak] = useState(0);
   const [checkedIn, setCheckedIn] = useState(false);
   const [weekStatus, setWeekStatus] = useState([false, false, false, false, false, false, false]);
@@ -70,14 +72,14 @@ const DailyCheckInScreen = ({ navigation }) => {
   }, [streak, weekStatus]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Daily Check-In" onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
       <ScrollView style={styles.content}>
         {/* Streak Card */}
         <Card style={styles.streakCard}>
           <Text style={styles.streakEmoji}>🔥</Text>
           <Text style={styles.streakCount}>{streak}</Text>
-          <Text style={styles.streakLabel}>Day Streak</Text>
+          <Text style={[styles.streakLabel, { color: colors.textSecondary }]}>Day Streak</Text>
           <View style={styles.weekRow}>
             {DAYS.map((day, i) => (
               <View key={day} style={styles.dayItem}>
@@ -94,7 +96,7 @@ const DailyCheckInScreen = ({ navigation }) => {
             <Button title="Check In Today" onPress={handleCheckIn} style={styles.checkInBtn} />
           ) : (
             <View style={styles.checkedBadge}>
-              <Text style={styles.checkedText}>✓ Checked In Today!</Text>
+              <Text style={[styles.checkedText, { color: colors.teal }]}>✓ Checked In Today!</Text>
             </View>
           )}
         </Card>
@@ -102,8 +104,8 @@ const DailyCheckInScreen = ({ navigation }) => {
         {/* Financial Quiz */}
         {financialQuiz && (
           <Card>
-            <Text style={styles.sectionTitle}>📝 Financial Quiz</Text>
-            <Text style={styles.quizQuestion}>{financialQuiz.question}</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>📝 Financial Quiz</Text>
+            <Text style={[styles.quizQuestion, { color: colors.textPrimary }]}>{financialQuiz.question}</Text>
             {financialQuiz.options.map((opt, optIndex) => (
               <TouchableOpacity
                 key={`quiz-${opt}`}
@@ -116,7 +118,7 @@ const DailyCheckInScreen = ({ navigation }) => {
                 onPress={() => setSelectedAnswer(optIndex)}
                 disabled={selectedAnswer !== null}
               >
-                <Text style={styles.quizOptionText}>{opt}</Text>
+                <Text style={[styles.quizOptionText, { color: colors.textPrimary }]}>{opt}</Text>
               </TouchableOpacity>
             ))}
             {selectedAnswer !== null && (
@@ -131,10 +133,10 @@ const DailyCheckInScreen = ({ navigation }) => {
 
         {/* Rewards Info */}
         <Card style={styles.rewardsCard}>
-          <Text style={styles.sectionTitle}>🏆 Check-In Rewards</Text>
-          <Text style={styles.rewardItem}>7-day streak: Free credit score check</Text>
-          <Text style={styles.rewardItem}>14-day streak: ₹100 cashback on EMI</Text>
-          <Text style={styles.rewardItem}>30-day streak: Processing fee discount</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>🏆 Check-In Rewards</Text>
+          <Text style={[styles.rewardItem, { color: colors.textSecondary }]}>7-day streak: Free credit score check</Text>
+          <Text style={[styles.rewardItem, { color: colors.textSecondary }]}>14-day streak: ₹100 cashback on EMI</Text>
+          <Text style={[styles.rewardItem, { color: colors.textSecondary }]}>30-day streak: Processing fee discount</Text>
         </Card>
 
         <View style={styles.bottomSpacer} />

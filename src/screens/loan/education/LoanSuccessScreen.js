@@ -5,8 +5,10 @@ import Header from '../../../components/common/Header';
 import { COLORS, APP_NAME } from '../../../config/constants';
 import { useLoan } from '../../../store/LoanContext';
 import { formatCurrency, calculateEmi } from '../../../utils/helpers';
+import { useTheme } from '../../../store/ThemeContext';
 
 const LoanSuccessScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const loanAmount = state.studentDetails?.balanceFee || 0;
   const emi = state.selectedProduct
@@ -19,7 +21,7 @@ const LoanSuccessScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Application Complete" />
       <View style={styles.content}>
         <View style={styles.iconContainer}>

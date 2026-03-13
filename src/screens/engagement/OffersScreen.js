@@ -4,9 +4,11 @@ import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 import { engagementService } from '../../services/engagementService';
 
 const OffersScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const [offers, setOffers] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -29,7 +31,7 @@ const OffersScreen = ({ navigation }) => {
   const onRefresh = async () => { setRefreshing(true); await loadOffers(); setRefreshing(false); };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Offers & Rewards" onBack={() => navigation.goBack()} />
       <FlatList
         data={offers}
@@ -38,9 +40,9 @@ const OffersScreen = ({ navigation }) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         renderItem={({ item }) => (
           <Card style={[styles.offerCard, { backgroundColor: item.color }]}>
-            <Text style={styles.offerTitle}>{item.title}</Text>
-            <Text style={styles.offerDesc}>{item.description}</Text>
-            <Text style={styles.validity}>Valid till: {item.validTill}</Text>
+            <Text style={[styles.offerTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+            <Text style={[styles.offerDesc, { color: colors.textSecondary }]}>{item.description}</Text>
+            <Text style={[styles.validity, { color: colors.textSecondary }]}>Valid till: {item.validTill}</Text>
             <Button title="Apply Now" onPress={() => navigation.navigate('InstituteSelection')} variant="outline" style={styles.btn} />
           </Card>
         )}

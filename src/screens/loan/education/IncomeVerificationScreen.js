@@ -17,9 +17,11 @@ import { bankService } from '../../../services/bankService';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
+import { useTheme } from '../../../store/ThemeContext';
 import { formatCurrency } from '../../../utils/helpers';
 
 const IncomeVerificationScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const { executePhase, feedBankStatementData } = useRisk();
   const [method, setMethod] = useState(null); // 'aa' or 'statement'
@@ -212,7 +214,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Income Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={3} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

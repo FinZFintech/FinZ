@@ -10,12 +10,14 @@ import { COLORS } from '../../../config/constants';
 import { bankService } from '../../../services/bankService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
+import { useTheme } from '../../../store/ThemeContext';
 import { validateIfsc, validateAccountNumber } from '../../../utils/helpers';
 
 const OCCUPATIONS = ['Salaried', 'Self-Employed', 'Business', 'Student', 'Homemaker', 'Retired'];
 const ACCOUNT_TYPES = ['Savings', 'Current'];
 
 const BankDetailsScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const { executePhase } = useRisk();
   const [occupation, setOccupation] = useState('');
@@ -131,13 +133,13 @@ const BankDetailsScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Bank Details" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={5} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Occupation */}
         <Card>
-          <Text style={styles.sectionTitle}>Occupation</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Occupation</Text>
           <View style={styles.chipRow}>
             {OCCUPATIONS.map((occ) => (
               <TouchableOpacity
@@ -145,7 +147,7 @@ const BankDetailsScreen = ({ navigation }) => {
                 style={[styles.chip, occupation === occ && styles.selectedChip]}
                 onPress={() => setOccupation(occ)}
               >
-                <Text style={[styles.chipText, occupation === occ && styles.selectedChipText]}>
+                <Text style={[styles.chipText, { color: colors.textSecondary }, occupation === occ && styles.selectedChipText]}>
                   {occ}
                 </Text>
               </TouchableOpacity>
@@ -156,7 +158,7 @@ const BankDetailsScreen = ({ navigation }) => {
 
         {/* Bank Details */}
         <Card>
-          <Text style={styles.sectionTitle}>Bank Account Details</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Bank Account Details</Text>
           <Input
             label="IFSC Code"
             value={ifsc}
@@ -190,7 +192,7 @@ const BankDetailsScreen = ({ navigation }) => {
             maxLength={18}
             error={errors.confirmAccountNumber}
           />
-          <Text style={styles.fieldLabel}>Account Type</Text>
+          <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>Account Type</Text>
           <View style={styles.chipRow}>
             {ACCOUNT_TYPES.map((type) => (
               <TouchableOpacity
@@ -198,7 +200,7 @@ const BankDetailsScreen = ({ navigation }) => {
                 style={[styles.chip, accountType === type && styles.selectedChip]}
                 onPress={() => setAccountType(type)}
               >
-                <Text style={[styles.chipText, accountType === type && styles.selectedChipText]}>
+                <Text style={[styles.chipText, { color: colors.textSecondary }, accountType === type && styles.selectedChipText]}>
                   {type}
                 </Text>
               </TouchableOpacity>
@@ -217,7 +219,7 @@ const BankDetailsScreen = ({ navigation }) => {
           />
         ) : (
           <Card style={pennyDropResult?.verified ? styles.successCard : styles.failCard}>
-            <Text style={pennyDropResult?.verified ? styles.successTitle : styles.failTitle}>
+            <Text style={[pennyDropResult?.verified ? styles.successTitle : styles.failTitle, { color: pennyDropResult?.verified ? colors.teal : colors.error }]}>
               {pennyDropResult?.verified ? '✓ Bank Account Verified' : '✕ Verification Failed'}
             </Text>
             {pennyDropResult?.verified && (

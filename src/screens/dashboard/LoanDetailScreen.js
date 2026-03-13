@@ -6,10 +6,12 @@ import Button from '../../components/common/Button';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
 import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 import { loanService } from '../../services/loanService';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 
 const LoanDetailScreen = ({ route, navigation }) => {
+  const { colors } = useTheme();
   const { loanId } = route.params;
   const [loan, setLoan] = useState(null);
   const [schedule, setSchedule] = useState([]);
@@ -66,7 +68,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
   const isActive = ['active', 'disbursed'].includes(loan.status);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title={`Loan #${loanId}`} onBack={() => navigation.goBack()} />
       <ScrollView
         style={styles.scrollView}
@@ -77,7 +79,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
         {/* Status Card */}
         <Card style={styles.statusCard}>
           <View style={styles.statusHeader}>
-            <Text style={styles.statusLoanName}>
+            <Text style={[styles.statusLoanName, { color: colors.textPrimary }]}>
               {loan.type === 'education' ? '🎓' : '💼'} {loan.instituteName}
             </Text>
             <StatusBadge status={loan.status} />
@@ -87,7 +89,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
 
         {/* Loan Details */}
         <Card>
-          <Text style={styles.sectionTitle}>Loan Details</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Loan Details</Text>
           <InfoRow label="Loan Amount" value={formatCurrency(loan.amount)} />
           <InfoRow label="Interest Rate" value={`${loan.interestRate}% p.a.`} />
           <InfoRow label="Tenure" value={`${loan.tenure} months`} />
@@ -104,7 +106,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
 
         {/* Borrower Info */}
         <Card>
-          <Text style={styles.sectionTitle}>Borrower Details</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Borrower Details</Text>
           <InfoRow label="Student" value={loan.studentName} />
           <InfoRow label="Borrower" value={loan.borrowerName} />
         </Card>
@@ -112,14 +114,14 @@ const LoanDetailScreen = ({ route, navigation }) => {
         {/* Repayment Schedule */}
         {schedule.length > 0 && (
           <Card>
-            <Text style={styles.sectionTitle}>Repayment Schedule</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Repayment Schedule</Text>
             {schedule.map((emi) => (
               <View key={emi.emiNo} style={styles.emiRow}>
                 <View style={styles.emiLeft}>
-                  <Text style={styles.emiNo}>EMI {emi.emiNo}</Text>
-                  <Text style={styles.emiDate}>{formatDate(emi.date)}</Text>
+                  <Text style={[styles.emiNo, { color: colors.textPrimary }]}>EMI {emi.emiNo}</Text>
+                  <Text style={[styles.emiDate, { color: colors.textSecondary }]}>{formatDate(emi.date)}</Text>
                 </View>
-                <Text style={styles.emiAmount}>{formatCurrency(emi.amount)}</Text>
+                <Text style={[styles.emiAmount, { color: colors.textPrimary }]}>{formatCurrency(emi.amount)}</Text>
                 <View
                   style={[
                     styles.emiStatusBadge,
@@ -152,7 +154,7 @@ const LoanDetailScreen = ({ route, navigation }) => {
         {/* Service Actions */}
         {isActive && (
           <Card>
-            <Text style={styles.sectionTitle}>Loan Servicing</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Loan Servicing</Text>
             <Button
               title="Pay EMI Before Due Date"
               onPress={() => navigation.navigate('Prepayment', { loanId, type: 'emi' })}

@@ -1,13 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 
-const InfoRow = ({ label, value, highlight, style }) => (
-  <View style={[styles.row, style]}>
-    <Text style={styles.label}>{label}</Text>
-    <Text style={[styles.value, highlight && styles.highlight]}>{value || '—'}</Text>
-  </View>
-);
+const InfoRow = ({ label, value, highlight, style }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.row, { borderBottomColor: colors.border }, style]}>
+      <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[styles.value, { color: colors.textPrimary }, highlight && { color: colors.teal, fontWeight: '700' }]}>{value || '—'}</Text>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   row: {
@@ -16,24 +19,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   label: {
     fontSize: 13,
-    color: COLORS.textSecondary,
     flex: 1,
     letterSpacing: 0.1,
   },
   value: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textPrimary,
     flex: 1.2,
     textAlign: 'right',
-  },
-  highlight: {
-    color: COLORS.teal,
-    fontWeight: '700',
   },
 });
 

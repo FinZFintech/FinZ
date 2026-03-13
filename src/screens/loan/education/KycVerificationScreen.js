@@ -16,11 +16,13 @@ import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import OtpInput from '../../../components/common/OtpInput';
 import { COLORS, KYC_METHODS } from '../../../config/constants';
+import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 
 const KycVerificationScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const { executePhase } = useRisk();
   const [currentMethod, setCurrentMethod] = useState(KYC_METHODS.CKYC);
@@ -240,15 +242,15 @@ const KycVerificationScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="KYC Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={4} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* CKYC */}
         {!kycCompleted && currentMethod === KYC_METHODS.CKYC && (
           <Card>
-            <Text style={styles.sectionTitle}>CKYC Verification</Text>
-            <Text style={styles.infoText}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>CKYC Verification</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               We will verify your identity via Central KYC Registry (CKYC).
               An OTP will be sent to your registered mobile.
             </Text>
@@ -261,7 +263,7 @@ const KycVerificationScreen = ({ navigation }) => {
               />
             ) : (
               <>
-                <Text style={styles.otpLabel}>Enter OTP received:</Text>
+                <Text style={[styles.otpLabel, { color: colors.textPrimary }]}>Enter OTP received:</Text>
                 <OtpInput
                   length={6}
                   onComplete={(code) => {
@@ -291,7 +293,7 @@ const KycVerificationScreen = ({ navigation }) => {
         {/* DigiLocker */}
         {!kycCompleted && currentMethod === KYC_METHODS.DIGILOCKER && (
           <Card>
-            <Text style={styles.sectionTitle}>DigiLocker Verification</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>DigiLocker Verification</Text>
             {ckycFailed && (
               <View style={styles.warningBanner}>
                 <Text style={styles.warningText}>
@@ -299,7 +301,7 @@ const KycVerificationScreen = ({ navigation }) => {
                 </Text>
               </View>
             )}
-            <Text style={styles.infoText}>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               Verify your identity by linking your Aadhaar through DigiLocker.
               You will be redirected to DigiLocker portal.
             </Text>
@@ -320,7 +322,7 @@ const KycVerificationScreen = ({ navigation }) => {
         {/* Aadhaar XML */}
         {!kycCompleted && currentMethod === KYC_METHODS.AADHAAR_XML && (
           <Card>
-            <Text style={styles.sectionTitle}>Upload Aadhaar XML</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Upload Aadhaar XML</Text>
             {digilockerFailed && (
               <View style={styles.warningBanner}>
                 <Text style={styles.warningText}>
@@ -328,21 +330,21 @@ const KycVerificationScreen = ({ navigation }) => {
                 </Text>
               </View>
             )}
-            <Text style={styles.infoText}>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               Download your Aadhaar XML from the UIDAI website:
             </Text>
             <TouchableOpacity
               onPress={() => Linking.openURL('https://myaadhaar.uidai.gov.in')}
             >
-              <Text style={styles.linkText}>Visit myaadhaar.uidai.gov.in →</Text>
+              <Text style={[styles.linkText, { color: colors.teal }]}>Visit myaadhaar.uidai.gov.in →</Text>
             </TouchableOpacity>
 
             <View style={styles.steps}>
-              <Text style={styles.stepText}>1. Visit myaadhaar.uidai.gov.in</Text>
-              <Text style={styles.stepText}>2. Login with your Aadhaar number</Text>
-              <Text style={styles.stepText}>3. Go to "Download Aadhaar" section</Text>
-              <Text style={styles.stepText}>4. Download the XML/ZIP file</Text>
-              <Text style={styles.stepText}>5. Upload the file below</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>1. Visit myaadhaar.uidai.gov.in</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>2. Login with your Aadhaar number</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>3. Go to "Download Aadhaar" section</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>4. Download the XML/ZIP file</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>5. Upload the file below</Text>
             </View>
 
             <Button
@@ -374,9 +376,9 @@ const KycVerificationScreen = ({ navigation }) => {
         {/* KYC Completed */}
         {kycCompleted && !kycFailed && (
           <Card style={styles.successCard}>
-            <Text style={styles.successIcon}>✓</Text>
-            <Text style={styles.successTitle}>KYC Verified!</Text>
-            <Text style={styles.successText}>
+            <Text style={[styles.successIcon, { color: colors.teal }]}>✓</Text>
+            <Text style={[styles.successTitle, { color: colors.teal }]}>KYC Verified!</Text>
+            <Text style={[styles.successText, { color: colors.textSecondary }]}>
               Your identity has been successfully verified.
             </Text>
             <Button title="Continue" onPress={handleProceed} style={styles.btn} />
@@ -387,8 +389,8 @@ const KycVerificationScreen = ({ navigation }) => {
         {kycFailed && (
           <Card style={styles.failCard}>
             <Text style={styles.failIcon}>✕</Text>
-            <Text style={styles.failTitle}>KYC Failed</Text>
-            <Text style={styles.failText}>
+            <Text style={[styles.failTitle, { color: colors.error }]}>KYC Failed</Text>
+            <Text style={[styles.failText, { color: colors.textSecondary }]}>
               {pincodeBlacklisted
                 ? 'Your pincode is not serviceable at this time.'
                 : 'KYC verification failed. Our team will review your application and contact you.'}

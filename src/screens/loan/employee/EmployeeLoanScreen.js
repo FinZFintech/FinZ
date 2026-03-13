@@ -9,11 +9,13 @@ import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import InfoRow from '../../../components/common/InfoRow';
 import { COLORS } from '../../../config/constants';
+import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
 import { useLoan } from '../../../store/LoanContext';
 import { formatCurrency } from '../../../utils/helpers';
 
 const EmployeeLoanScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { dispatch } = useLoan();
   const [step, setStep] = useState('company'); // company, employee, details
   const [search, setSearch] = useState('');
@@ -92,7 +94,7 @@ const EmployeeLoanScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
         title={step === 'company' ? 'Select Company' : step === 'employee' ? 'Employee ID' : 'Employee Details'}
         onBack={() => {
@@ -112,8 +114,8 @@ const EmployeeLoanScreen = ({ navigation }) => {
             />
             {companies.map(c => (
               <Card key={c.id} onPress={() => handleSelectCompany(c)}>
-                <Text style={styles.companyName}>💼 {c.name}</Text>
-                <Text style={styles.companyCity}>{c.city}</Text>
+                <Text style={[styles.companyName, { color: colors.textPrimary }]}>💼 {c.name}</Text>
+                <Text style={[styles.companyCity, { color: colors.textSecondary }]}>{c.city}</Text>
               </Card>
             ))}
           </>
@@ -121,7 +123,7 @@ const EmployeeLoanScreen = ({ navigation }) => {
 
         {step === 'employee' && (
           <Card>
-            <Text style={styles.sectionTitle}>{selectedCompany?.name}</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{selectedCompany?.name}</Text>
             <Input label="Employee ID" value={empId} onChangeText={setEmpId} placeholder="Enter your Employee ID" />
             <Button title="Fetch Details" onPress={fetchEmployee} loading={loading} />
           </Card>
@@ -130,7 +132,7 @@ const EmployeeLoanScreen = ({ navigation }) => {
         {step === 'details' && employeeData && (
           <>
             <Card>
-              <Text style={styles.sectionTitle}>Employee Details (from HRMS)</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Employee Details (from HRMS)</Text>
               <InfoRow label="Name" value={employeeData.name} />
               <InfoRow label="Father's Name" value={employeeData.fatherName} />
               <InfoRow label="Designation" value={employeeData.designation} />
@@ -140,7 +142,7 @@ const EmployeeLoanScreen = ({ navigation }) => {
               <InfoRow label="Salary" value={formatCurrency(employeeData.salary)} />
               <InfoRow label="Bank" value={employeeData.bankName} />
             </Card>
-            <Text style={styles.note}>
+            <Text style={[styles.note, { color: colors.textSecondary }]}>
               Details fetched from company HRMS. Verify and proceed.
             </Text>
             <Button title="Apply for Employee Loan" onPress={handleApply} style={styles.applyBtn} />

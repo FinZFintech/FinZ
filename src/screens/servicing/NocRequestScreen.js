@@ -4,9 +4,11 @@ import Header from '../../components/common/Header';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 import { loanService } from '../../services/loanService';
 
 const NocRequestScreen = ({ route, navigation }) => {
+  const { colors } = useTheme();
   const { loanId } = route.params;
   const [loading, setLoading] = useState(false);
 
@@ -27,19 +29,19 @@ const NocRequestScreen = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Request NOC" onBack={() => navigation.goBack()} />
       <ScrollView style={styles.content}>
         <Card>
-          <Text style={styles.sectionTitle}>No Objection Certificate (NOC)</Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>No Objection Certificate (NOC)</Text>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             Request a No Objection Certificate for your closed/foreclosed loan.
             The NOC will be generated and sent to your registered email.
           </Text>
           <View style={styles.timeline}>
-            <Text style={styles.timelineItem}>1. Submit NOC request</Text>
-            <Text style={styles.timelineItem}>2. Verification (1-2 business days)</Text>
-            <Text style={styles.timelineItem}>3. NOC generation & delivery via email</Text>
+            <Text style={[styles.timelineItem, { color: colors.textSecondary }]}>1. Submit NOC request</Text>
+            <Text style={[styles.timelineItem, { color: colors.textSecondary }]}>2. Verification (1-2 business days)</Text>
+            <Text style={[styles.timelineItem, { color: colors.textSecondary }]}>3. NOC generation & delivery via email</Text>
           </View>
           <Button title="Request NOC" onPress={handleRequest} loading={loading} />
         </Card>

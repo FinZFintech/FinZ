@@ -14,10 +14,12 @@ import Input from '../../../components/common/Input';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import { COLORS } from '../../../config/constants';
+import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
 import { useLoan } from '../../../store/LoanContext';
 
 const InstituteSelectionScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { dispatch } = useLoan();
   const [search, setSearch] = useState('');
   const [institutes, setInstitutes] = useState([]);
@@ -90,22 +92,22 @@ const InstituteSelectionScreen = ({ navigation }) => {
         <Text style={styles.iconText}>🏫</Text>
       </View>
       <View style={styles.instituteInfo}>
-        <Text style={styles.instituteName}>{item.name}</Text>
-        <Text style={styles.instituteCity}>{item.city}</Text>
-        <Text style={styles.coursesCount}>{item.courses} courses available</Text>
+        <Text style={[styles.instituteName, { color: colors.textPrimary }]}>{item.name}</Text>
+        <Text style={[styles.instituteCity, { color: colors.textSecondary }]}>{item.city}</Text>
+        <Text style={[styles.coursesCount, { color: colors.teal }]}>{item.courses} courses available</Text>
       </View>
-      <Text style={styles.arrow}>→</Text>
+      <Text style={[styles.arrow, { color: colors.textSecondary }]}>→</Text>
     </Card>
   );
 
   if (manualEntry) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Header title="Enter Institute Details" onBack={() => setManualEntry(false)} />
         <ScrollView style={styles.content} contentContainerStyle={styles.manualContent} keyboardShouldPersistTaps="handled">
           <Card>
-            <Text style={styles.manualTitle}>Institute Not Listed?</Text>
-            <Text style={styles.manualSubtitle}>
+            <Text style={[styles.manualTitle, { color: colors.textPrimary }]}>Institute Not Listed?</Text>
+            <Text style={[styles.manualSubtitle, { color: colors.textSecondary }]}>
               Enter your institute details manually. You will also need to fill in student details on the next screen.
             </Text>
             <Input
@@ -134,7 +136,7 @@ const InstituteSelectionScreen = ({ navigation }) => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Select Institute" onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
       <View style={styles.content}>
         <Input
@@ -144,7 +146,7 @@ const InstituteSelectionScreen = ({ navigation }) => {
           style={styles.searchInput}
         />
         {loading ? (
-          <ActivityIndicator size="large" color={COLORS.teal} style={styles.loader} />
+          <ActivityIndicator size="large" color={colors.teal} style={styles.loader} />
         ) : (
           <FlatList
             data={institutes}
@@ -152,15 +154,15 @@ const InstituteSelectionScreen = ({ navigation }) => {
             renderItem={renderInstitute}
             contentContainerStyle={styles.list}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>No institutes found</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No institutes found</Text>
             }
             ListFooterComponent={
               <TouchableOpacity
                 style={styles.manualEntryBtn}
                 onPress={() => setManualEntry(true)}
               >
-                <Text style={styles.manualEntryText}>My institute is not listed</Text>
-                <Text style={styles.manualEntryArrow}>→</Text>
+                <Text style={[styles.manualEntryText, { color: colors.teal }]}>My institute is not listed</Text>
+                <Text style={[styles.manualEntryArrow, { color: colors.teal }]}>→</Text>
               </TouchableOpacity>
             }
           />

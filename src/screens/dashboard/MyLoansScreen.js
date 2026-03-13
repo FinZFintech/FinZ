@@ -4,12 +4,14 @@ import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import StatusBadge from '../../components/common/StatusBadge';
 import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 import { loanService } from '../../services/loanService';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 
 const TABS = ['All', 'Active', 'Pending', 'Closed'];
 
 const MyLoansScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('All');
   const [loans, setLoans] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,16 +48,16 @@ const MyLoansScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="My Loans" onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
       <View style={styles.tabs}>
         {TABS.map(tab => (
           <TouchableOpacity
             key={tab}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
+            style={[styles.tab, activeTab === tab && { backgroundColor: colors.teal, borderColor: colors.teal }]}
             onPress={() => setActiveTab(tab)}
           >
-            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+            <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === tab && { color: colors.background }]}>{tab}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -63,28 +65,28 @@ const MyLoansScreen = ({ navigation }) => {
         data={filterLoans()}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.teal]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.teal]} />}
         renderItem={({ item }) => (
           <Card onPress={() => navigation.navigate('LoanDetail', { loanId: item.id })}>
             <View style={styles.loanHeader}>
-              <Text style={styles.loanId}>#{item.id}</Text>
+              <Text style={[styles.loanId, { color: colors.textSecondary }]}>#{item.id}</Text>
               <StatusBadge status={item.status} />
             </View>
-            <Text style={styles.loanName}>
+            <Text style={[styles.loanName, { color: colors.textPrimary }]}>
               {item.type === 'education' ? '🎓' : '💼'} {item.instituteName || item.companyName}
             </Text>
             <View style={styles.loanRow}>
-              <View><Text style={styles.label}>Amount</Text><Text style={styles.value}>{formatCurrency(item.amount)}</Text></View>
-              <View><Text style={styles.label}>EMI</Text><Text style={styles.value}>{formatCurrency(item.emi)}</Text></View>
-              <View><Text style={styles.label}>Tenure</Text><Text style={styles.value}>{item.tenure}M</Text></View>
+              <View><Text style={[styles.label, { color: colors.textSecondary }]}>Amount</Text><Text style={[styles.value, { color: colors.textPrimary }]}>{formatCurrency(item.amount)}</Text></View>
+              <View><Text style={[styles.label, { color: colors.textSecondary }]}>EMI</Text><Text style={[styles.value, { color: colors.textPrimary }]}>{formatCurrency(item.emi)}</Text></View>
+              <View><Text style={[styles.label, { color: colors.textSecondary }]}>Tenure</Text><Text style={[styles.value, { color: colors.textPrimary }]}>{item.tenure}M</Text></View>
             </View>
             {item.nextEmiDate && (
-              <Text style={styles.nextEmi}>Next EMI: {formatDate(item.nextEmiDate)}</Text>
+              <Text style={[styles.nextEmi, { color: colors.teal }]}>Next EMI: {formatDate(item.nextEmiDate)}</Text>
             )}
           </Card>
         )}
         ListEmptyComponent={
-          <View style={styles.empty}><Text style={styles.emptyText}>No loans found</Text></View>
+          <View style={styles.empty}><Text style={[styles.emptyText, { color: colors.textSecondary }]}>No loans found</Text></View>
         }
       />
     </View>

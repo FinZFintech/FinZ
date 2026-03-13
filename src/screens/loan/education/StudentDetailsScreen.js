@@ -14,11 +14,13 @@ import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
 import { COLORS } from '../../../config/constants';
+import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
 import { useLoan } from '../../../store/LoanContext';
 import { formatCurrency } from '../../../utils/helpers';
 
 const StudentDetailsScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const isManualInstitute = state.instituteDetails?.isManual === true;
   const [regNo, setRegNo] = useState('');
@@ -110,7 +112,7 @@ const StudentDetailsScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
         title="Student Details"
         subtitle={state.instituteDetails?.name}
@@ -126,7 +128,7 @@ const StudentDetailsScreen = ({ navigation }) => {
         {!isManualInstitute ? (
           /* API-based flow */
           <Card>
-            <Text style={styles.sectionTitle}>Enter Registration Number</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Enter Registration Number</Text>
             <Input
               label="Registration / Enrollment Number"
               value={regNo}
@@ -144,8 +146,8 @@ const StudentDetailsScreen = ({ navigation }) => {
         ) : !fetched ? (
           /* Manual entry flow */
           <Card>
-            <Text style={styles.sectionTitle}>Enter Student Details</Text>
-            <Text style={styles.manualHint}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Enter Student Details</Text>
+            <Text style={[styles.manualHint, { color: colors.textSecondary }]}>
               Since your institute is not in our system, please fill in the details manually.
             </Text>
             <Input
@@ -208,7 +210,7 @@ const StudentDetailsScreen = ({ navigation }) => {
 
         {fetched && studentData && (
           <Card style={styles.detailsCard}>
-            <Text style={styles.sectionTitle}>Student Information</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Student Information</Text>
             <InfoRow label="Student Name" value={studentData.studentName} />
             <InfoRow label="Father's Name" value={studentData.fatherName} />
             <InfoRow label="Course" value={studentData.courseName} />

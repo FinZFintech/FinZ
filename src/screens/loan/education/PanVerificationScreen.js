@@ -7,12 +7,14 @@ import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
 import { COLORS } from '../../../config/constants';
+import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { maskPan, validatePan } from '../../../utils/helpers';
 
 const PanVerificationScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const { executePhase, feedCreditBureauData, setExternalData } = useRisk();
   const [pan, setPan] = useState('');
@@ -222,7 +224,7 @@ const PanVerificationScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
         title="PAN & Credit Check"
         onBack={() => navigation.goBack()}
@@ -231,9 +233,9 @@ const PanVerificationScreen = ({ navigation }) => {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* PAN Verification */}
         <Card>
-          <Text style={styles.sectionTitle}>PAN Verification</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>PAN Verification</Text>
           {panFetched && (
-            <Text style={styles.infoText}>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               PAN linked with your mobile number:
             </Text>
           )}
@@ -290,7 +292,7 @@ const PanVerificationScreen = ({ navigation }) => {
             />
           ) : (
             <View style={styles.verifiedBadge}>
-              <Text style={styles.verifiedText}>✓ PAN Verified</Text>
+              <Text style={[styles.verifiedText, { color: colors.teal }]}>✓ PAN Verified</Text>
             </View>
           )}
         </Card>
@@ -300,7 +302,7 @@ const PanVerificationScreen = ({ navigation }) => {
           <Card style={styles.errorCard}>
             <Text style={styles.errorIcon}>⚠</Text>
             <Text style={styles.errorTitle}>Verification Failed</Text>
-            <Text style={styles.errorText}>{panError}</Text>
+            <Text style={[styles.errorText, { color: colors.textSecondary }]}>{panError}</Text>
             <Button
               title="Enter Correct PAN"
               onPress={handleRetryPan}
@@ -312,8 +314,8 @@ const PanVerificationScreen = ({ navigation }) => {
         {/* Credit Check In Progress */}
         {creditChecking && (
           <Card style={styles.checkingCard}>
-            <Text style={styles.checkingTitle}>Checking Eligibility...</Text>
-            <Text style={styles.infoText}>
+            <Text style={[styles.checkingTitle, { color: colors.teal }]}>Checking Eligibility...</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               Running a soft credit check. This will not affect your credit score.
             </Text>
           </Card>
@@ -322,9 +324,9 @@ const PanVerificationScreen = ({ navigation }) => {
         {/* Credit Check Result */}
         {creditPassed === true && (
           <Card style={styles.successCard}>
-            <Text style={styles.successIcon}>✓</Text>
-            <Text style={styles.successTitle}>Eligible!</Text>
-            <Text style={styles.successText}>
+            <Text style={[styles.successIcon, { color: colors.teal }]}>✓</Text>
+            <Text style={[styles.successTitle, { color: colors.teal }]}>Eligible!</Text>
+            <Text style={[styles.successText, { color: colors.textSecondary }]}>
               You have passed the initial credit check. Please proceed to
               income verification.
             </Text>
@@ -339,8 +341,8 @@ const PanVerificationScreen = ({ navigation }) => {
         {creditPassed === false && (
           <Card style={styles.failCard}>
             <Text style={styles.failIcon}>✕</Text>
-            <Text style={styles.failTitle}>Not Eligible</Text>
-            <Text style={styles.failText}>
+            <Text style={[styles.failTitle, { color: colors.error }]}>Not Eligible</Text>
+            <Text style={[styles.failText, { color: colors.textSecondary }]}>
               Based on the credit assessment, you are not eligible for this loan.
               You may apply with different borrower details.
             </Text>
