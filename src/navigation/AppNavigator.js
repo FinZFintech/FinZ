@@ -43,6 +43,9 @@ import DailyCheckInScreen from '../screens/engagement/DailyCheckInScreen';
 // Admin Screens
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import LoanQueueScreen from '../screens/admin/LoanQueueScreen';
+import RiskDashboardScreen from '../screens/admin/RiskDashboardScreen';
+import ApiHealthMonitorScreen from '../screens/admin/ApiHealthMonitorScreen';
+import AuditTrailViewerScreen from '../screens/admin/AuditTrailViewerScreen';
 
 const RootStack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -103,6 +106,10 @@ const HomeStack = () => (
     <HomeStackNav.Screen name="LoanSuccess" component={LoanSuccessScreen} />
     {/* Employee Loan */}
     <HomeStackNav.Screen name="EmployeeLoan" component={EmployeeLoanScreen} />
+    {/* Risk Monitoring (accessible from loan flow) */}
+    <HomeStackNav.Screen name="RiskDashboard" component={RiskDashboardScreen} />
+    <HomeStackNav.Screen name="ApiHealthMonitor" component={ApiHealthMonitorScreen} />
+    <HomeStackNav.Screen name="AuditTrailViewer" component={AuditTrailViewerScreen} />
   </HomeStackNav.Navigator>
 );
 
@@ -199,6 +206,9 @@ const AdminHomeStack = () => (
   <AdminHomeStackNav.Navigator screenOptions={noHeader}>
     <AdminHomeStackNav.Screen name="AdminDashboardMain" component={AdminDashboardScreen} />
     <AdminHomeStackNav.Screen name="LoanQueue" component={LoanQueueScreen} />
+    <AdminHomeStackNav.Screen name="RiskDashboard" component={RiskDashboardScreen} />
+    <AdminHomeStackNav.Screen name="ApiHealthMonitor" component={ApiHealthMonitorScreen} />
+    <AdminHomeStackNav.Screen name="AuditTrailViewer" component={AuditTrailViewerScreen} />
   </AdminHomeStackNav.Navigator>
 );
 

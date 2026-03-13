@@ -106,6 +106,28 @@ const AdminDashboardScreen = ({ navigation }) => {
             <Text>📊 View All Applications</Text>
           </TouchableOpacity>
         </Card>
+
+        <Card>
+          <Text style={styles.sectionTitle}>Risk Monitoring</Text>
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={() => navigation.navigate('RiskDashboard')}
+          >
+            <Text>📊 Risk Dashboard</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={() => navigation.navigate('ApiHealthMonitor')}
+          >
+            <Text>🔌 API Health Monitor</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={() => navigation.navigate('AuditTrailViewer')}
+          >
+            <Text>📜 Audit Trail Viewer</Text>
+          </TouchableOpacity>
+        </Card>
         <View style={styles.bottomSpacer} />
       </ScrollView>
     </View>
