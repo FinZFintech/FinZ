@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.teal,
     alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
-  avatarText: { fontSize: 30, fontWeight: '800', color: COLORS.textLight },
+  avatarText: { fontSize: 30, fontWeight: '800', color: COLORS.background },
   name: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary },
   phone: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
   menuItem: {
@@ -92,7 +92,8 @@ const styles = StyleSheet.create({
   menuLabel: { flex: 1, fontSize: 15, color: COLORS.textPrimary },
   menuArrow: { fontSize: 16, color: COLORS.teal },
   logoutBtn: {
-    backgroundColor: '#FFF3F0', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16,
+    backgroundColor: 'rgba(255,107,107,0.1)', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16,
+    borderWidth: 1, borderColor: 'rgba(255,107,107,0.2)',
   },
   logoutText: { fontSize: 16, fontWeight: '700', color: COLORS.error },
   version: { textAlign: 'center', fontSize: 12, color: COLORS.textSecondary, marginTop: 16 },

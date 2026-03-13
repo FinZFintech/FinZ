@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
   },
   btn: { marginTop: 12 },
   btnSecondary: { marginTop: 8 },
-  errorCard: { alignItems: 'center', backgroundColor: '#FFF3F0', borderLeftWidth: 3, borderLeftColor: COLORS.error },
+  errorCard: { alignItems: 'center', backgroundColor: 'rgba(255,107,107,0.08)', borderLeftWidth: 3, borderLeftColor: COLORS.error },
   errorIcon: { fontSize: 36, marginBottom: 6 },
   errorTitle: {
     fontSize: 17,
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   verifiedBadge: {
-    backgroundColor: '#E8F8F7',
+    backgroundColor: 'rgba(74,237,196,0.08)',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -408,10 +408,10 @@ const styles = StyleSheet.create({
   checkingTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.teal,
     marginBottom: 8,
   },
-  successCard: { alignItems: 'center', backgroundColor: '#E8F8F7' },
+  successCard: { alignItems: 'center', backgroundColor: 'rgba(74,237,196,0.08)' },
   successIcon: {
     fontSize: 48,
     color: COLORS.teal,
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  failCard: { alignItems: 'center', backgroundColor: '#FFF3F0' },
+  failCard: { alignItems: 'center', backgroundColor: 'rgba(255,107,107,0.08)' },
   failIcon: { fontSize: 48, color: COLORS.error, marginBottom: 8 },
   failTitle: {
     fontSize: 22,
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.surface,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
@@ -480,13 +480,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.teal,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 40,
   },
   modalButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.background,
     fontWeight: '700',
     fontSize: 15,
   },

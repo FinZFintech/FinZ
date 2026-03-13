@@ -61,11 +61,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: COLORS.textPrimary,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.inputBg,
   },
   filled: {
-    borderColor: COLORS.primary,
-    backgroundColor: '#EEEDF5',
+    borderColor: COLORS.teal,
+    backgroundColor: 'rgba(74,237,196,0.08)',
   },
 });
 

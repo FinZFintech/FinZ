@@ -160,7 +160,7 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -175,9 +175,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   welcomeText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
-    color: COLORS.primary,
+    color: COLORS.textPrimary,
   },
   subText: {
     fontSize: 14,
@@ -191,10 +191,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.cardBg,
     padding: 12,
     borderRadius: 10,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
   },
   otpInfo: {
     fontSize: 14,

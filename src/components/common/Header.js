@@ -4,12 +4,17 @@ import { COLORS } from '../../config/constants';
 
 const Header = ({ title, greeting, subtitle, onBack, rightAction, rightIcon, showLogo = true }) => (
   <View style={styles.container}>
-    <StatusBar backgroundColor={COLORS.primaryDark} barStyle="light-content" />
+    <StatusBar backgroundColor={COLORS.background} barStyle="light-content" />
+    <View style={styles.progressStrip}>
+      <View style={styles.stripTeal} />
+      <View style={styles.stripPurple} />
+      <View style={styles.stripGold} />
+    </View>
     <View style={styles.content}>
       <View style={styles.leftSection}>
         {onBack && (
           <TouchableOpacity onPress={onBack} style={styles.backButton} activeOpacity={0.7}>
-            <Text style={styles.backText}>←</Text>
+            <Text style={styles.backText}>{'\u2039'}</Text>
           </TouchableOpacity>
         )}
         <View style={styles.titleContainer}>
@@ -21,39 +26,42 @@ const Header = ({ title, greeting, subtitle, onBack, rightAction, rightIcon, sho
       <View style={styles.rightSection}>
         {showLogo && (
           <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>Fin</Text>
+            <Text style={styles.logoText}>F</Text>
             <Text style={styles.logoZ}>Z</Text>
           </View>
         )}
         {rightAction && (
           <TouchableOpacity onPress={rightAction} style={styles.avatarButton} activeOpacity={0.7}>
-            <Text style={styles.avatarText}>{rightIcon || '⋮'}</Text>
+            <Text style={styles.avatarText}>{rightIcon || '\u22EE'}</Text>
           </TouchableOpacity>
         )}
       </View>
-    </View>
-    <View style={styles.accentStrip}>
-      <View style={styles.stripTeal} />
-      <View style={styles.stripGold} />
     </View>
   </View>
 );
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.headerBg,
     paddingTop: StatusBar.currentHeight || 44,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  progressStrip: {
+    flexDirection: 'row',
+    height: 3,
+  },
+  stripTeal: {
+    flex: 3,
+    backgroundColor: COLORS.teal,
+  },
+  stripPurple: {
+    flex: 1,
+    backgroundColor: COLORS.purple,
+  },
+  stripGold: {
+    flex: 1,
+    backgroundColor: COLORS.secondary,
   },
   content: {
     flexDirection: 'row',
@@ -74,25 +82,26 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.13)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
   },
   backText: {
     color: COLORS.textLight,
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '400',
+    marginTop: -2,
   },
   titleContainer: {
     flex: 1,
     justifyContent: 'center',
   },
   greeting: {
-    color: 'rgba(255,255,255,0.6)',
+    color: COLORS.textSecondary,
     fontSize: 12,
     fontWeight: '500',
     letterSpacing: 0.3,
@@ -109,7 +118,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   subtitle: {
-    color: 'rgba(255,255,255,0.6)',
+    color: COLORS.textSecondary,
     fontSize: 12,
     marginTop: 2,
     fontWeight: '400',
@@ -117,10 +126,12 @@ const styles = StyleSheet.create({
   logoBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   logoText: {
     color: COLORS.textLight,
@@ -143,21 +154,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarText: {
-    color: COLORS.textLight,
+    color: COLORS.background,
     fontSize: 16,
     fontWeight: '700',
-  },
-  accentStrip: {
-    flexDirection: 'row',
-    height: 3,
-  },
-  stripTeal: {
-    flex: 3,
-    backgroundColor: COLORS.teal,
-  },
-  stripGold: {
-    flex: 1,
-    backgroundColor: COLORS.secondary,
   },
 });
 

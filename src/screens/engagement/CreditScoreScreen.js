@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   scoreCard: { borderLeftWidth: 4, alignItems: 'center', paddingVertical: 24 },
   scoreLabel: { fontSize: 13, color: COLORS.textSecondary },
   scoreValue: { fontSize: 56, fontWeight: '900', marginVertical: 8 },
-  scoreBar: { width: '80%', height: 8, backgroundColor: '#E8F8F7', borderRadius: 4, marginTop: 8 },
+  scoreBar: { width: '80%', height: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 4, marginTop: 8 },
   scoreProgress: { height: 8, borderRadius: 4 },
   scaleLabels: { flexDirection: 'row', justifyContent: 'space-between', width: '80%', marginTop: 4 },
   scaleText: { fontSize: 11, color: COLORS.textSecondary },
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   factorRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
   factorLabel: { fontSize: 14, color: COLORS.textPrimary },
   factorScore: { fontSize: 14, fontWeight: '600' },
-  tipsCard: { backgroundColor: '#FFF8E1' },
+  tipsCard: { backgroundColor: 'rgba(245,183,49,0.08)', borderColor: 'rgba(245,183,49,0.15)' },
   tipItem: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 24 },
   bottomSpacer: { height: 100 },
 });

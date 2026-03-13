@@ -87,10 +87,10 @@ const HomeScreen = ({ navigation }) => {
         {/* Quick Actions */}
         <View style={styles.quickActions}>
           {[
-            { key: 'edu', label: 'Education\nLoan', icon: '🎓', bg: '#EEEDF5', screen: 'InstituteSelection' },
-            { key: 'emp', label: 'Employee\nLoan', icon: '💼', bg: '#E8F8F7', screen: 'EmployeeLoan' },
-            { key: 'credit', label: 'Credit\nScore', icon: '📊', bg: '#F0EDF5', screen: 'CreditScore' },
-            { key: 'refer', label: 'Refer &\nEarn', icon: '🎁', bg: '#FFF5DC', screen: 'Referral' },
+            { key: 'edu', label: 'Education\nLoan', icon: '🎓', bg: COLORS.cardBg, screen: 'InstituteSelection' },
+            { key: 'emp', label: 'Employee\nLoan', icon: '💼', bg: COLORS.cardBg, screen: 'EmployeeLoan' },
+            { key: 'credit', label: 'Credit\nScore', icon: '📊', bg: COLORS.cardBg, screen: 'CreditScore' },
+            { key: 'refer', label: 'Refer &\nEarn', icon: '🎁', bg: COLORS.cardBg, screen: 'Referral' },
           ].map((item) => (
             <TouchableOpacity
               key={item.key}
@@ -220,6 +220,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
   },
   actionEmoji: { fontSize: 24 },
   actionText: {
@@ -230,8 +232,8 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   creditCard: {
-    backgroundColor: COLORS.primary,
-    borderColor: 'transparent',
+    backgroundColor: '#151E30',
+    borderColor: 'rgba(74,237,196,0.15)',
   },
   creditRow: {
     flexDirection: 'row',
@@ -292,7 +294,7 @@ const styles = StyleSheet.create({
   loanDetailCenter: { alignItems: 'center' },
   loanDetailLabel: { fontSize: 10, color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
   loanDetailValue: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginTop: 3 },
-  tipCard: { backgroundColor: '#FFFDF5' },
+  tipCard: { backgroundColor: 'rgba(245,183,49,0.08)', borderColor: 'rgba(245,183,49,0.15)' },
   tipTitle: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 6 },
   tipContent: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20 },
   bottomSpacer: { height: 100 },

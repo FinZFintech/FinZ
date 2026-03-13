@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.border,
     borderRadius: 12,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.inputBg,
   },
   focused: {
     borderColor: COLORS.teal,
@@ -79,11 +79,11 @@ const styles = StyleSheet.create({
   },
   errorBorder: {
     borderColor: COLORS.error,
-    backgroundColor: '#FFF8F7',
+    backgroundColor: 'rgba(255,107,107,0.08)',
   },
   disabled: {
-    backgroundColor: '#F0F0F8',
-    opacity: 0.8,
+    backgroundColor: COLORS.cardBg,
+    opacity: 0.6,
   },
   prefix: {
     paddingLeft: 14,

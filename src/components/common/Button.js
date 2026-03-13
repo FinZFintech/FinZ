@@ -31,7 +31,7 @@ const Button = ({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'outline' ? COLORS.primary : COLORS.textLight}
+          color={variant === 'outline' ? COLORS.teal : COLORS.background}
         />
       ) : (
         <View style={styles.inner}>
@@ -77,15 +77,17 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   primary: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.teal,
   },
   secondary: {
-    backgroundColor: COLORS.teal,
+    backgroundColor: COLORS.cardBg,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
   },
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 1.5,
-    borderColor: COLORS.primary,
+    borderColor: COLORS.teal,
   },
   danger: {
     backgroundColor: COLORS.error,
@@ -105,27 +107,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   primaryText: {
-    color: COLORS.textLight,
+    color: COLORS.background,
   },
   secondaryText: {
-    color: COLORS.textLight,
+    color: COLORS.textPrimary,
   },
   outlineText: {
-    color: COLORS.primary,
+    color: COLORS.teal,
   },
   dangerText: {
     color: COLORS.textLight,
   },
   successText: {
-    color: COLORS.textLight,
+    color: COLORS.background,
   },
   icon: {
     marginRight: 8,
     fontSize: 16,
-    color: COLORS.textLight,
+    color: COLORS.background,
   },
   outlineIcon: {
-    color: COLORS.primary,
+    color: COLORS.teal,
   },
 });
 
