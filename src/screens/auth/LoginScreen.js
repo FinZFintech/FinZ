@@ -60,13 +60,8 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const response = await login(mobile, code);
-      const role = response.user?.role || 'customer';
-      if (role === 'customer') {
-        navigation.replace('CustomerTabs');
-      } else {
-        navigation.replace('AdminTabs');
-      }
+      // Just call login — the navigator conditionally renders based on isAuthenticated
+      await login(mobile, code);
     } catch (err) {
       Alert.alert('Error', err.message || 'Invalid OTP. Please try again.');
     } finally {

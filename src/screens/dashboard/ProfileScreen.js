@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
-import { CommonActions } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import { COLORS, APP_NAME } from '../../config/constants';
@@ -9,14 +8,10 @@ import { useAuth } from '../../store/AuthContext';
 const ProfileScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
 
+  // Just call logout — the navigator conditionally renders auth/app screens
+  // based on isAuthenticated, so it auto-switches to Login
   const handleLogout = () => {
-    logout()
-      .catch(() => {})
-      .finally(() => {
-        navigation.dispatch(
-          CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] })
-        );
-      });
+    logout().catch(() => {});
   };
 
   const menuItems = [

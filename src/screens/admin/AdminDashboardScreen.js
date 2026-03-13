@@ -35,7 +35,7 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   const onRefresh = useCallback(async () => { setRefreshing(true); await loadStats(); setRefreshing(false); }, [loadStats]);
 
-  const handleLogout = async () => { await logout(); navigation.reset({ index: 0, routes: [{ name: 'Login' }] }); };
+  const handleLogout = () => { logout().catch(() => {}); };
 
   if (!stats) return null;
 
