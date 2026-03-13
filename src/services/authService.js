@@ -14,12 +14,25 @@ export const authService = {
   async verifyOtp(mobile, otp) {
     if (MOCK_MODE) {
       await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // Mock role routing by phone number:
+      //   9999900000 → admin
+      //   9999900001 → credit team
+      //   9999900002 → sales team
+      //   all others → customer
+      let role = 'customer';
+      let name = 'Test User';
+      let email = 'user@finz.com';
+      if (mobile === '9999900000') { role = 'admin';  name = 'Admin User';  email = 'admin@finz.com'; }
+      else if (mobile === '9999900001') { role = 'credit'; name = 'Credit Analyst'; email = 'credit@finz.com'; }
+      else if (mobile === '9999900002') { role = 'sales';  name = 'Sales Agent';   email = 'sales@finz.com'; }
+
       const mockUser = {
         id: 'USR_' + Date.now(),
-        name: 'Test User',
+        name,
         phone: mobile,
-        email: 'user@finz.com',
-        role: 'customer',
+        email,
+        role,
       };
       const mockResponse = {
         token: 'mock_jwt_token_' + Date.now(),
