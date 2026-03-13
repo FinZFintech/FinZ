@@ -9,6 +9,7 @@ import InfoRow from '../../../components/common/InfoRow';
 import { COLORS } from '../../../config/constants';
 import { bankService } from '../../../services/bankService';
 import { useLoan } from '../../../store/LoanContext';
+import { useRisk } from '../../../store/RiskContext';
 import { validateIfsc, validateAccountNumber } from '../../../utils/helpers';
 
 const OCCUPATIONS = ['Salaried', 'Self-Employed', 'Business', 'Student', 'Homemaker', 'Retired'];
@@ -16,6 +17,7 @@ const ACCOUNT_TYPES = ['Savings', 'Current'];
 
 const BankDetailsScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
+  const { executePhase } = useRisk();
   const [occupation, setOccupation] = useState('');
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
@@ -73,6 +75,7 @@ const BankDetailsScreen = ({ navigation }) => {
           payload: { bankName, accountNumber, ifsc, accountType, branchName, occupation },
         });
         dispatch({ type: 'SET_PENNY_DROP', payload: result });
+        triggerPhaseD();
       }
     } catch {
       // Mock penny drop
@@ -89,9 +92,31 @@ const BankDetailsScreen = ({ navigation }) => {
         payload: { bankName, accountNumber, ifsc, accountType, branchName, occupation },
       });
       dispatch({ type: 'SET_PENNY_DROP', payload: mockResult });
+      triggerPhaseD();
     } finally {
       setLoading(false);
     }
+  };
+
+  const triggerPhaseD = () => {
+    const borrowerName = state.borrowerDetails?.name || '';
+    const nameParts = borrowerName.trim().split(/\s+/);
+    const applicant = {
+      accountNumber,
+      ifsc,
+      firstName: nameParts[0] || '',
+      lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+      phone: state.borrowerDetails?.phone,
+      imei: '',
+      documentImageUrl: null,
+    };
+
+    executePhase('D', applicant).then((result) => {
+      // Store final risk profile in loan context
+      dispatch({ type: 'SET_RISK_PROFILE', payload: result });
+    }).catch(() => {
+      // Phase D failure is non-blocking
+    });
   };
 
   const loanAmount = state.studentDetails?.balanceFee || 0;

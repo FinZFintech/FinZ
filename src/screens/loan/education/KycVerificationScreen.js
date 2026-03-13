@@ -18,9 +18,11 @@ import OtpInput from '../../../components/common/OtpInput';
 import { COLORS, KYC_METHODS } from '../../../config/constants';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
+import { useRisk } from '../../../store/RiskContext';
 
 const KycVerificationScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
+  const { executePhase } = useRisk();
   const [currentMethod, setCurrentMethod] = useState(KYC_METHODS.CKYC);
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -212,6 +214,25 @@ const KycVerificationScreen = ({ navigation }) => {
     dispatch({ type: 'SET_KYC_METHOD', payload: method });
     dispatch({ type: 'SET_STEP', payload: 4 });
     setKycCompleted(true);
+
+    // Trigger Phase C risk scoring in background
+    const borrowerName = state.borrowerDetails?.name || '';
+    const nameParts = borrowerName.trim().split(/\s+/);
+    const applicant = {
+      phone: state.borrowerDetails?.phone,
+      firstName: nameParts[0] || '',
+      lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+      pan: state.panDetails?.panNumber,
+      email: state.borrowerDetails?.email || '',
+      ipAddress: '',
+      address: kycData.address || '',
+      state: '',
+      pincode: kycData.pincode || '',
+    };
+
+    executePhase('C', applicant).catch(() => {
+      // Phase C failure is non-blocking
+    });
   };
 
   const handleProceed = () => {

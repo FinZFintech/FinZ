@@ -11,6 +11,7 @@
 
 import { signzyService } from './signzyService';
 import { RISK_CONFIG } from '../config/constants';
+import { withCircuitBreaker } from '../utils/circuitBreaker';
 
 const { CATEGORY_WEIGHTS, THRESHOLDS, PHASE_GATES } = RISK_CONFIG;
 
@@ -46,6 +47,18 @@ function timeDecay(dateStr) {
  */
 function settled(result) {
   return result.status === 'fulfilled' ? result.value : null;
+}
+
+/**
+ * Wrap a Signzy API call with circuit breaker.
+ * Returns null on failure so scoring degrades gracefully.
+ */
+function protectedCall(apiName, fn) {
+  return withCircuitBreaker(apiName, fn, null, {
+    failureThreshold: 3,
+    resetTimeout: 30000,
+    requestTimeout: 15000,
+  });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -594,21 +607,21 @@ function makeDecision(finalScore, apis) {
 export async function runPhaseA(applicant, existingApis = {}) {
   const { phone, firstName, lastName, pan, email, ipAddress, deviceId, pincode } = applicant;
 
-  const [phoneIntel, whatsapp, digitalId, altPhone, identity] = await Promise.allSettled([
-    signzyService.getPhoneIntelligence('+91' + phone, ipAddress, email, deviceId),
-    signzyService.checkWhatsAppPresence(phone),
-    signzyService.getDigitalIdentityScore(phone, email, `${firstName} ${lastName}`, pincode),
-    signzyService.phoneToAlternatePhone(phone, firstName, lastName, pan),
-    signzyService.phoneToIdentityDetails(phone, firstName, lastName, pan),
+  const [phoneIntel, whatsapp, digitalId, altPhone, identity] = await Promise.all([
+    protectedCall('phoneIntelligence', () => signzyService.getPhoneIntelligence('+91' + phone, ipAddress, email, deviceId)),
+    protectedCall('whatsappPresence', () => signzyService.checkWhatsAppPresence(phone)),
+    protectedCall('digitalIdentityScore', () => signzyService.getDigitalIdentityScore(phone, email, `${firstName} ${lastName}`, pincode)),
+    protectedCall('phoneToAlternate', () => signzyService.phoneToAlternatePhone(phone, firstName, lastName, pan)),
+    protectedCall('phoneToIdentity', () => signzyService.phoneToIdentityDetails(phone, firstName, lastName, pan)),
   ]);
 
   const apis = {
     ...existingApis,
-    phoneIntelligence: settled(phoneIntel),
-    whatsappPresence: settled(whatsapp),
-    digitalIdentityScore: settled(digitalId),
-    phoneToAlternate: settled(altPhone),
-    phoneToIdentity: settled(identity),
+    phoneIntelligence: phoneIntel,
+    whatsappPresence: whatsapp,
+    digitalIdentityScore: digitalId,
+    phoneToAlternate: altPhone,
+    phoneToIdentity: identity,
   };
 
   const categoryScores = computeAllCategories(apis, applicant);
@@ -631,19 +644,19 @@ export async function runPhaseA(applicant, existingApis = {}) {
 export async function runPhaseB(applicant, existingApis = {}) {
   const { phone, firstName, lastName, pan, dob, address, pincode } = applicant;
 
-  const [income, prefill, employment, advancedEmp] = await Promise.allSettled([
-    signzyService.phoneToIncome(phone, firstName, dob, address, pincode, lastName, pan),
-    signzyService.phoneToPrefill(phone, firstName, lastName, pan),
-    signzyService.verifyEmployment(phone, pan),
-    signzyService.advancedEmploymentVerification({ mobileNumber: phone, panNumber: pan }),
+  const [income, prefill, employment, advancedEmp] = await Promise.all([
+    protectedCall('phoneToIncome', () => signzyService.phoneToIncome(phone, firstName, dob, address, pincode, lastName, pan)),
+    protectedCall('phoneToPrefill', () => signzyService.phoneToPrefill(phone, firstName, lastName, pan)),
+    protectedCall('employment', () => signzyService.verifyEmployment(phone, pan)),
+    protectedCall('advancedEmployment', () => signzyService.advancedEmploymentVerification({ mobileNumber: phone, panNumber: pan })),
   ]);
 
   const apis = {
     ...existingApis,
-    phoneToIncome: settled(income),
-    phoneToPrefill: settled(prefill),
-    employment: settled(employment),
-    advancedEmployment: settled(advancedEmp),
+    phoneToIncome: income,
+    phoneToPrefill: prefill,
+    employment: employment,
+    advancedEmployment: advancedEmp,
   };
 
   const categoryScores = computeAllCategories(apis, applicant);
@@ -666,21 +679,21 @@ export async function runPhaseB(applicant, existingApis = {}) {
 export async function runPhaseC(applicant, existingApis = {}) {
   const { phone, firstName, lastName, pan, email, ipAddress, address, state, pincode } = applicant;
 
-  const [regAddr, geocode, pincodeInfo, geoFence, digIntegrity] = await Promise.allSettled([
-    signzyService.phoneToRegisteredAddress(phone, firstName, lastName, pan),
-    signzyService.geocodeAddress(address, null, null),
-    signzyService.getPincodeDetails(pincode),
-    signzyService.checkGeoFencing(ipAddress, 'IN', state),
-    signzyService.checkDigitalIntegrity(email, phone, ipAddress),
+  const [regAddr, geocode, pincodeInfo, geoFence, digIntegrity] = await Promise.all([
+    protectedCall('registeredAddress', () => signzyService.phoneToRegisteredAddress(phone, firstName, lastName, pan)),
+    protectedCall('addressGeocode', () => signzyService.geocodeAddress(address, null, null)),
+    protectedCall('pincodeDetails', () => signzyService.getPincodeDetails(pincode)),
+    protectedCall('geoFencing', () => signzyService.checkGeoFencing(ipAddress, 'IN', state)),
+    protectedCall('digitalIntegrity', () => signzyService.checkDigitalIntegrity(email, phone, ipAddress)),
   ]);
 
   const apis = {
     ...existingApis,
-    registeredAddress: settled(regAddr),
-    addressGeocode: settled(geocode),
-    pincodeDetails: settled(pincodeInfo),
-    geoFencing: settled(geoFence),
-    digitalIntegrity: settled(digIntegrity),
+    registeredAddress: regAddr,
+    addressGeocode: geocode,
+    pincodeDetails: pincodeInfo,
+    geoFencing: geoFence,
+    digitalIntegrity: digIntegrity,
   };
 
   const categoryScores = computeAllCategories(apis, applicant);
@@ -704,19 +717,19 @@ export async function runPhaseD(applicant, existingApis = {}) {
   const { accountNumber, ifsc, firstName, lastName, phone, imei, documentImageUrl } = applicant;
   const fullName = `${firstName} ${lastName}`;
 
-  const [bankVerify, ifscSearch, imeiResult, forgery] = await Promise.allSettled([
-    signzyService.verifyBankAccount(accountNumber, ifsc, fullName, phone),
-    signzyService.searchBankByIfsc(ifsc),
-    imei ? signzyService.fetchImeiDetails(imei) : Promise.resolve(null),
-    documentImageUrl ? signzyService.checkDocumentForgery(documentImageUrl) : Promise.resolve(null),
+  const [bankVerify, ifscSearchResult, imeiResult, forgery] = await Promise.all([
+    protectedCall('bankVerification', () => signzyService.verifyBankAccount(accountNumber, ifsc, fullName, phone)),
+    protectedCall('ifscSearch', () => signzyService.searchBankByIfsc(ifsc)),
+    imei ? protectedCall('imeiFetch', () => signzyService.fetchImeiDetails(imei)) : null,
+    documentImageUrl ? protectedCall('forgeryCheck', () => signzyService.checkDocumentForgery(documentImageUrl)) : null,
   ]);
 
   const apis = {
     ...existingApis,
-    bankVerification: settled(bankVerify),
-    ifscSearch: settled(ifscSearch),
-    imeiFetch: settled(imeiResult),
-    forgeryCheck: settled(forgery),
+    bankVerification: bankVerify,
+    ifscSearch: ifscSearchResult,
+    imeiFetch: imeiResult,
+    forgeryCheck: forgery,
   };
 
   const categoryScores = computeAllCategories(apis, applicant);
