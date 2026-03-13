@@ -4,6 +4,7 @@ import { StatusBar, View, Platform, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from './src/store/AuthContext';
 import { LoanProvider } from './src/store/LoanContext';
+import { RiskProvider } from './src/store/RiskContext';
 import { ThemeProvider, useTheme } from './src/store/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
@@ -61,6 +62,16 @@ function ThemedApp() {
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <LoanProvider>
+          <RiskProvider>
+            <NavigationContainer>
+              <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
+              <AppNavigator />
+            </NavigationContainer>
+          </RiskProvider>
+        </LoanProvider>
+      </AuthProvider>
       <ThemeProvider>
         <MobileContainer>
           <AuthProvider>

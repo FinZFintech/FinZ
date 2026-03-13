@@ -16,10 +16,12 @@ import { COLORS } from '../../../config/constants';
 import { bankService } from '../../../services/bankService';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
+import { useRisk } from '../../../store/RiskContext';
 import { formatCurrency } from '../../../utils/helpers';
 
 const IncomeVerificationScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
+  const { executePhase, feedBankStatementData } = useRisk();
   const [method, setMethod] = useState(null); // 'aa' or 'statement'
   const [loading, setLoading] = useState(false);
   const [aaInitiated, setAaInitiated] = useState(false);
@@ -156,6 +158,31 @@ const IncomeVerificationScreen = ({ navigation }) => {
     setEligibilityResult(result);
     dispatch({ type: 'SET_INCOME', payload: income });
     dispatch({ type: 'SET_ELIGIBILITY', payload: result });
+
+    // Feed bank statement data into risk engine for scoring
+    feedBankStatementData(income, method === 'aa' ? 'aa' : 'upload');
+
+    // Trigger Phase B risk scoring in background
+    const borrowerName = state.borrowerDetails?.name || '';
+    const nameParts = borrowerName.trim().split(/\s+/);
+    const applicant = {
+      phone: state.borrowerDetails?.phone,
+      firstName: nameParts[0] || '',
+      lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+      pan: state.panDetails?.panNumber,
+      dob: '',
+      address: '',
+      pincode: '',
+      monthlyIncome: income.monthlyIncome || 0,
+      existingEmi: income.emiObligations || 0,
+      loanAmount: loanAmount,
+      interestRate: state.selectedProduct?.interestRate || 14,
+      tenure: state.selectedTenure || 12,
+    };
+
+    executePhase('B', applicant).catch(() => {
+      // Phase B failure is non-blocking
+    });
   };
 
   const handleProceed = () => {

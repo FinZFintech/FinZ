@@ -8,14 +8,21 @@ import InfoRow from '../../../components/common/InfoRow';
 import { COLORS } from '../../../config/constants';
 import { loanService } from '../../../services/loanService';
 import { useLoan } from '../../../store/LoanContext';
+import { useRisk } from '../../../store/RiskContext';
 import { formatCurrency, calculateEmi } from '../../../utils/helpers';
 
 const EnachEsignScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
+  const { state: riskState } = useRisk();
   const [enachLoading, setEnachLoading] = useState(false);
   const [esignLoading, setEsignLoading] = useState(false);
   const [enachDone, setEnachDone] = useState(false);
   const [esignDone, setEsignDone] = useState(false);
+
+  // Check if risk engine has declined the application
+  const riskDecision = riskState.decision?.decision;
+  const isRiskDeclined = riskDecision === 'decline';
+  const isManualReview = riskDecision === 'review' || riskDecision === 'elevated';
 
   const loanAmount = state.studentDetails?.balanceFee || 0;
   const emi = state.selectedProduct
@@ -82,6 +89,29 @@ const EnachEsignScreen = ({ navigation }) => {
           <InfoRow label="Processing Fee" value={state.selectedProduct?.processingFee || '-'} />
         </Card>
 
+        {/* Risk Gate */}
+        {isRiskDeclined && (
+          <Card style={{ backgroundColor: '#FFF3F0', alignItems: 'center' }}>
+            <Text style={{ fontSize: 36, marginBottom: 8 }}>✕</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.error, marginBottom: 8 }}>Application Declined</Text>
+            <Text style={{ fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 }}>
+              Based on the risk assessment, this application cannot proceed.{'\n'}
+              {riskState.reasonCodes?.length > 0 && `Reason: ${riskState.reasonCodes[0]}`}
+            </Text>
+          </Card>
+        )}
+
+        {isManualReview && (
+          <Card style={{ backgroundColor: '#FFF8E1', alignItems: 'center' }}>
+            <Text style={{ fontSize: 36, marginBottom: 8 }}>⏳</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.warning, marginBottom: 8 }}>Under Review</Text>
+            <Text style={{ fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 }}>
+              Your application requires additional review. Our team will contact you within 24 hours.
+              {riskState.finalScore ? ` (Score: ${riskState.finalScore}/1000)` : ''}
+            </Text>
+          </Card>
+        )}
+
         {/* eNACH Setup */}
         <Card>
           <Text style={styles.sectionTitle}>1. eNACH Setup</Text>
@@ -97,6 +127,7 @@ const EnachEsignScreen = ({ navigation }) => {
               title="Setup eNACH"
               onPress={handleEnach}
               loading={enachLoading}
+              disabled={isRiskDeclined || isManualReview}
               style={styles.btn}
             />
           ) : (
@@ -118,7 +149,7 @@ const EnachEsignScreen = ({ navigation }) => {
               title="eSign Agreement"
               onPress={handleEsign}
               loading={esignLoading}
-              disabled={!enachDone}
+              disabled={!enachDone || isRiskDeclined || isManualReview}
               style={styles.btn}
             />
           ) : (

@@ -38,6 +38,7 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   const onRefresh = useCallback(async () => { setRefreshing(true); await loadStats(); setRefreshing(false); }, [loadStats]);
 
+  const handleLogout = () => { logout().catch(() => {}); };
   const handleLogout = async () => {
     setShowLogoutModal(false);
     await logout();
@@ -111,6 +112,28 @@ const AdminDashboardScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('LoanQueue', { filter: 'all' })}
           >
             <Text style={[styles.actionText, { color: colors.textPrimary }]}>📊 View All Applications</Text>
+          </TouchableOpacity>
+        </Card>
+
+        <Card>
+          <Text style={styles.sectionTitle}>Risk Monitoring</Text>
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={() => navigation.navigate('RiskDashboard')}
+          >
+            <Text>📊 Risk Dashboard</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={() => navigation.navigate('ApiHealthMonitor')}
+          >
+            <Text>🔌 API Health Monitor</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={() => navigation.navigate('AuditTrailViewer')}
+          >
+            <Text>📜 Audit Trail Viewer</Text>
           </TouchableOpacity>
         </Card>
         <View style={styles.bottomSpacer} />

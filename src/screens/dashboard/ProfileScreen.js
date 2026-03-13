@@ -1,3 +1,5 @@
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import Header from '../../components/common/Header';
@@ -12,6 +14,10 @@ const ProfileScreen = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  // Just call logout — the navigator conditionally renders auth/app screens
+  // based on isAuthenticated, so it auto-switches to Login
+  const handleLogout = () => {
+    logout().catch(() => {});
   const handleLogout = async () => {
     setShowLogoutModal(false);
     await logout();
@@ -77,6 +83,13 @@ const ProfileScreen = ({ navigation }) => {
           ))}
         </Card>
 
+        <Pressable
+          style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.7 }]}
+          onPress={handleLogout}
+          role="button"
+        >
+          <Text style={styles.logoutText}>Logout</Text>
+        </Pressable>
         <TouchableOpacity style={styles.logoutBtn} onPress={() => setShowLogoutModal(true)}>
           <Text style={[styles.logoutText, { color: colors.error }]}>Logout</Text>
         </TouchableOpacity>

@@ -25,6 +25,7 @@ const initialState = {
   enachStatus: null,
   esignStatus: null,
   vkycStatus: null,
+  riskProfile: null,
   step: 0,
 };
 
@@ -72,6 +73,8 @@ const loanReducer = (state, action) => {
       return { ...state, esignStatus: action.payload };
     case 'SET_VKYC':
       return { ...state, vkycStatus: action.payload };
+    case 'SET_RISK_PROFILE':
+      return { ...state, riskProfile: action.payload };
     case 'SET_CURRENT_LOAN':
       return { ...state, currentLoan: action.payload };
     case 'SET_STEP':

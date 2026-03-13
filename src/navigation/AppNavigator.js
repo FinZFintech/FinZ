@@ -1,11 +1,13 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Text, View, ActivityIndicator } from 'react-native';
+import { COLORS } from '../config/constants';
+import { useAuth } from '../store/AuthContext';
 import { Text, View } from 'react-native';
 import { useTheme } from '../store/ThemeContext';
 
 // Auth Screens
-import SplashScreen from '../screens/auth/SplashScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 
 // Dashboard Screens
@@ -43,6 +45,9 @@ import DailyCheckInScreen from '../screens/engagement/DailyCheckInScreen';
 // Admin Screens
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import LoanQueueScreen from '../screens/admin/LoanQueueScreen';
+import RiskDashboardScreen from '../screens/admin/RiskDashboardScreen';
+import ApiHealthMonitorScreen from '../screens/admin/ApiHealthMonitorScreen';
+import AuditTrailViewerScreen from '../screens/admin/AuditTrailViewerScreen';
 
 const RootStack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -103,6 +108,10 @@ const HomeStack = () => (
     <HomeStackNav.Screen name="LoanSuccess" component={LoanSuccessScreen} />
     {/* Employee Loan */}
     <HomeStackNav.Screen name="EmployeeLoan" component={EmployeeLoanScreen} />
+    {/* Risk Monitoring (accessible from loan flow) */}
+    <HomeStackNav.Screen name="RiskDashboard" component={RiskDashboardScreen} />
+    <HomeStackNav.Screen name="ApiHealthMonitor" component={ApiHealthMonitorScreen} />
+    <HomeStackNav.Screen name="AuditTrailViewer" component={AuditTrailViewerScreen} />
   </HomeStackNav.Navigator>
 );
 
@@ -202,6 +211,9 @@ const AdminHomeStack = () => (
   <AdminHomeStackNav.Navigator screenOptions={noHeader}>
     <AdminHomeStackNav.Screen name="AdminDashboardMain" component={AdminDashboardScreen} />
     <AdminHomeStackNav.Screen name="LoanQueue" component={LoanQueueScreen} />
+    <AdminHomeStackNav.Screen name="RiskDashboard" component={RiskDashboardScreen} />
+    <AdminHomeStackNav.Screen name="ApiHealthMonitor" component={ApiHealthMonitorScreen} />
+    <AdminHomeStackNav.Screen name="AuditTrailViewer" component={AuditTrailViewerScreen} />
   </AdminHomeStackNav.Navigator>
 );
 
@@ -248,20 +260,37 @@ const AdminTabs = () => {
   );
 };
 
-const AppNavigator = () => (
-  <RootStack.Navigator screenOptions={noHeader}>
-    {/* Auth */}
-    <RootStack.Screen name="Splash" component={SplashScreen} />
-    <RootStack.Screen name="Login" component={LoginScreen} />
+const AppNavigator = () => {
+  const { isAuthenticated, isLoading, user } = useAuth();
 
-    {/* Customer Tabs */}
-    <RootStack.Screen name="CustomerTabs" component={CustomerTabs} />
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surface }}>
+        <ActivityIndicator size="large" color={COLORS.teal} />
+      </View>
+    );
+  }
 
-    {/* Admin Tabs */}
-    <RootStack.Screen name="AdminTabs" component={AdminTabs} />
+  const role = user?.role || 'customer';
+  const isAdmin = role !== 'customer';
 
-    {/* Education Loan & Employee Loan screens are inside HomeStack to keep tabs visible */}
-  </RootStack.Navigator>
-);
+  return (
+    <RootStack.Navigator screenOptions={noHeader}>
+      {!isAuthenticated ? (
+        <>
+          <RootStack.Screen name="Login" component={LoginScreen} />
+        </>
+      ) : isAdmin ? (
+        <>
+          <RootStack.Screen name="AdminTabs" component={AdminTabs} />
+        </>
+      ) : (
+        <>
+          <RootStack.Screen name="CustomerTabs" component={CustomerTabs} />
+        </>
+      )}
+    </RootStack.Navigator>
+  );
+};
 
 export default AppNavigator;

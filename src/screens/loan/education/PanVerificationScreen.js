@@ -9,10 +9,12 @@ import InfoRow from '../../../components/common/InfoRow';
 import { COLORS } from '../../../config/constants';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
+import { useRisk } from '../../../store/RiskContext';
 import { maskPan, validatePan } from '../../../utils/helpers';
 
 const PanVerificationScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
+  const { executePhase, feedCreditBureauData, setExternalData } = useRisk();
   const [pan, setPan] = useState('');
   const [panFetched, setPanFetched] = useState(false);
   const [panVerified, setPanVerified] = useState(false);
@@ -103,19 +105,46 @@ const PanVerificationScreen = ({ navigation }) => {
       const passed = result.gatingPassed;
       setCreditPassed(passed);
       dispatch({ type: 'SET_CREDIT_SCORE', payload: result });
+
+      // Feed credit bureau data into risk engine
+      feedCreditBureauData(result);
+
       if (passed) {
         dispatch({ type: 'SET_STEP', payload: 2 });
       }
     } catch {
       // Mock - credit check passed
       setCreditPassed(true);
-      dispatch({
-        type: 'SET_CREDIT_SCORE',
-        payload: { score: 720, gatingPassed: true },
-      });
+      const mockCredit = { score: 720, gatingPassed: true, cibilScore: 720 };
+      dispatch({ type: 'SET_CREDIT_SCORE', payload: mockCredit });
+      feedCreditBureauData(mockCredit);
       dispatch({ type: 'SET_STEP', payload: 2 });
     } finally {
       setCreditChecking(false);
+
+      // Trigger Phase A risk scoring in background (non-blocking)
+      const borrowerName = state.borrowerDetails?.name || '';
+      const nameParts = borrowerName.trim().split(/\s+/);
+      const applicant = {
+        phone: state.borrowerDetails?.phone,
+        firstName: nameParts[0] || '',
+        lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+        pan: panNumber,
+        email: state.borrowerDetails?.email || '',
+        ipAddress: '',
+        deviceId: '',
+        pincode: '',
+        panFetch: panDetails,
+      };
+
+      // Seed PAN data already collected
+      if (panDetails) {
+        setExternalData({ panFetch: panDetails });
+      }
+
+      executePhase('A', applicant).catch(() => {
+        // Phase A failure is non-blocking — scoring degrades gracefully
+      });
     }
   };
 

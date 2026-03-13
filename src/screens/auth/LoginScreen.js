@@ -27,6 +27,18 @@ const LoginScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Reset form state when screen comes into focus (e.g. after logout)
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      setMobile('');
+      setShowOtp(false);
+      setOtp('');
+      setLoading(false);
+      setError('');
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const handleSendOtp = async () => {
     if (!validateMobile(mobile)) {
       setError('Please enter a valid 10-digit mobile number (starting with 6-9)');
@@ -56,6 +68,8 @@ const LoginScreen = ({ navigation }) => {
     setError('');
     setLoading(true);
     try {
+      // Just call login — the navigator conditionally renders based on isAuthenticated
+      await login(mobile, code);
       console.log('[Login] Verifying OTP for', mobile);
       const response = await login(mobile, code);
       console.log('[Login] Login successful, navigating...');
