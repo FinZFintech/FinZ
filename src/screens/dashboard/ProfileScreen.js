@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import { COLORS, APP_NAME } from '../../config/constants';
@@ -8,23 +8,9 @@ import { useAuth } from '../../store/AuthContext';
 const ProfileScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
 
-  const doLogout = async () => {
+  const handleLogout = async () => {
     await logout();
     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-  };
-
-  const handleLogout = () => {
-    if (Platform.OS === 'web') {
-      // Alert.alert doesn't work on web
-      if (window.confirm('Are you sure you want to logout?')) {
-        doLogout();
-      }
-    } else {
-      Alert.alert('Logout', 'Are you sure you want to logout?', [
-        { text: 'Cancel' },
-        { text: 'Logout', style: 'destructive', onPress: doLogout },
-      ]);
-    }
   };
 
   const menuItems = [
