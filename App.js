@@ -4,23 +4,11 @@ import { StatusBar, View, Platform, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from './src/store/AuthContext';
 import { LoanProvider } from './src/store/LoanContext';
+import { ThemeProvider, useTheme } from './src/store/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
-import { COLORS } from './src/config/constants';
 
 const MAX_MOBILE_WIDTH = 480;
-
-const DarkNavTheme = {
-  dark: true,
-  colors: {
-    primary: COLORS.teal,
-    background: COLORS.background,
-    card: COLORS.headerBg,
-    text: COLORS.textPrimary,
-    border: COLORS.border,
-    notification: COLORS.teal,
-  },
-};
 
 function MobileContainer({ children }) {
   const { width } = useWindowDimensions();
@@ -44,19 +32,44 @@ function MobileContainer({ children }) {
   return children;
 }
 
+function ThemedApp() {
+  const { colors, isDark } = useTheme();
+
+  const navTheme = {
+    dark: isDark,
+    colors: {
+      primary: colors.teal,
+      background: colors.background,
+      card: colors.headerBg,
+      text: colors.textPrimary,
+      border: colors.border,
+      notification: colors.teal,
+    },
+  };
+
+  return (
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
+      <StatusBar
+        backgroundColor={colors.background}
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+      />
+      <AppNavigator />
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: COLORS.background }}>
-      <MobileContainer>
-        <AuthProvider>
-          <LoanProvider>
-            <NavigationContainer ref={navigationRef} theme={DarkNavTheme}>
-              <StatusBar backgroundColor={COLORS.background} barStyle="light-content" />
-              <AppNavigator />
-            </NavigationContainer>
-          </LoanProvider>
-        </AuthProvider>
-      </MobileContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <MobileContainer>
+          <AuthProvider>
+            <LoanProvider>
+              <ThemedApp />
+            </LoanProvider>
+          </AuthProvider>
+        </MobileContainer>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

@@ -1,12 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS } from '../../config/constants';
 import { useAuth } from '../../store/AuthContext';
+import { useTheme } from '../../store/ThemeContext';
 import Button from '../../components/common/Button';
 
 const SplashScreen = ({ navigation }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { colors, isDark } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -29,12 +30,12 @@ const SplashScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar backgroundColor={COLORS.background} barStyle="light-content" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar backgroundColor={colors.background} barStyle={isDark ? 'light-content' : 'dark-content'} />
       <View style={styles.progressStrip}>
-        <View style={[styles.stripSegment, { backgroundColor: COLORS.teal, flex: 3 }]} />
-        <View style={[styles.stripSegment, { backgroundColor: COLORS.purple, flex: 1 }]} />
-        <View style={[styles.stripSegment, { backgroundColor: COLORS.secondary, flex: 1 }]} />
+        <View style={[styles.stripSegment, { backgroundColor: colors.teal, flex: 3 }]} />
+        <View style={[styles.stripSegment, { backgroundColor: colors.purple, flex: 1 }]} />
+        <View style={[styles.stripSegment, { backgroundColor: colors.secondary, flex: 1 }]} />
       </View>
 
       <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
@@ -45,12 +46,12 @@ const SplashScreen = ({ navigation }) => {
             end={{ x: 1, y: 1 }}
             style={styles.logoGradient}
           >
-            <Text style={styles.logoText}>FZ</Text>
+            <Text style={[styles.logoText, { color: colors.background }]}>FZ</Text>
           </LinearGradient>
         </View>
 
-        <Text style={styles.headline}>Education financing{'\n'}made simple</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.headline, { color: colors.textPrimary }]}>Education financing{'\n'}made simple</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Loans, savings & financial tools{'\n'}for students and parents
         </Text>
       </Animated.View>
@@ -63,7 +64,9 @@ const SplashScreen = ({ navigation }) => {
           textStyle={styles.getStartedText}
         />
         <TouchableOpacity onPress={handleGetStarted} style={styles.signInLink}>
-          <Text style={styles.signInText}>Already have an account? <Text style={styles.signInHighlight}>Sign In</Text></Text>
+          <Text style={[styles.signInText, { color: colors.textSecondary }]}>
+            Already have an account? <Text style={[styles.signInHighlight, { color: colors.teal }]}>Sign In</Text>
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -73,7 +76,6 @@ const SplashScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
     paddingTop: StatusBar.currentHeight || 44,
   },
   progressStrip: {
@@ -104,20 +106,17 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 36,
     fontWeight: '800',
-    color: COLORS.background,
     letterSpacing: 1,
   },
   headline: {
     fontSize: 30,
     fontWeight: '800',
-    color: COLORS.textPrimary,
     textAlign: 'center',
     lineHeight: 38,
     marginBottom: 16,
   },
   subtitle: {
     fontSize: 16,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -139,10 +138,8 @@ const styles = StyleSheet.create({
   },
   signInText: {
     fontSize: 14,
-    color: COLORS.textSecondary,
   },
   signInHighlight: {
-    color: COLORS.teal,
     fontWeight: '600',
   },
 });

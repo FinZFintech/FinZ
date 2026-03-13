@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { View, TextInput, StyleSheet } from 'react-native';
-import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 
 const OtpInput = ({ length = 6, onComplete, style }) => {
+  const { colors } = useTheme();
   const [otp, setOtp] = useState(new Array(length).fill(''));
   const inputs = useRef([]);
 
@@ -37,7 +38,11 @@ const OtpInput = ({ length = 6, onComplete, style }) => {
           onKeyPress={(e) => handleKeyPress(e, index)}
           keyboardType="number-pad"
           maxLength={1}
-          style={[styles.input, digit && styles.filled]}
+          style={[
+            styles.input,
+            { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.inputBg },
+            digit && { borderColor: colors.teal, backgroundColor: 'rgba(74,237,196,0.08)' },
+          ]}
           autoFocus={index === 0}
         />
       ))}
@@ -55,17 +60,10 @@ const styles = StyleSheet.create({
     width: 46,
     height: 52,
     borderWidth: 2,
-    borderColor: COLORS.border,
     borderRadius: 10,
     textAlign: 'center',
     fontSize: 20,
     fontWeight: '700',
-    color: COLORS.textPrimary,
-    backgroundColor: COLORS.inputBg,
-  },
-  filled: {
-    borderColor: COLORS.teal,
-    backgroundColor: 'rgba(74,237,196,0.08)',
   },
 });
 

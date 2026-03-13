@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { COLORS } from '../../config/constants';
+import { useTheme } from '../../store/ThemeContext';
 
 const Card = ({ children, style, onPress, elevation = 0, accent, selected }) => {
+  const { colors } = useTheme();
   const Container = onPress ? TouchableOpacity : View;
   return (
     <Container
@@ -10,7 +11,8 @@ const Card = ({ children, style, onPress, elevation = 0, accent, selected }) => 
       activeOpacity={0.8}
       style={[
         styles.card,
-        selected && styles.selected,
+        { backgroundColor: colors.cardBg, borderColor: colors.cardBorder },
+        selected && { borderColor: colors.teal, borderWidth: 1.5 },
         style,
       ]}
     >
@@ -22,17 +24,11 @@ const Card = ({ children, style, onPress, elevation = 0, accent, selected }) => 
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.cardBg,
     borderRadius: 16,
     padding: 18,
     marginVertical: 6,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
     overflow: 'hidden',
-  },
-  selected: {
-    borderColor: COLORS.teal,
-    borderWidth: 1.5,
   },
   accentBar: {
     position: 'absolute',
