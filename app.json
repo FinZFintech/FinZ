@@ -3,6 +3,7 @@
     "name": "FinZ",
     "slug": "FinZ",
     "version": "1.0.0",
+    "platforms": ["ios", "android", "web"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -25,7 +26,13 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "backgroundColor": "#0D1017"
+      "bundler": "metro",
+      "output": "single",
+      "name": "FinZ - Education & Employee Loans",
+      "shortName": "FinZ",
+      "description": "Apply for education loans and employee loans with FinZ",
+      "backgroundColor": "#0D1017",
+      "themeColor": "#0D1017"
     }
   }
 }
