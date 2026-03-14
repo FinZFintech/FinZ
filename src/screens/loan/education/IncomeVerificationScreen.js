@@ -176,11 +176,6 @@ const IncomeVerificationScreen = ({ navigation }) => {
     let result;
     if (foir < 0.5 && emiCapacity >= requestedEmi && income.bounceCount <= 1) {
       result = { status: 'fully_eligible', message: 'Congratulations! You are fully eligible.' };
-    } else if (foir < 0.65 && emiCapacity >= requestedEmi * 0.7) {
-      result = {
-        status: 'partially_eligible',
-        message: 'You are partially eligible. Additional documents or a co-borrower may be needed.',
-      };
     } else {
       result = {
         status: 'not_eligible',
@@ -222,30 +217,12 @@ const IncomeVerificationScreen = ({ navigation }) => {
     navigation.navigate('KycVerification');
   };
 
-  const handleAddCoBorrower = () => {
-    Alert.alert(
-      'Add Co-Borrower',
-      'You will need to provide KYC, income and bank details for the co-borrower.',
-      [
-        { text: 'Cancel' },
-        {
-          text: 'Proceed',
-          onPress: () => {
-            dispatch({ type: 'RESET' });
-            navigation.navigate('InstituteSelection');
-          },
-        },
-      ]
-    );
-  };
-
   const handleRetryDifferentBorrower = () => {
     dispatch({ type: 'RESET' });
     navigation.navigate('InstituteSelection');
   };
 
   const tealBg = `${colors.teal}14`;
-  const warningBg = `${colors.warning}14`;
   const errorBg = `${colors.error}14`;
   const tealBadgeBg = `${colors.teal}1F`;
 
@@ -460,21 +437,6 @@ const IncomeVerificationScreen = ({ navigation }) => {
             <Text style={[styles.resultTitle, { color: colors.teal }]}>Congratulations!</Text>
             <Text style={[styles.resultText, { color: colors.textSecondary }]}>{eligibilityResult.message}</Text>
             <Button title="Continue" onPress={handleProceed} style={styles.btn} />
-          </Card>
-        )}
-
-        {eligibilityResult?.status === 'partially_eligible' && (
-          <Card style={[styles.resultCard, { backgroundColor: warningBg }]}>
-            <Text style={styles.resultIcon}>⚠️</Text>
-            <Text style={[styles.resultTitle, { color: colors.warning }]}>Partially Eligible</Text>
-            <Text style={[styles.resultText, { color: colors.textSecondary }]}>{eligibilityResult.message}</Text>
-            <Button title="Add Co-Borrower" onPress={handleAddCoBorrower} style={styles.btn} />
-            <Button
-              title="Apply with Different Borrower"
-              onPress={handleRetryDifferentBorrower}
-              variant="outline"
-              style={styles.btn}
-            />
           </Card>
         )}
 

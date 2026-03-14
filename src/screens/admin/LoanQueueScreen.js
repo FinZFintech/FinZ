@@ -26,7 +26,7 @@ const LoanQueueScreen = ({ route, navigation }) => {
       setLoans([
         { id: 'L101', borrowerName: 'Rahul Sharma', phone: '9876543210', instituteName: 'ABC Institute', amount: 250000, status: 'manual_review', reason: 'Name mismatch (PAN vs Aadhaar)', appliedDate: '2026-03-08' },
         { id: 'L102', borrowerName: 'Priya Singh', phone: '9876543211', instituteName: 'XYZ Academy', amount: 80000, status: 'kyc_failed', reason: 'CKYC/DigiLocker failed', appliedDate: '2026-03-07' },
-        { id: 'L103', borrowerName: 'Amit Kumar', phone: '9876543212', instituteName: 'PQR College', amount: 350000, status: 'partially_eligible', reason: 'High FOIR ratio', appliedDate: '2026-03-06' },
+        { id: 'L103', borrowerName: 'Amit Kumar', phone: '9876543212', instituteName: 'PQR College', amount: 350000, status: 'not_eligible', reason: 'High FOIR ratio', appliedDate: '2026-03-06' },
       ]);
     }
   };
