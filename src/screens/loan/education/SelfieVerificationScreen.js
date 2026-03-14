@@ -60,7 +60,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
   };
 
   const handleProceed = () => {
-    navigation.navigate('BankDetails');
+    navigation.navigate('EnachEsign');
   };
 
   return (

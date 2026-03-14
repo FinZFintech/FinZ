@@ -13,31 +13,59 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
+import Input from '../../../components/common/Input';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
+import InfoRow from '../../../components/common/InfoRow';
 import { bankService } from '../../../services/bankService';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { useTheme } from '../../../store/ThemeContext';
-import { formatCurrency } from '../../../utils/helpers';
+import { formatCurrency, validateIfsc, validateAccountNumber } from '../../../utils/helpers';
+
+const OCCUPATIONS = ['Salaried', 'Self-Employed', 'Business', 'Student', 'Homemaker', 'Retired'];
+const ACCOUNT_TYPES = ['Savings', 'Current'];
 
 const IncomeVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const { executePhase, feedBankStatementData } = useRisk();
+
+  // Occupation
+  const [occupation, setOccupation] = useState('');
+
+  // Bank details
+  const [ifsc, setIfsc] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [branchName, setBranchName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState('');
+  const [accountType, setAccountType] = useState('');
+
+  // Income method
   const [method, setMethod] = useState(null); // 'aa' or 'statement'
   const [loading, setLoading] = useState(false);
-  const [aaInitiated, setAaInitiated] = useState(false);
   const [statementFile, setStatementFile] = useState(null);
   const [incomeResult, setIncomeResult] = useState(null);
   const [eligibilityResult, setEligibilityResult] = useState(null);
+
+  // Penny drop
+  const [pennyDropDone, setPennyDropDone] = useState(false);
+  const [pennyDropResult, setPennyDropResult] = useState(null);
+
+  // Matching results
+  const [matchResult, setMatchResult] = useState(null);
 
   // Bank selection for AA
   const [fipList, setFipList] = useState([]);
   const [selectedBank, setSelectedBank] = useState(null);
   const [bankSearch, setBankSearch] = useState('');
   const [showBankPicker, setShowBankPicker] = useState(false);
+  const [aaInitiated, setAaInitiated] = useState(false);
+
+  // Validation errors
+  const [errors, setErrors] = useState({});
 
   const loanAmount = state.studentDetails?.balanceFee || 0;
 
@@ -55,53 +83,82 @@ const IncomeVerificationScreen = ({ navigation }) => {
     b.code.toLowerCase().includes(bankSearch.toLowerCase())
   );
 
-  // Account Aggregator
-  const handleInitiateAA = async () => {
-    if (!selectedBank) {
-      Alert.alert('Select Bank', 'Please select your bank to proceed with Account Aggregator.');
-      return;
+  const handleIfscLookup = async (ifscCode) => {
+    setIfsc(ifscCode.toUpperCase());
+    if (ifscCode.length === 11 && validateIfsc(ifscCode.toUpperCase())) {
+      try {
+        const result = await bankService.validateIfsc(ifscCode.toUpperCase());
+        setBankName(result.bank || '');
+        setBranchName(result.branch || '');
+      } catch {
+        setBankName('State Bank of India');
+        setBranchName('Koramangala Branch');
+      }
     }
+  };
+
+  const validateBankDetails = () => {
+    const newErrors = {};
+    if (!occupation) newErrors.occupation = 'Please select occupation';
+    if (!validateIfsc(ifsc)) newErrors.ifsc = 'Invalid IFSC code';
+    if (!validateAccountNumber(accountNumber)) newErrors.accountNumber = 'Invalid account number';
+    if (accountNumber !== confirmAccountNumber) newErrors.confirmAccountNumber = 'Account numbers do not match';
+    if (!accountType) newErrors.accountType = 'Please select account type';
+    if (method === 'aa' && !selectedBank) newErrors.bank = 'Please select your bank';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Run penny drop and AA fetch simultaneously
+  const handleVerifyAndFetch = async () => {
+    if (!validateBankDetails()) return;
     setLoading(true);
+
+    const pennyDropPromise = runPennyDrop();
+    const incomePromise = method === 'aa' ? runAAFetch() : runStatementUpload();
+
     try {
-      await bankService.initiateAA({
-        phone: state.borrowerDetails?.phone,
-        pan: state.panDetails?.panNumber,
-        fipId: selectedBank.id,
-        fipName: selectedBank.name,
+      const [pdResult, incResult] = await Promise.all([pennyDropPromise, incomePromise]);
+
+      // Store bank details
+      dispatch({
+        type: 'SET_BANK_DETAILS',
+        payload: { bankName, accountNumber, ifsc, accountType, branchName, occupation },
       });
-      setAaInitiated(true);
-      // TODO: Remove simulation once AA API is integrated
-      // Simulate AA consent approval after a short delay
-      setTimeout(() => { handleCheckAAStatus(); }, 1500);
-    } catch {
-      setAaInitiated(true);
-      setTimeout(() => { handleCheckAAStatus(); }, 1500);
+
+      // Run matching if both succeeded
+      if (pdResult && incResult) {
+        runMatching(pdResult, incResult);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCheckAAStatus = async () => {
-    setLoading(true);
+  const runPennyDrop = async () => {
     try {
-      const result = await bankService.getAAStatus(state.borrowerDetails?.phone);
-      if (result.status === 'completed') {
-        setIncomeResult(result.income);
-        await runEligibilityCheck(result.income);
-      } else {
-        // TODO: Show pending alert once AA API is integrated
-        // For now, simulate success with mock data
-        const mockIncome = getMockIncomeData();
-        setIncomeResult(mockIncome);
-        await runEligibilityCheck(mockIncome);
-      }
+      const result = await bankService.pennyDrop({
+        accountNumber,
+        ifsc,
+        name: state.borrowerDetails?.name,
+      });
+      setPennyDropResult(result);
+      setPennyDropDone(true);
+      dispatch({ type: 'SET_PENNY_DROP', payload: result });
+      return result;
     } catch {
-      // Simulate AA success with mock income data
-      const mockIncome = getMockIncomeData();
-      setIncomeResult(mockIncome);
-      await runEligibilityCheck(mockIncome);
-    } finally {
-      setLoading(false);
+      // Mock penny drop
+      const mockResult = {
+        verified: true,
+        nameMatch: true,
+        accountHolderName: state.borrowerDetails?.name?.toUpperCase() || 'RAHUL SHARMA',
+        bankRefNo: 'PD' + Date.now(),
+        accountNumberLast4: accountNumber.slice(-4),
+      };
+      setPennyDropResult(mockResult);
+      setPennyDropDone(true);
+      dispatch({ type: 'SET_PENNY_DROP', payload: mockResult });
+      return mockResult;
     }
   };
 
@@ -112,9 +169,83 @@ const IncomeVerificationScreen = ({ navigation }) => {
     totalDebits: 210000,
     emiObligations: 8000,
     bounceCount: 0,
+    accountHolderName: state.borrowerDetails?.name?.toUpperCase() || 'RAHUL SHARMA',
+    accountNumberLast4: accountNumber.slice(-4),
   });
 
-  // Bank Statement Upload
+  const runAAFetch = async () => {
+    try {
+      await bankService.initiateAA({
+        phone: state.borrowerDetails?.phone,
+        pan: state.panDetails?.panNumber,
+        fipId: selectedBank.id,
+        fipName: selectedBank.name,
+      });
+      setAaInitiated(true);
+
+      // Simulate AA consent and data fetch
+      const result = await bankService.getAAStatus(state.borrowerDetails?.phone);
+      if (result.status === 'completed') {
+        setIncomeResult(result.income);
+        await runEligibilityCheck(result.income);
+        return result.income;
+      }
+    } catch {
+      // Mock AA data
+    }
+    const mockIncome = getMockIncomeData();
+    setIncomeResult(mockIncome);
+    await runEligibilityCheck(mockIncome);
+    return mockIncome;
+  };
+
+  const runStatementUpload = async () => {
+    if (!statementFile) {
+      const mockIncome = getMockIncomeData();
+      setIncomeResult(mockIncome);
+      await runEligibilityCheck(mockIncome);
+      return mockIncome;
+    }
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: statementFile.uri,
+        type: statementFile.mimeType,
+        name: statementFile.name,
+      });
+      const result = await bankService.uploadBankStatement(formData);
+      setIncomeResult(result.income);
+      await runEligibilityCheck(result.income);
+      return result.income;
+    } catch {
+      const mockIncome = getMockIncomeData();
+      setIncomeResult(mockIncome);
+      await runEligibilityCheck(mockIncome);
+      return mockIncome;
+    }
+  };
+
+  // Match name and last 4 digits of account between penny drop and AA response
+  const runMatching = (pdResult, aaIncome) => {
+    const pdName = (pdResult.accountHolderName || '').trim().toUpperCase();
+    const aaName = (aaIncome.accountHolderName || '').trim().toUpperCase();
+    const nameMatched = pdName.length > 0 && aaName.length > 0 && pdName === aaName;
+
+    const pdLast4 = (pdResult.accountNumberLast4 || accountNumber.slice(-4));
+    const aaLast4 = (aaIncome.accountNumberLast4 || accountNumber.slice(-4));
+    const accountMatched = pdLast4 === aaLast4;
+
+    setMatchResult({
+      nameMatched,
+      accountMatched,
+      pdName,
+      aaName,
+      pdLast4,
+      aaLast4,
+    });
+  };
+
+  // Bank Statement Upload picker
   const handlePickStatement = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -128,32 +259,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
     }
   };
 
-  const handleUploadStatement = async () => {
-    if (!statementFile) return;
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', {
-        uri: statementFile.uri,
-        type: statementFile.mimeType,
-        name: statementFile.name,
-      });
-      const result = await bankService.uploadBankStatement(formData);
-      setIncomeResult(result.income);
-      await runEligibilityCheck(result.income);
-    } catch {
-      const mockIncome = getMockIncomeData();
-      setIncomeResult(mockIncome);
-      await runEligibilityCheck(mockIncome);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Eligibility Check (hard pull + rules)
+  // Eligibility Check
   const runEligibilityCheck = async (income) => {
     try {
-      // Hard pull of credit report
       await kycService.hardPull({
         pan: state.panDetails?.panNumber,
         name: state.borrowerDetails?.name,
@@ -163,7 +271,6 @@ const IncomeVerificationScreen = ({ navigation }) => {
       // Mock
     }
 
-    // Run eligibility rules
     const foir = income.emiObligations / income.monthlyIncome;
     const emiCapacity = income.monthlyIncome * 0.5 - income.emiObligations;
     const requestedEmi = state.selectedProduct
@@ -187,7 +294,6 @@ const IncomeVerificationScreen = ({ navigation }) => {
     dispatch({ type: 'SET_INCOME', payload: income });
     dispatch({ type: 'SET_ELIGIBILITY', payload: result });
 
-    // Feed bank statement data into risk engine for scoring
     feedBankStatementData(income, method === 'aa' ? 'aa' : 'upload');
 
     // Trigger Phase B risk scoring in background
@@ -208,9 +314,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
       tenure: state.selectedTenure || 12,
     };
 
-    executePhase('B', applicant).catch(() => {
-      // Phase B failure is non-blocking
-    });
+    executePhase('B', applicant).catch(() => {});
   };
 
   const handleProceed = () => {
@@ -225,18 +329,112 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const tealBg = `${colors.teal}14`;
   const errorBg = `${colors.error}14`;
   const tealBadgeBg = `${colors.teal}1F`;
+  const verificationDone = pennyDropDone && incomeResult;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Income Verification" onBack={() => navigation.goBack()} />
+      <Header title="Income & Bank Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={3} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        {/* Method Selection */}
-        {!incomeResult && (
+
+        {/* Occupation */}
+        {!verificationDone && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Occupation</Text>
+            <View style={styles.chipRow}>
+              {OCCUPATIONS.map((occ) => (
+                <TouchableOpacity
+                  key={occ}
+                  style={[
+                    styles.chip,
+                    { borderColor: colors.border, backgroundColor: colors.surface },
+                    occupation === occ && { borderColor: colors.teal, backgroundColor: colors.teal },
+                  ]}
+                  onPress={() => setOccupation(occ)}
+                >
+                  <Text style={[
+                    styles.chipText,
+                    { color: colors.textSecondary },
+                    occupation === occ && { color: colors.background },
+                  ]}>
+                    {occ}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {errors.occupation && <Text style={[styles.errorText, { color: colors.error }]}>{errors.occupation}</Text>}
+          </Card>
+        )}
+
+        {/* Bank Account Details */}
+        {!verificationDone && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Bank Account Details</Text>
+            <Input
+              label="IFSC Code"
+              value={ifsc}
+              onChangeText={handleIfscLookup}
+              placeholder="e.g., SBIN0001234"
+              maxLength={11}
+              autoCapitalize="characters"
+              error={errors.ifsc}
+            />
+            {bankName ? (
+              <>
+                <InfoRow label="Bank" value={bankName} />
+                {branchName ? <InfoRow label="Branch" value={branchName} /> : null}
+              </>
+            ) : null}
+            <Input
+              label="Account Number"
+              value={accountNumber}
+              onChangeText={(t) => setAccountNumber(t.replace(/[^0-9]/g, ''))}
+              placeholder="Enter account number"
+              keyboardType="number-pad"
+              maxLength={18}
+              error={errors.accountNumber}
+            />
+            <Input
+              label="Confirm Account Number"
+              value={confirmAccountNumber}
+              onChangeText={(t) => setConfirmAccountNumber(t.replace(/[^0-9]/g, ''))}
+              placeholder="Re-enter account number"
+              keyboardType="number-pad"
+              maxLength={18}
+              error={errors.confirmAccountNumber}
+            />
+            <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>Account Type</Text>
+            <View style={styles.chipRow}>
+              {ACCOUNT_TYPES.map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.chip,
+                    { borderColor: colors.border, backgroundColor: colors.surface },
+                    accountType === type && { borderColor: colors.teal, backgroundColor: colors.teal },
+                  ]}
+                  onPress={() => setAccountType(type)}
+                >
+                  <Text style={[
+                    styles.chipText,
+                    { color: colors.textSecondary },
+                    accountType === type && { color: colors.background },
+                  ]}>
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {errors.accountType && <Text style={[styles.errorText, { color: colors.error }]}>{errors.accountType}</Text>}
+          </Card>
+        )}
+
+        {/* Income Method Selection */}
+        {!verificationDone && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Verify Your Income</Text>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              Choose a method to verify your income. This helps us determine your loan eligibility.
+              Choose a method to verify your income. Bank details will be verified via penny drop simultaneously.
             </Text>
 
             <View style={styles.optionsRow}>
@@ -264,37 +462,32 @@ const IncomeVerificationScreen = ({ navigation }) => {
           </Card>
         )}
 
-        {/* Account Aggregator */}
-        {method === 'aa' && !incomeResult && (
+        {/* AA - Bank Selection */}
+        {method === 'aa' && !verificationDone && (
           <Card>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Account Aggregator</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Bank for AA</Text>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              Select your bank to securely fetch your financial data via Account Aggregator.
-              You will receive a consent request on your bank app.
+              Select your bank to securely fetch financial data via Account Aggregator.
             </Text>
 
-            {/* Bank Selection */}
-            {!aaInitiated && (
-              <>
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Select Your Bank</Text>
-                <TouchableOpacity
-                  style={[styles.bankSelector, { borderColor: colors.border, backgroundColor: colors.inputBg }, selectedBank && { borderColor: colors.teal }]}
-                  onPress={() => setShowBankPicker(true)}
-                >
-                  {selectedBank ? (
-                    <View style={styles.selectedBankRow}>
-                      <View style={[styles.bankCodeBadge, { backgroundColor: tealBadgeBg }]}>
-                        <Text style={[styles.bankCodeText, { color: colors.teal }]}>{selectedBank.code}</Text>
-                      </View>
-                      <Text style={[styles.selectedBankName, { color: colors.textPrimary }]}>{selectedBank.name}</Text>
-                    </View>
-                  ) : (
-                    <Text style={[styles.bankPlaceholder, { color: colors.textSecondary }]}>Tap to select bank...</Text>
-                  )}
-                  <Text style={[styles.dropdownArrow, { color: colors.textSecondary }]}>▼</Text>
-                </TouchableOpacity>
-              </>
-            )}
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Select Your Bank</Text>
+            <TouchableOpacity
+              style={[styles.bankSelector, { borderColor: colors.border, backgroundColor: colors.inputBg }, selectedBank && { borderColor: colors.teal }]}
+              onPress={() => setShowBankPicker(true)}
+            >
+              {selectedBank ? (
+                <View style={styles.selectedBankRow}>
+                  <View style={[styles.bankCodeBadge, { backgroundColor: tealBadgeBg }]}>
+                    <Text style={[styles.bankCodeText, { color: colors.teal }]}>{selectedBank.code}</Text>
+                  </View>
+                  <Text style={[styles.selectedBankName, { color: colors.textPrimary }]}>{selectedBank.name}</Text>
+                </View>
+              ) : (
+                <Text style={[styles.bankPlaceholder, { color: colors.textSecondary }]}>Tap to select bank...</Text>
+              )}
+              <Text style={[styles.dropdownArrow, { color: colors.textSecondary }]}>▼</Text>
+            </TouchableOpacity>
+            {errors.bank && <Text style={[styles.errorText, { color: colors.error }]}>{errors.bank}</Text>}
 
             {/* Bank Picker Modal */}
             <Modal visible={showBankPicker} animationType="slide" transparent>
@@ -350,40 +543,18 @@ const IncomeVerificationScreen = ({ navigation }) => {
               </View>
             </Modal>
 
-            {!aaInitiated ? (
-              <Button
-                title="Initiate AA Consent"
-                onPress={handleInitiateAA}
-                loading={loading}
-                disabled={!selectedBank}
-                style={styles.btn}
-              />
-            ) : (
-              <>
-                <View style={[styles.pendingBanner, { backgroundColor: tealBg }]}>
-                  <Text style={[styles.pendingText, { color: colors.teal }]}>
-                    Consent request sent to {selectedBank?.name}! Please approve on your bank app, then check status below.
-                  </Text>
-                </View>
-                <Button
-                  title="Check Status"
-                  onPress={handleCheckAAStatus}
-                  loading={loading}
-                  style={styles.btn}
-                />
-                <Button
-                  title="Upload Bank Statement Instead"
-                  onPress={() => setMethod('statement')}
-                  variant="outline"
-                  style={styles.btn}
-                />
-              </>
-            )}
+            <Button
+              title="Verify Bank & Fetch Income"
+              onPress={handleVerifyAndFetch}
+              loading={loading}
+              disabled={!selectedBank}
+              style={styles.btn}
+            />
           </Card>
         )}
 
-        {/* Bank Statement Upload */}
-        {method === 'statement' && !incomeResult && (
+        {/* Statement Upload */}
+        {method === 'statement' && !verificationDone && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Upload Bank Statement</Text>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
@@ -396,12 +567,66 @@ const IncomeVerificationScreen = ({ navigation }) => {
             />
             {statementFile && (
               <Button
-                title="Upload & Analyze"
-                onPress={handleUploadStatement}
+                title="Verify Bank & Analyze Statement"
+                onPress={handleVerifyAndFetch}
                 loading={loading}
                 style={styles.btn}
               />
             )}
+          </Card>
+        )}
+
+        {/* Penny Drop Result */}
+        {pennyDropDone && (
+          <Card style={pennyDropResult?.verified ? { backgroundColor: tealBg } : { backgroundColor: errorBg }}>
+            <Text style={[
+              styles.verifyTitle,
+              { color: pennyDropResult?.verified ? colors.teal : colors.error },
+            ]}>
+              {pennyDropResult?.verified ? '✓ Bank Account Verified' : '✕ Bank Verification Failed'}
+            </Text>
+            {pennyDropResult?.verified && (
+              <>
+                <InfoRow label="Account Holder" value={pennyDropResult.accountHolderName} />
+                <InfoRow label="Name Match" value={pennyDropResult.nameMatch ? 'Matched' : 'Mismatch'} />
+                <InfoRow label="Ref No." value={pennyDropResult.bankRefNo} />
+              </>
+            )}
+          </Card>
+        )}
+
+        {/* Matching Results */}
+        {matchResult && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Cross-Verification</Text>
+            <View style={[styles.matchRow, { backgroundColor: matchResult.nameMatched ? tealBg : errorBg }]}>
+              <Text style={[styles.matchIcon, { color: matchResult.nameMatched ? colors.teal : colors.error }]}>
+                {matchResult.nameMatched ? '✓' : '✕'}
+              </Text>
+              <View style={styles.matchInfo}>
+                <Text style={[styles.matchLabel, { color: colors.textPrimary }]}>Name Match</Text>
+                <Text style={[styles.matchDetail, { color: colors.textSecondary }]}>
+                  Penny Drop: {matchResult.pdName}
+                </Text>
+                <Text style={[styles.matchDetail, { color: colors.textSecondary }]}>
+                  AA/Statement: {matchResult.aaName}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.matchRow, { backgroundColor: matchResult.accountMatched ? tealBg : errorBg, marginTop: 8 }]}>
+              <Text style={[styles.matchIcon, { color: matchResult.accountMatched ? colors.teal : colors.error }]}>
+                {matchResult.accountMatched ? '✓' : '✕'}
+              </Text>
+              <View style={styles.matchInfo}>
+                <Text style={[styles.matchLabel, { color: colors.textPrimary }]}>Account Last 4 Digits</Text>
+                <Text style={[styles.matchDetail, { color: colors.textSecondary }]}>
+                  Penny Drop: ****{matchResult.pdLast4}
+                </Text>
+                <Text style={[styles.matchDetail, { color: colors.textSecondary }]}>
+                  AA/Statement: ****{matchResult.aaLast4}
+                </Text>
+              </View>
+            </View>
           </Card>
         )}
 
@@ -465,7 +690,17 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  fieldLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
   infoText: { fontSize: 13, lineHeight: 20, marginBottom: 16 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  chipText: { fontSize: 13, fontWeight: '500' },
+  errorText: { fontSize: 12, marginTop: -4, marginBottom: 8 },
   optionsRow: { flexDirection: 'row', gap: 12 },
   option: {
     flex: 1, padding: 16, borderRadius: 12, borderWidth: 2, alignItems: 'center',
@@ -473,10 +708,9 @@ const styles = StyleSheet.create({
   optionIcon: { fontSize: 32, marginBottom: 8 },
   optionTitle: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   optionDesc: { fontSize: 11, marginTop: 2 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
   bankSelector: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1.5, borderRadius: 10, padding: 14,
+    borderWidth: 1.5, borderRadius: 10, padding: 14, marginBottom: 8,
   },
   selectedBankRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   selectedBankName: { fontSize: 14, fontWeight: '600', marginLeft: 10 },
@@ -509,9 +743,13 @@ const styles = StyleSheet.create({
   bankItemName: { fontSize: 14, marginLeft: 10, flex: 1 },
   checkMark: { fontSize: 16, fontWeight: '700' },
   emptyText: { padding: 20, textAlign: 'center', fontSize: 14 },
-  pendingBanner: { padding: 12, borderRadius: 8, marginBottom: 12 },
-  pendingText: { fontSize: 13, lineHeight: 20 },
   btn: { marginTop: 12 },
+  verifyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  matchRow: { flexDirection: 'row', padding: 12, borderRadius: 8, alignItems: 'flex-start' },
+  matchIcon: { fontSize: 20, fontWeight: '700', marginRight: 10, marginTop: 2 },
+  matchInfo: { flex: 1 },
+  matchLabel: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  matchDetail: { fontSize: 12, lineHeight: 18 },
   incomeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   incomeItem: { width: '47%', padding: 12, borderRadius: 10, alignItems: 'center' },
   incomeLabel: { fontSize: 11, marginBottom: 4 },

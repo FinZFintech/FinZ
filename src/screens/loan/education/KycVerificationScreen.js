@@ -407,8 +407,8 @@ const KycVerificationScreen = ({ navigation }) => {
   const handleProceed = () => {
     setSuccessModalVisible(false);
     if (requiresVkyc) {
-      // Loan >= 60K: skip selfie, go to bank details → eNACH/eSign + VKYC in parallel
-      navigation.navigate('BankDetails');
+      // Loan >= 60K: skip selfie, go directly to eNACH/eSign + VKYC in parallel
+      navigation.navigate('EnachEsign');
     } else {
       // Loan < 60K: selfie verification
       navigation.navigate('SelfieVerification');

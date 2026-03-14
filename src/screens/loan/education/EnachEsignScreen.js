@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
@@ -15,7 +15,7 @@ import { useTheme } from '../../../store/ThemeContext';
 const EnachEsignScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, dispatch } = useLoan();
-  const { state: riskState } = useRisk();
+  const { state: riskState, executePhase } = useRisk();
   const [enachLoading, setEnachLoading] = useState(false);
   const [esignLoading, setEsignLoading] = useState(false);
   const [enachDone, setEnachDone] = useState(false);
@@ -35,6 +35,24 @@ const EnachEsignScreen = ({ navigation }) => {
   const emi = state.selectedProduct
     ? calculateEmi(loanAmount, state.selectedProduct.interestRate, state.selectedTenure)
     : 0;
+
+  // Trigger Phase D risk scoring on mount
+  useEffect(() => {
+    const borrowerName = state.borrowerDetails?.name || '';
+    const nameParts = borrowerName.trim().split(/\s+/);
+    const applicant = {
+      accountNumber: state.bankDetails?.accountNumber,
+      ifsc: state.bankDetails?.ifsc,
+      firstName: nameParts[0] || '',
+      lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+      phone: state.borrowerDetails?.phone,
+      imei: '',
+      documentImageUrl: null,
+    };
+    executePhase('D', applicant).then((result) => {
+      dispatch({ type: 'SET_RISK_PROFILE', payload: result });
+    }).catch(() => {});
+  }, []);
 
   const tealBg = `${colors.teal}14`;
   const errorBg = `${colors.error}14`;
