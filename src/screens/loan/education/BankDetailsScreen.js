@@ -121,15 +121,9 @@ const BankDetailsScreen = ({ navigation }) => {
     });
   };
 
-  const loanAmount = state.studentDetails?.balanceFee || 0;
-  const requiresVkyc = loanAmount >= 60000;
-
   const handleProceed = () => {
-    if (requiresVkyc) {
-      navigation.navigate('VkycScreen');
-    } else {
-      navigation.navigate('EnachEsign');
-    }
+    // VKYC (VCIP) for >= 60K is now handled in parallel on the EnachEsign screen
+    navigation.navigate('EnachEsign');
   };
 
   return (

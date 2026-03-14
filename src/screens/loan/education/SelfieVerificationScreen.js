@@ -5,7 +5,6 @@ import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
-import { COLORS } from '../../../config/constants';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useTheme } from '../../../store/ThemeContext';
@@ -16,9 +15,6 @@ const SelfieVerificationScreen = ({ navigation }) => {
   const [selfieUri, setSelfieUri] = useState(null);
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(false);
-
-  const loanAmount = state.studentDetails?.balanceFee || 0;
-  const requiresVkyc = loanAmount >= 60000;
 
   const handleTakeSelfie = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -43,9 +39,8 @@ const SelfieVerificationScreen = ({ navigation }) => {
     if (!selfieUri) return;
     setLoading(true);
     try {
-      // Match selfie with KYC photo (base64 from aadhaar/ckyc)
       const result = await kycService.verifySelfie(
-        selfieUri, // In production, send base64
+        selfieUri,
         state.kycData?.photo
       );
       if (result.matched) {
@@ -80,17 +75,11 @@ const SelfieVerificationScreen = ({ navigation }) => {
             and look directly at the camera.
           </Text>
 
-          {requiresVkyc && (
-            <View style={styles.vkycNote}>
-              <Text style={[styles.vkycNoteText, { color: colors.teal }]}>
-                Note: Since your loan amount is ₹{loanAmount.toLocaleString('en-IN')} (≥₹60,000),
-                video KYC (vKYC) will be required at a later step as per RBI guidelines.
-              </Text>
-            </View>
-          )}
-
           {selfieUri && (
-            <Image source={{ uri: selfieUri }} style={styles.selfiePreview} />
+            <Image
+              source={{ uri: selfieUri }}
+              style={[styles.selfiePreview, { backgroundColor: colors.surface, borderColor: colors.teal }]}
+            />
           )}
 
           {!verified ? (
@@ -112,7 +101,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
               )}
             </>
           ) : (
-            <View style={styles.verifiedBadge}>
+            <View style={[styles.verifiedBadge, { backgroundColor: `${colors.teal}14` }]}>
               <Text style={[styles.verifiedText, { color: colors.teal }]}>✓ Selfie Verified</Text>
             </View>
           )}
@@ -133,32 +122,18 @@ const SelfieVerificationScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   content: { flex: 1 },
   contentContainer: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
-  infoText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 16 },
-  vkycNote: { backgroundColor: 'rgba(74,237,196,0.08)', padding: 12, borderRadius: 8, marginBottom: 16 },
-  vkycNoteText: { fontSize: 12, color: COLORS.teal, lineHeight: 18 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  infoText: { fontSize: 13, lineHeight: 20, marginBottom: 16 },
   selfiePreview: {
-    width: 200,
-    height: 260,
-    borderRadius: 12,
-    alignSelf: 'center',
-    marginBottom: 16,
-    backgroundColor: COLORS.cardBg,
-    borderWidth: 3,
-    borderColor: COLORS.teal,
+    width: 200, height: 260, borderRadius: 12, alignSelf: 'center',
+    marginBottom: 16, borderWidth: 3,
   },
   btn: { marginTop: 12 },
-  verifiedBadge: {
-    backgroundColor: 'rgba(74,237,196,0.08)',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  verifiedText: { color: COLORS.teal, fontWeight: '700', fontSize: 15 },
+  verifiedBadge: { padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
+  verifiedText: { fontWeight: '700', fontSize: 15 },
   proceedBtn: { marginTop: 16 },
   bottomSpacer: { height: 100 },
 });

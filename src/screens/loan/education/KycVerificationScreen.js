@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   AppState,
   Image,
+  Modal,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
@@ -49,6 +50,12 @@ const KycVerificationScreen = ({ navigation }) => {
   // Details review state — shown after KYC data is fetched
   const [fetchedKycData, setFetchedKycData] = useState(null);
   const [detailsReviewStep, setDetailsReviewStep] = useState(false);
+
+  // Success popup
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
+
+  const loanAmount = state.studentDetails?.balanceFee || 0;
+  const requiresVkyc = loanAmount >= 60000;
 
   // Communication address state
   const [sameAsAadhaar, setSameAsAadhaar] = useState(true);
@@ -378,6 +385,7 @@ const KycVerificationScreen = ({ navigation }) => {
     dispatch({ type: 'SET_STEP', payload: 4 });
     setKycCompleted(true);
     setDetailsReviewStep(false);
+    setSuccessModalVisible(true);
 
     const borrowerName = state.borrowerDetails?.name || '';
     const nameParts = borrowerName.trim().split(/\s+/);
@@ -397,7 +405,14 @@ const KycVerificationScreen = ({ navigation }) => {
   };
 
   const handleProceed = () => {
-    navigation.navigate('SelfieVerification');
+    setSuccessModalVisible(false);
+    if (requiresVkyc) {
+      // Loan >= 60K: skip selfie, go to bank details → eNACH/eSign + VKYC in parallel
+      navigation.navigate('BankDetails');
+    } else {
+      // Loan < 60K: selfie verification
+      navigation.navigate('SelfieVerification');
+    }
   };
 
   // ─── Render helpers ─────────────────────────────────────────────────────
@@ -741,19 +756,6 @@ const KycVerificationScreen = ({ navigation }) => {
           </>
         )}
 
-        {/* ── KYC Completed ── */}
-        {kycCompleted && !kycFailed && (
-          <Card style={[styles.resultCard, { backgroundColor: tealBg }]}>
-            <Text style={[styles.resultIcon, { color: colors.teal }]}>✓</Text>
-            <Text style={[styles.resultTitle, { color: colors.teal }]}>KYC Verified!</Text>
-            <Text style={[styles.resultText, { color: colors.textSecondary }]}>
-              Your identity has been successfully verified
-              via {currentMethod === KYC_METHODS.CKYC ? 'CKYC' : 'DigiLocker'}.
-            </Text>
-            <Button title="Continue" onPress={handleProceed} style={styles.btn} />
-          </Card>
-        )}
-
         {/* ── KYC Failed ── */}
         {kycFailed && (
           <Card style={[styles.resultCard, { backgroundColor: errorBg }]}>
@@ -769,6 +771,40 @@ const KycVerificationScreen = ({ navigation }) => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* ── KYC Success Popup ── */}
+      <Modal
+        visible={successModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={styles.modalSuccessIcon}>✓</Text>
+            <Text style={[styles.modalTitle, { color: colors.teal }]}>KYC Verification Done!</Text>
+            <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
+              Your identity has been successfully verified
+              via {currentMethod === KYC_METHODS.CKYC ? 'CKYC' : 'DigiLocker'}.
+            </Text>
+            {requiresVkyc && (
+              <View style={[styles.modalNote, { backgroundColor: `${colors.warning}14` }]}>
+                <Text style={[styles.modalNoteText, { color: colors.warning }]}>
+                  Since your loan is ≥ ₹60,000, video KYC (VCIP) will be required along with eNACH & eSign as per RBI guidelines.
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: colors.teal }]}
+              onPress={handleProceed}
+            >
+              <Text style={[styles.modalButtonText, { color: colors.background }]}>
+                {requiresVkyc ? 'Continue to Bank Details' : 'Continue to Selfie Verification'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -828,6 +864,18 @@ const styles = StyleSheet.create({
   halfInput: { flex: 1 },
 
   btn: { marginTop: 12 },
+
+  // Success Modal
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalContent: { borderRadius: 20, padding: 28, alignItems: 'center', width: '100%', maxWidth: 340 },
+  modalSuccessIcon: { fontSize: 56, color: '#4AEDC4', marginBottom: 12 },
+  modalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 10, textAlign: 'center' },
+  modalMessage: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 16 },
+  modalNote: { padding: 12, borderRadius: 8, marginBottom: 16, width: '100%' },
+  modalNoteText: { fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  modalButton: { borderRadius: 10, paddingVertical: 14, paddingHorizontal: 28, width: '100%', alignItems: 'center' },
+  modalButtonText: { fontWeight: '700', fontSize: 15 },
+
   resultCard: { alignItems: 'center' },
   resultIcon: { fontSize: 48, marginBottom: 8 },
   resultTitle: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
