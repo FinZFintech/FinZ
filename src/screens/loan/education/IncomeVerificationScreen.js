@@ -382,6 +382,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {!verificationDone && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Bank Account Details</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              Please provide the bank account where your salary or income is regularly credited. This allows us to verify your income and assess your loan eligibility.
+            </Text>
             <Input
               label="IFSC Code"
               value={ifsc}
