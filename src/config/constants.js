@@ -49,6 +49,10 @@ export const SIGNZY_CONFIG = {
 
     // Document
     FORGERY_CHECK: '/advanceForgeryLite',
+
+    // Liveness & Selfie
+    LIVENESS_CREATE_URL: '/liveness-secure/createUrl',
+    LIVENESS_GET_DATA: '/liveness-secure/getData',
   },
 };
 

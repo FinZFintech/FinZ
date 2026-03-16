@@ -91,7 +91,42 @@ export const kycService = {
     return api.post(API_ENDPOINTS.KYC.PINCODE_CHECK, { pincode });
   },
 
-  // Selfie & vKYC
+  // Selfie & Liveness (Signzy)
+
+  /**
+   * Create liveness verification URL for selfie capture.
+   * Pass the KYC photo URL(s) for face matching.
+   * @param {string[]} matchImageUrls - Publicly accessible image URLs
+   * @param {Object} options - Additional options (languageCode, faceMatchThreshold, etc.)
+   * @returns {{ token: string, videoUrl: string, consumerId: string }}
+   */
+  async createLivenessUrl(matchImageUrls, options = {}) {
+    console.log('[kycService] createLivenessUrl → calling signzyService.livenessCreateUrl');
+    const result = await signzyService.livenessCreateUrl({
+      matchImage: matchImageUrls,
+      ...options,
+    });
+    console.log('[kycService] livenessCreateUrl result: token =', result.token);
+    return result;
+  },
+
+  /**
+   * Get liveness verification results after user completes the selfie journey.
+   * @param {string} token - Token from createLivenessUrl response
+   * @returns {Object} Liveness result with faceMatch, passiveLiveliness, status, etc.
+   */
+  async getLivenessData(token) {
+    console.log('[kycService] getLivenessData → calling signzyService.livenessGetData');
+    const result = await signzyService.livenessGetData(token);
+    console.log('[kycService] livenessGetData result:', JSON.stringify({
+      status: result.status,
+      faceMatchVerified: result.faceMatch?.verified,
+      liveness: result.passiveLiveliness?.liveness,
+    }));
+    return result;
+  },
+
+  /** @deprecated Use createLivenessUrl + getLivenessData instead */
   async verifySelfie(selfieBase64, kycImageBase64) {
     return api.post(API_ENDPOINTS.VERIFICATION.SELFIE_MATCH, {
       selfie: selfieBase64,

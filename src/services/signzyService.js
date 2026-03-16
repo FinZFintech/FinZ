@@ -589,6 +589,87 @@ export const signzyService = {
     };
   },
 
+  // ─── Liveness & Selfie ─────────────────────────────────────────────
+
+  /**
+   * Create a liveness verification URL for selfie capture & face match.
+   * The returned videoUrl should be loaded in a WebView with camera permission.
+   * @param {Object} options
+   * @param {string[]} options.matchImage - Publicly accessible image URLs for face matching
+   * @param {string} [options.languageCode='en']
+   * @param {number} [options.faceMatchThreshold=0.6]
+   * @param {string} [options.callbackUrl]
+   * @param {string} [options.redirectUrl]
+   * @returns {{ token: string, videoUrl: string, consumerId: string }}
+   */
+  async livenessCreateUrl(options = {}) {
+    const {
+      matchImage = [],
+      languageCode = 'en',
+      faceMatchThreshold = 0.6,
+      callbackUrl,
+      redirectUrl,
+    } = options;
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.LIVENESS_CREATE_URL, {
+      languageCode,
+      matchImage,
+      hideBottomLogo: 'true',
+      accentColor: '#4AEDC4',
+      backgroundColor: '#0D1017',
+      reviewImage: 'true',
+      additionalChecks: 'true',
+      allowCameraSwitch: 'true',
+      faceMatchThreshold,
+      piiDeletionTTL: '6 months',
+      ...(callbackUrl ? { callbackUrl } : {}),
+      ...(redirectUrl ? { redirectUrl } : {}),
+    });
+
+    const r = extractResult(data);
+    return {
+      token: r.token || '',
+      videoUrl: r.videoUrl || '',
+      consumerId: r.consumerId || '',
+    };
+  },
+
+  /**
+   * Get liveness verification results after the user completes the journey.
+   * Call after receiving "Verification Done" message from the WebView.
+   * @param {string} token - Token from livenessCreateUrl response
+   * @returns {{ result: Object, essentials: Object }}
+   */
+  async livenessGetData(token) {
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.LIVENESS_GET_DATA, {
+      token,
+    });
+
+    const r = data?.result || data;
+    return {
+      consumerId: r.consumerId || '',
+      token: r.token || token,
+      isUsed: r.isUsed || 0,
+      capturedImage: r.capturedImage || '',
+      faceMatch: {
+        verified: r.faceMatch?.verified ?? false,
+        message: r.faceMatch?.message || '',
+        matchPercentage: r.faceMatch?.matchPercentage || '0.00%',
+      },
+      passiveLiveliness: {
+        liveness: r.passiveLiveliness?.liveness ?? false,
+        score: r.passiveLiveliness?.score ?? 0,
+      },
+      status: r.status ?? false,
+      additionalChecks: {
+        status: r.additionalChecks?.status ?? true,
+        attemptNumber: r.additionalChecks?.attemptNumber ?? 1,
+        failedChecks: r.additionalChecks?.failedChecks || [],
+        isFaceCovered: r.additionalChecks?.isFaceCovered ?? false,
+      },
+    };
+  },
+
   // ─── OTP ────────────────────────────────────────────────────────────────
 
   async sendOtp(phoneNumber, options = {}) {
