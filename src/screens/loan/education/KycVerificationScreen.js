@@ -10,6 +10,7 @@ import {
   AppState,
   Image,
   Modal,
+  Platform,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
@@ -47,6 +48,8 @@ const KycVerificationScreen = ({ navigation }) => {
   const [digilockerPolling, setDigilockerPolling] = useState(false);
   const pollTimerRef = useRef(null);
   const pollCountRef = useRef(0);
+  const digilockerPopupRef = useRef(null);
+  const popupCheckRef = useRef(null);
 
   // Session timeout (15 min for DigiLocker / Aadhaar XML)
   const sessionTimerRef = useRef(null);
@@ -198,8 +201,15 @@ const KycVerificationScreen = ({ navigation }) => {
     setLoading(true);
     setKycErrorMsg('');
     try {
+      // On web, use a callback page that auto-closes the popup
+      const isWeb = Platform.OS === 'web';
+      const redirectUrl = isWeb
+        ? `${window.location.origin}/digilocker-callback.html`
+        : 'finz://kyc/digilocker-callback';
+
       const { url, requestId } = await kycService.initiateDigilocker({
         internalId: state.borrowerDetails?.phone || '',
+        redirectUrl,
       });
 
       if (!url || !requestId) {
@@ -211,12 +221,30 @@ const KycVerificationScreen = ({ navigation }) => {
       setLoading(false);
       startSessionTimer();
 
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
+      if (isWeb) {
+        // Open DigiLocker in a popup window
+        const popup = window.open(url, 'digilocker', 'width=600,height=700,scrollbars=yes');
+        digilockerPopupRef.current = popup;
+
+        // Monitor popup — when it closes, auto-poll for results
+        if (popupCheckRef.current) clearInterval(popupCheckRef.current);
+        popupCheckRef.current = setInterval(() => {
+          if (popup && popup.closed) {
+            clearInterval(popupCheckRef.current);
+            popupCheckRef.current = null;
+            digilockerPopupRef.current = null;
+            console.log('[KycVerification] DigiLocker popup closed, polling for data');
+            pollForDigilockerData(requestId);
+          }
+        }, 500);
       } else {
-        Alert.alert('Error', 'Unable to open DigiLocker. Please try again.');
-        setDigilockerWaiting(false);
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+        } else {
+          Alert.alert('Error', 'Unable to open DigiLocker. Please try again.');
+          setDigilockerWaiting(false);
+        }
       }
     } catch (err) {
       setLoading(false);
@@ -322,6 +350,12 @@ const KycVerificationScreen = ({ navigation }) => {
 
   const handleCancelDigilocker = () => {
     if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    if (popupCheckRef.current) clearInterval(popupCheckRef.current);
+    if (digilockerPopupRef.current && !digilockerPopupRef.current.closed) {
+      digilockerPopupRef.current.close();
+    }
+    digilockerPopupRef.current = null;
+    popupCheckRef.current = null;
     clearSessionTimer();
     setDigilockerPolling(false);
     setDigilockerWaiting(false);
