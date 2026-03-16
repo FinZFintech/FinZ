@@ -219,19 +219,21 @@ const SelfieVerificationScreen = ({ navigation }) => {
       {/* ── Signzy Liveness WebView (iframe on web) ── */}
       {step === 'liveness' && livenessUrl && (
         <View style={styles.livenessContainer}>
-          {Platform.OS === 'web' ? (
-            <iframe
-              ref={iframeRef}
-              src={livenessUrl}
-              style={iframeStyle}
-              allow="camera;microphone"
-              title="Liveness Verification"
-            />
-          ) : (
-            <Text style={[styles.infoText, { color: colors.textSecondary, padding: 20 }]}>
-              WebView not available. Please use the web version.
-            </Text>
-          )}
+          <View style={styles.iframeWrapper}>
+            {Platform.OS === 'web' ? (
+              <iframe
+                ref={iframeRef}
+                src={livenessUrl}
+                style={iframeStyle}
+                allow="camera;microphone"
+                title="Liveness Verification"
+              />
+            ) : (
+              <Text style={[styles.infoText, { color: colors.textSecondary, padding: 20 }]}>
+                WebView not available. Please use the web version.
+              </Text>
+            )}
+          </View>
           {/* ── Guidance messages below selfie area ── */}
           <View style={[styles.guidanceContainer, { backgroundColor: colors.surface || '#F8F9FA' }]}>
             <View style={styles.guidanceRow}>
@@ -543,7 +545,8 @@ const styles = StyleSheet.create({
   guardBtn: { width: '100%' },
 
   // Liveness WebView
-  livenessContainer: { flex: 1 },
+  livenessContainer: { flex: 1, flexDirection: 'column' },
+  iframeWrapper: { flex: 1, minHeight: 300 },
   guidanceContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,

@@ -436,22 +436,52 @@ export const signzyService = {
 
   // ─── Banking ────────────────────────────────────────────────────────────
 
+  /**
+   * Hybrid Bank Account Verification (penny drop / penniless).
+   * Uses Signzy's hybrid routing — penniless for 80+ banks, penny drop as fallback.
+   * @param {string} accountNumber - Beneficiary account number
+   * @param {string} ifsc - Beneficiary IFSC code
+   * @param {string} [name] - Beneficiary name for fuzzy name match
+   * @param {string} [mobile] - Beneficiary mobile
+   * @param {Object} [options] - Extra options (nameMatchScore, nameFuzzy, fetchAccountNumber)
+   * @returns {Object} Verification result
+   */
   async verifyBankAccount(accountNumber, ifsc, name, mobile, options = {}) {
-    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.BANK_ACCOUNT_VERIFICATION, {
+    const body = {
       beneficiaryAccount: accountNumber,
       beneficiaryIFSC: ifsc,
-      beneficiaryName: name,
-      beneficiaryMobile: mobile,
-      ...options,
-    });
-    const r = extractResult(data);
+    };
+
+    if (name) body.beneficiaryName = name;
+    if (mobile) body.beneficiaryMobile = mobile;
+
+    // Enable fuzzy name match by default with 60% threshold
+    body.nameFuzzy = options.nameFuzzy || 'true';
+    body.nameMatchScore = options.nameMatchScore || '0.6';
+    if (options.fetchAccountNumber) body.fetchAccountNumber = true;
+
+    console.log('[signzyService] verifyBankAccount → calling hybrid bank verification');
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.BANK_ACCOUNT_VERIFICATION, body);
+    const r = data?.result || data;
+    const transfer = r.bankTransfer || {};
+
     return {
-      accountActive: r.accountActive ?? false,
-      nameMatch: r.nameMatch ?? false,
-      nameMatchScore: r.nameMatchScore ?? 0,
-      upiLinked: r.upiLinked ?? false,
-      bankName: r.bankName || '',
-      accountType: r.accountType || '',
+      accountActive: r.active === 'yes',
+      reason: r.reason || '',
+      nameMatch: r.nameMatch === 'yes',
+      nameMatchScore: r.nameMatchScore !== 'not available'
+        ? parseFloat(r.nameMatchScore) || 0
+        : null,
+      mobileMatch: r.mobileMatch === 'yes',
+      signzyReferenceId: r.signzyReferenceId || '',
+      auditTrail: r.auditTrail || {},
+      // Bank transfer details (from penny drop)
+      accountHolderName: transfer.beneName || '',
+      bankRRN: transfer.bankRRN || '',
+      beneIFSC: transfer.beneIFSC || '',
+      beneMobile: transfer.beneMobile || '',
+      response: transfer.response || '',
     };
   },
 

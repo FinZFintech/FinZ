@@ -1,3 +1,61 @@
+import { signzyService } from './signzyService';
+
+// ─── Fuzzy Name Matching ──────────────────────────────────────────────────────
+// Levenshtein distance for fuzzy string comparison
+
+function levenshteinDistance(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+/**
+ * Compute fuzzy match confidence score between two names.
+ * Returns a score from 0 to 100.
+ */
+function fuzzyNameScore(name1, name2) {
+  if (!name1 || !name2) return 0;
+
+  const a = name1.trim().toUpperCase().replace(/\s+/g, ' ');
+  const b = name2.trim().toUpperCase().replace(/\s+/g, ' ');
+
+  if (a === b) return 100;
+  if (a.length === 0 || b.length === 0) return 0;
+
+  const maxLen = Math.max(a.length, b.length);
+  const dist = levenshteinDistance(a, b);
+  const similarity = ((maxLen - dist) / maxLen) * 100;
+
+  // Bonus: check if one contains the other (handles middle name variations)
+  const containsBonus = a.includes(b) || b.includes(a) ? 15 : 0;
+
+  // Bonus: check if all tokens in the shorter name appear in the longer
+  const tokensA = a.split(' ').filter(Boolean);
+  const tokensB = b.split(' ').filter(Boolean);
+  const shorter = tokensA.length <= tokensB.length ? tokensA : tokensB;
+  const longer = tokensA.length > tokensB.length ? tokensA : tokensB;
+  const tokenMatches = shorter.filter((t) => longer.includes(t)).length;
+  const tokenBonus = shorter.length > 0 ? (tokenMatches / shorter.length) * 20 : 0;
+
+  return Math.min(100, Math.round(similarity + containsBonus + tokenBonus));
+}
+
+const NAME_MATCH_THRESHOLD = 60; // >60% confidence
+
+// ─── Static Data ──────────────────────────────────────────────────────────────
+
 const MOCK_FIP_LIST = [
   { id: 'SBIN', code: 'SBIN', name: 'State Bank of India' },
   { id: 'HDFC', code: 'HDFC', name: 'HDFC Bank' },
@@ -44,23 +102,111 @@ const IFSC_BANK_MAP = {
   CBIN: { bank: 'Central Bank of India', branch: 'Main Branch' },
 };
 
+// ─── Bank Service ─────────────────────────────────────────────────────────────
+
 export const bankService = {
+  /**
+   * Bank account verification via Signzy Hybrid API (penny drop / penniless).
+   * Replaces the old mock pennyDrop.
+   */
   async pennyDrop(data) {
-    console.log('[bankService] Mock pennyDrop for account:', data.accountNumber?.slice(-4));
-    await new Promise((r) => setTimeout(r, 1200));
-    const name = (data.name || 'RAHUL SHARMA').toUpperCase();
+    const { accountNumber, ifsc, name, mobile } = data;
+    console.log('[bankService] pennyDrop → calling Signzy hybrid bank verification for:', accountNumber?.slice(-4));
+
+    const result = await signzyService.verifyBankAccount(accountNumber, ifsc, name, mobile, {
+      nameFuzzy: 'true',
+      nameMatchScore: '0.6',
+    });
+
+    console.log('[bankService] pennyDrop result:', JSON.stringify({
+      active: result.accountActive,
+      nameMatch: result.nameMatch,
+      nameMatchScore: result.nameMatchScore,
+      accountHolderName: result.accountHolderName,
+    }));
+
     return {
-      verified: true,
-      nameMatch: true,
-      accountHolderName: name,
-      bankRefNo: 'PD' + Date.now(),
-      accountNumberLast4: (data.accountNumber || '').slice(-4),
+      verified: result.accountActive,
+      nameMatch: result.nameMatch,
+      nameMatchScore: result.nameMatchScore,
+      accountHolderName: result.accountHolderName,
+      bankRefNo: result.bankRRN || result.signzyReferenceId || '',
+      accountNumberLast4: (accountNumber || '').slice(-4),
+      reason: result.reason,
+      signzyReferenceId: result.signzyReferenceId,
+      beneIFSC: result.beneIFSC,
     };
   },
 
+  /**
+   * Cross-match names across bank (penny drop), PAN, and AA with fuzzy logic.
+   * Returns match results for each pair with confidence scores.
+   * @param {Object} names - { bankName, panName, aaName, borrowerName }
+   * @returns {Object} Match results with scores and overall verdict
+   */
+  crossMatchNames({ bankName, panName, aaName, borrowerName }) {
+    console.log('[bankService] crossMatchNames →', { bankName, panName, aaName, borrowerName });
+
+    const pairs = [];
+
+    // Bank vs PAN
+    if (bankName && panName) {
+      const score = fuzzyNameScore(bankName, panName);
+      pairs.push({ pair: 'Bank vs PAN', name1: bankName, name2: panName, score, matched: score > NAME_MATCH_THRESHOLD });
+    }
+
+    // Bank vs AA
+    if (bankName && aaName) {
+      const score = fuzzyNameScore(bankName, aaName);
+      pairs.push({ pair: 'Bank vs AA', name1: bankName, name2: aaName, score, matched: score > NAME_MATCH_THRESHOLD });
+    }
+
+    // PAN vs AA
+    if (panName && aaName) {
+      const score = fuzzyNameScore(panName, aaName);
+      pairs.push({ pair: 'PAN vs AA', name1: panName, name2: aaName, score, matched: score > NAME_MATCH_THRESHOLD });
+    }
+
+    // Bank vs Borrower (application name)
+    if (bankName && borrowerName) {
+      const score = fuzzyNameScore(bankName, borrowerName);
+      pairs.push({ pair: 'Bank vs Application', name1: bankName, name2: borrowerName, score, matched: score > NAME_MATCH_THRESHOLD });
+    }
+
+    const allMatched = pairs.length > 0 && pairs.every((p) => p.matched);
+    const anyFailed = pairs.some((p) => !p.matched);
+    const avgScore = pairs.length > 0
+      ? Math.round(pairs.reduce((sum, p) => sum + p.score, 0) / pairs.length)
+      : 0;
+
+    const result = {
+      pairs,
+      allMatched,
+      anyFailed,
+      averageScore: avgScore,
+      threshold: NAME_MATCH_THRESHOLD,
+    };
+
+    console.log('[bankService] crossMatchNames result:', JSON.stringify({
+      allMatched: result.allMatched,
+      averageScore: result.averageScore,
+      pairs: result.pairs.map((p) => `${p.pair}: ${p.score}%`),
+    }));
+
+    return result;
+  },
+
   async validateIfsc(ifsc) {
-    console.log('[bankService] Mock validateIfsc:', ifsc);
-    await new Promise((r) => setTimeout(r, 400));
+    console.log('[bankService] validateIfsc:', ifsc);
+    // Try Signzy IFSC search first, fall back to local map
+    try {
+      const result = await signzyService.searchBankByIfsc(ifsc);
+      if (result.bankName) {
+        return { bank: result.bankName, branch: result.branchName || ifsc };
+      }
+    } catch (err) {
+      console.log('[bankService] Signzy IFSC search failed, using local map:', err.message);
+    }
     const prefix = (ifsc || '').substring(0, 4).toUpperCase();
     const match = IFSC_BANK_MAP[prefix];
     if (match) {
@@ -128,3 +274,5 @@ export const bankService = {
     };
   },
 };
+
+export { fuzzyNameScore, NAME_MATCH_THRESHOLD };

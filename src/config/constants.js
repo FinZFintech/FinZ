@@ -32,8 +32,8 @@ export const SIGNZY_CONFIG = {
     WHATSAPP_PRESENCE: '/whatsapp-presence',
     DIGITAL_IDENTITY_SCORE: '/digital-identity-score',
 
-    // Banking
-    BANK_ACCOUNT_VERIFICATION: '/bankAccountVerification',
+    // Banking (Hybrid Bank Account Verification — penny drop / penniless)
+    BANK_ACCOUNT_VERIFICATION: '/bankaccountverification/bankaccountverifications',
     IFSC_SEARCH: '/ifsc/search',
 
     // Employment

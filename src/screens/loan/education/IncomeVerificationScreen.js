@@ -259,23 +259,33 @@ const IncomeVerificationScreen = ({ navigation }) => {
     }
   };
 
-  // Match name and last 4 digits of account between penny drop and AA response
+  // Cross-match names (fuzzy, >60% threshold) between bank, PAN, and AA
   const runMatching = (pdResult, aaIncome) => {
-    const pdName = (pdResult.accountHolderName || '').trim().toUpperCase();
-    const aaName = (aaIncome.accountHolderName || '').trim().toUpperCase();
-    const nameMatched = pdName.length > 0 && aaName.length > 0 && pdName === aaName;
+    const bankAccName = (pdResult.accountHolderName || '').trim();
+    const panName = (state.panDetails?.name || '').trim();
+    const aaName = (aaIncome?.accountHolderName || '').trim();
+    const borrowerName = (state.borrowerDetails?.name || '').trim();
+
+    const crossMatch = bankService.crossMatchNames({
+      bankName: bankAccName,
+      panName,
+      aaName,
+      borrowerName,
+    });
 
     const pdLast4 = (pdResult.accountNumberLast4 || accountNumber.slice(-4));
-    const aaLast4 = (aaIncome.accountNumberLast4 || accountNumber.slice(-4));
+    const aaLast4 = (aaIncome?.accountNumberLast4 || accountNumber.slice(-4));
     const accountMatched = pdLast4 === aaLast4;
 
     setMatchResult({
-      nameMatched,
+      nameMatched: crossMatch.allMatched,
       accountMatched,
-      pdName,
+      pdName: bankAccName,
       aaName,
+      panName,
       pdLast4,
       aaLast4,
+      crossMatch,
     });
   };
 
@@ -660,24 +670,54 @@ const IncomeVerificationScreen = ({ navigation }) => {
           </Card>
         )}
 
-        {/* Matching Results */}
+        {/* Cross-Verification: Fuzzy Name Match (Bank vs PAN vs AA) */}
         {matchResult && (
           <Card>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Cross-Verification</Text>
-            <View style={[styles.matchRow, { backgroundColor: matchResult.nameMatched ? tealBg : errorBg }]}>
-              <Text style={[styles.matchIcon, { color: matchResult.nameMatched ? colors.teal : colors.error }]}>
-                {matchResult.nameMatched ? '✓' : '✕'}
-              </Text>
-              <View style={styles.matchInfo}>
-                <Text style={[styles.matchLabel, { color: colors.textPrimary }]}>Name Match</Text>
-                <Text style={[styles.matchDetail, { color: colors.textSecondary }]}>
-                  Penny Drop: {matchResult.pdName}
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+              Cross-Verification (Name Match &gt;60%)
+            </Text>
+
+            {/* Per-pair fuzzy match results */}
+            {matchResult.crossMatch?.pairs?.map((pair, idx) => (
+              <View
+                key={pair.pair}
+                style={[
+                  styles.matchRow,
+                  { backgroundColor: pair.matched ? tealBg : errorBg, marginTop: idx > 0 ? 8 : 0 },
+                ]}
+              >
+                <Text style={[styles.matchIcon, { color: pair.matched ? colors.teal : colors.error }]}>
+                  {pair.matched ? '✓' : '✕'}
                 </Text>
-                <Text style={[styles.matchDetail, { color: colors.textSecondary }]}>
-                  AA/Statement: {matchResult.aaName}
-                </Text>
+                <View style={styles.matchInfo}>
+                  <Text style={[styles.matchLabel, { color: colors.textPrimary }]}>
+                    {pair.pair} — {pair.score}%
+                  </Text>
+                  <Text style={[styles.matchDetail, { color: colors.textSecondary }]}>
+                    {pair.name1} vs {pair.name2}
+                  </Text>
+                </View>
               </View>
-            </View>
+            ))}
+
+            {/* Overall verdict */}
+            {matchResult.crossMatch && (
+              <View style={[styles.matchRow, { backgroundColor: matchResult.nameMatched ? tealBg : errorBg, marginTop: 10 }]}>
+                <Text style={[styles.matchIcon, { color: matchResult.nameMatched ? colors.teal : colors.error }]}>
+                  {matchResult.nameMatched ? '✓' : '✕'}
+                </Text>
+                <View style={styles.matchInfo}>
+                  <Text style={[styles.matchLabel, { color: colors.textPrimary }]}>
+                    Overall: {matchResult.nameMatched ? 'All Names Match' : 'Name Mismatch Detected'}
+                  </Text>
+                  <Text style={[styles.matchDetail, { color: colors.textSecondary }]}>
+                    Average Score: {matchResult.crossMatch.averageScore}% (threshold: {matchResult.crossMatch.threshold}%)
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Account number match */}
             <View style={[styles.matchRow, { backgroundColor: matchResult.accountMatched ? tealBg : errorBg, marginTop: 8 }]}>
               <Text style={[styles.matchIcon, { color: matchResult.accountMatched ? colors.teal : colors.error }]}>
                 {matchResult.accountMatched ? '✓' : '✕'}
@@ -685,10 +725,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
               <View style={styles.matchInfo}>
                 <Text style={[styles.matchLabel, { color: colors.textPrimary }]}>Account Last 4 Digits</Text>
                 <Text style={[styles.matchDetail, { color: colors.textSecondary }]}>
-                  Penny Drop: ****{matchResult.pdLast4}
-                </Text>
-                <Text style={[styles.matchDetail, { color: colors.textSecondary }]}>
-                  AA/Statement: ****{matchResult.aaLast4}
+                  Bank: ****{matchResult.pdLast4}  |  AA/Statement: ****{matchResult.aaLast4}
                 </Text>
               </View>
             </View>

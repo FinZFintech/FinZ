@@ -243,16 +243,37 @@ export const kycService = {
     return { status: 'completed', verified: true };
   },
 
-  // Name Match
+  // Name Match (fuzzy, >60% threshold)
   async matchNames(data) {
-    console.log('[kycService] Mock matchNames');
-    await new Promise((r) => setTimeout(r, 300));
-    const name1 = (data.name1 || '').toUpperCase();
-    const name2 = (data.name2 || '').toUpperCase();
-    const matched = name1 === name2;
+    const { fuzzyNameScore, NAME_MATCH_THRESHOLD } = require('./bankService');
+    console.log('[kycService] matchNames (fuzzy)');
+
+    // Support both { name1, name2 } and { panName, kycName, borrowerName }
+    const pairs = [];
+    if (data.name1 && data.name2) {
+      pairs.push({ a: data.name1, b: data.name2 });
+    }
+    if (data.panName && data.kycName) {
+      pairs.push({ a: data.panName, b: data.kycName });
+    }
+    if (data.panName && data.borrowerName) {
+      pairs.push({ a: data.panName, b: data.borrowerName });
+    }
+    if (data.kycName && data.borrowerName) {
+      pairs.push({ a: data.kycName, b: data.borrowerName });
+    }
+
+    let bestScore = 0;
+    for (const { a, b } of pairs) {
+      const score = fuzzyNameScore(a, b);
+      if (score > bestScore) bestScore = score;
+    }
+
+    const matched = bestScore > NAME_MATCH_THRESHOLD;
+    console.log('[kycService] matchNames result: score =', bestScore, ', matched =', matched);
     return {
       matched,
-      score: matched ? 100 : 65,
+      score: bestScore,
       status: 'OK',
     };
   },
