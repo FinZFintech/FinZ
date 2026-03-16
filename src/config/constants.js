@@ -53,6 +53,9 @@ export const SIGNZY_CONFIG = {
     // Liveness & Selfie
     LIVENESS_CREATE_URL: '/liveness-secure/createUrl',
     LIVENESS_GET_DATA: '/liveness-secure/getData',
+
+    // Face Match (OVD extraction + face verification)
+    FACE_MATCH: '/ovd/extraction-face-verification',
   },
 };
 

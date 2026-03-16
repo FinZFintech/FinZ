@@ -696,6 +696,36 @@ export const signzyService = {
     };
   },
 
+  // ─── Face Match ─────────────────────────────────────────────────────────
+
+  /**
+   * Compare a selfie image against a KYC/ID image using Signzy face verification.
+   * Accepts base64 data URIs or public URLs.
+   * @param {string} selfieImage - Selfie image (base64 data URI or URL)
+   * @param {string} idImage - KYC/ID image (base64 data URI or URL)
+   * @param {number} [threshold=0.6] - Match threshold (0.05–0.95)
+   * @returns {{ verified: boolean, matchPercentage: string, message: string }}
+   */
+  async faceMatch(selfieImage, idImage, threshold = 0.6) {
+    const body = {
+      selfie_url: selfieImage,
+      id_url: idImage,
+      threshold,
+    };
+
+    console.log('[signzyService] faceMatch → calling extraction-face-verification');
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.FACE_MATCH, body);
+    const r = extractResult(data);
+    const faceDetails = r.faceMatchDetails || r.faceMatch || {};
+
+    return {
+      verified: faceDetails.verified ?? false,
+      matchPercentage: faceDetails.matchPercentage || '0.00%',
+      message: faceDetails.message || '',
+    };
+  },
+
   // ─── OTP ────────────────────────────────────────────────────────────────
 
   async sendOtp(phoneNumber, options = {}) {

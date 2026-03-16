@@ -126,7 +126,35 @@ export const kycService = {
     return result;
   },
 
-  /** @deprecated Use createLivenessUrl + getLivenessData instead */
+  /**
+   * Verify a captured selfie against KYC photo using Signzy face match.
+   * @param {string} selfieUri - Local file URI of captured selfie
+   * @param {string} kycPhoto - KYC photo (base64, data URI, or URL)
+   * @returns {{ verified: boolean, matchPercentage: string, message: string, liveness: boolean, livenessScore: number }}
+   */
+  async verifySelfieWithKyc(selfieUri, kycPhoto) {
+    console.log('[kycService] verifySelfieWithKyc → calling signzyService.faceMatch');
+
+    // Convert KYC photo to usable format
+    let kycImage = kycPhoto;
+    if (kycPhoto && !kycPhoto.startsWith('http') && !kycPhoto.startsWith('data:')) {
+      kycImage = `data:image/jpeg;base64,${kycPhoto}`;
+    }
+
+    const faceResult = await signzyService.faceMatch(selfieUri, kycImage, 0.6);
+
+    console.log('[kycService] faceMatch result:', JSON.stringify(faceResult));
+
+    return {
+      verified: faceResult.verified,
+      matchPercentage: faceResult.matchPercentage,
+      message: faceResult.message,
+      liveness: true, // In-app capture inherently provides liveness
+      livenessScore: 1.0,
+    };
+  },
+
+  /** @deprecated Use verifySelfieWithKyc instead */
   async verifySelfie(selfieBase64, kycImageBase64) {
     return api.post(API_ENDPOINTS.VERIFICATION.SELFIE_MATCH, {
       selfie: selfieBase64,

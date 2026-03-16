@@ -16,21 +16,22 @@ import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
+import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useTheme } from '../../../store/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CAMERA_SIZE = SCREEN_WIDTH - 32; // full width minus padding
 
 const SelfieVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, dispatch } = useLoan();
 
-  // Flow states: 'intro' → 'camera' → 'preview' → 'result'
+  // Flow states: 'intro' → 'camera' → 'preview' → 'verifying' → 'result'
   const [step, setStep] = useState('intro');
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const [location, setLocation] = useState(null);
   const [captureTimestamp, setCaptureTimestamp] = useState(null);
+  const [verificationResult, setVerificationResult] = useState(null);
   const [error, setError] = useState('');
   const cameraRef = useRef(null);
 
@@ -51,11 +52,9 @@ const SelfieVerificationScreen = ({ navigation }) => {
           latitude: position.coords.latitude.toFixed(6),
           longitude: position.coords.longitude.toFixed(6),
         });
-        console.log('[SelfieVerification] Location obtained:', position.coords.latitude, position.coords.longitude);
       },
       (err) => {
         console.log('[SelfieVerification] Location error:', err.message);
-        // Location is best-effort; proceed without it
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
@@ -94,7 +93,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
-        base64: false,
+        base64: true,
         skipProcessing: false,
       });
 
@@ -111,7 +110,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
               longitude: position.coords.longitude.toFixed(6),
             });
           },
-          () => {}, // ignore error, use last known
+          () => {},
           { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
         );
       }
@@ -127,32 +126,55 @@ const SelfieVerificationScreen = ({ navigation }) => {
   const handleRetake = () => {
     setCapturedPhoto(null);
     setCaptureTimestamp(null);
+    setVerificationResult(null);
     setError('');
     setStep('camera');
   };
 
-  // ─── Confirm & Save ─────────────────────────────────────────────────
-  const handleConfirm = () => {
-    dispatch({
-      type: 'SET_SELFIE',
-      payload: {
-        uri: capturedPhoto.uri,
-        matched: true,
-        livenessVerified: true,
-        faceMatchPercentage: 'In-app capture',
-        timestamp: captureTimestamp?.toISOString(),
-        location: location
-          ? `${location.latitude}, ${location.longitude}`
-          : 'Unavailable',
-      },
-    });
-    setStep('result');
+  // ─── Confirm & Verify ───────────────────────────────────────────────
+  const handleConfirm = async () => {
+    setStep('verifying');
+    setError('');
+
+    try {
+      // Build selfie data URI from captured base64
+      const selfieDataUri = capturedPhoto.base64
+        ? `data:image/jpeg;base64,${capturedPhoto.base64}`
+        : capturedPhoto.uri;
+
+      const result = await kycService.verifySelfieWithKyc(selfieDataUri, kycPhoto);
+
+      setVerificationResult(result);
+
+      const isVerified = result.verified && result.liveness;
+
+      dispatch({
+        type: 'SET_SELFIE',
+        payload: {
+          uri: capturedPhoto.uri,
+          matched: result.verified,
+          livenessVerified: result.liveness,
+          faceMatchPercentage: result.matchPercentage,
+          timestamp: captureTimestamp?.toISOString(),
+          location: location
+            ? `${location.latitude}, ${location.longitude}`
+            : 'Unavailable',
+        },
+      });
+
+      setStep('result');
+    } catch (err) {
+      console.log('[SelfieVerification] Verification error:', err.message);
+      setError(err.message || 'Face verification failed. Please retake and try again.');
+      setStep('preview');
+    }
   };
 
   // ─── Reset ──────────────────────────────────────────────────────────
   const handleReset = () => {
     setCapturedPhoto(null);
     setCaptureTimestamp(null);
+    setVerificationResult(null);
     setError('');
     setStep('intro');
   };
@@ -170,6 +192,17 @@ const SelfieVerificationScreen = ({ navigation }) => {
       `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
     );
   };
+
+  const isVerified = verificationResult?.verified && verificationResult?.liveness;
+
+  // KYC photo source helper
+  const kycPhotoSource = kycPhoto
+    ? kycPhoto.startsWith('http')
+      ? { uri: kycPhoto }
+      : kycPhoto.startsWith('data:image')
+        ? { uri: kycPhoto }
+        : { uri: `data:image/jpeg;base64,${kycPhoto}` }
+    : null;
 
   // ─── Render ──────────────────────────────────────────────────────────
   return (
@@ -244,11 +277,11 @@ const SelfieVerificationScreen = ({ navigation }) => {
           {kycCompleted && step === 'intro' && (
             <Card>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-                Live Selfie Capture
+                Live Selfie & Face Match
               </Text>
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                We'll capture your selfie using the in-app camera. The photo will include your
-                location and timestamp for verification. Please ensure:
+                We'll capture your selfie and verify it against your KYC photo.
+                The photo will include your location and timestamp. Please ensure:
               </Text>
               <View style={styles.tipsList}>
                 {[
@@ -269,17 +302,13 @@ const SelfieVerificationScreen = ({ navigation }) => {
                 <Text style={[styles.kycPhotoLabel, { color: colors.textSecondary }]}>
                   Your KYC Photo
                 </Text>
-                <Image
-                  source={
-                    kycPhoto.startsWith('http')
-                      ? { uri: kycPhoto }
-                      : kycPhoto.startsWith('data:image')
-                        ? { uri: kycPhoto }
-                        : { uri: `data:image/jpeg;base64,${kycPhoto}` }
-                  }
-                  style={[styles.kycPhoto, { borderColor: colors.border }]}
-                  resizeMode="cover"
-                />
+                {kycPhotoSource && (
+                  <Image
+                    source={kycPhotoSource}
+                    style={[styles.kycPhoto, { borderColor: colors.border }]}
+                    resizeMode="cover"
+                  />
+                )}
               </View>
 
               {error ? (
@@ -309,7 +338,6 @@ const SelfieVerificationScreen = ({ navigation }) => {
                     style={styles.previewImage}
                     resizeMode="cover"
                   />
-                  {/* Overlay: Company name, Location, Timestamp */}
                   <View style={styles.overlayContainer}>
                     <Text style={styles.overlayText}>FinZ Finance Pvt Ltd</Text>
                     {location && (
@@ -339,7 +367,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
                   style={styles.actionBtn}
                 />
                 <Button
-                  title="Confirm"
+                  title="Verify & Confirm"
                   onPress={handleConfirm}
                   icon="✓"
                   style={styles.actionBtn}
@@ -348,18 +376,30 @@ const SelfieVerificationScreen = ({ navigation }) => {
             </>
           )}
 
-          {/* ── Result ── */}
+          {/* ── Verifying: Running face match ── */}
+          {step === 'verifying' && (
+            <Card>
+              <View style={styles.centeredSection}>
+                <ActivityIndicator size="large" color={colors.teal} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                  Verifying selfie & matching with KYC photo...
+                </Text>
+              </View>
+            </Card>
+          )}
+
+          {/* ── Result: Show selfie + verification scores ── */}
           {step === 'result' && capturedPhoto && (
             <>
               <Card>
                 <View style={styles.resultHeader}>
-                  <Text style={styles.resultIcon}>✅</Text>
-                  <Text style={[styles.resultTitle, { color: colors.teal }]}>
-                    Selfie Captured Successfully
+                  <Text style={styles.resultIcon}>{isVerified ? '✅' : '❌'}</Text>
+                  <Text style={[styles.resultTitle, { color: isVerified ? colors.teal : colors.error }]}>
+                    {isVerified ? 'Verification Successful' : 'Verification Failed'}
                   </Text>
                 </View>
 
-                {/* Show captured selfie */}
+                {/* Captured selfie with overlay */}
                 <View style={styles.resultImageContainer}>
                   <Image
                     source={{ uri: capturedPhoto.uri }}
@@ -381,8 +421,36 @@ const SelfieVerificationScreen = ({ navigation }) => {
                   </View>
                 </View>
 
+                {/* ── Verification Scores ── */}
+                <Text style={[styles.scoresTitle, { color: colors.textPrimary }]}>
+                  Verification Results
+                </Text>
+
                 <View style={styles.resultDetails}>
-                  <InfoRow label="Status" value="Captured" valueColor={colors.teal} />
+                  <InfoRow
+                    label="Face Match"
+                    value={verificationResult?.verified ? 'Matched' : 'Not Matched'}
+                    valueColor={verificationResult?.verified ? colors.teal : colors.error}
+                  />
+                  <InfoRow
+                    label="Match Score"
+                    value={verificationResult?.matchPercentage || 'N/A'}
+                    valueColor={colors.textPrimary}
+                  />
+                  <InfoRow
+                    label="Liveness"
+                    value={verificationResult?.liveness ? 'Live' : 'Not Live'}
+                    valueColor={verificationResult?.liveness ? colors.teal : colors.error}
+                  />
+                  <InfoRow
+                    label="Liveness Score"
+                    value={
+                      verificationResult?.livenessScore != null
+                        ? `${(verificationResult.livenessScore * 100).toFixed(1)}%`
+                        : 'N/A'
+                    }
+                    valueColor={colors.textPrimary}
+                  />
                   <InfoRow
                     label="Timestamp"
                     value={captureTimestamp ? formatTimestamp(captureTimestamp) : 'N/A'}
@@ -396,13 +464,58 @@ const SelfieVerificationScreen = ({ navigation }) => {
                     }
                   />
                 </View>
+
+                {verificationResult?.message && !isVerified && (
+                  <Text style={[styles.failureHint, { color: colors.textSecondary }]}>
+                    {verificationResult.message}
+                  </Text>
+                )}
+
+                {/* KYC vs Selfie side-by-side comparison */}
+                <Text style={[styles.scoresTitle, { color: colors.textPrimary, marginTop: 8 }]}>
+                  Photo Comparison
+                </Text>
+                <View style={styles.comparisonRow}>
+                  <View style={styles.comparisonItem}>
+                    <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                      KYC Photo
+                    </Text>
+                    {kycPhotoSource && (
+                      <Image
+                        source={kycPhotoSource}
+                        style={[styles.comparisonImage, { borderColor: colors.border }]}
+                        resizeMode="cover"
+                      />
+                    )}
+                  </View>
+                  <View style={styles.comparisonItem}>
+                    <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                      Selfie
+                    </Text>
+                    <Image
+                      source={{ uri: capturedPhoto.uri }}
+                      style={[styles.comparisonImage, { borderColor: isVerified ? colors.teal : colors.error }]}
+                      resizeMode="cover"
+                    />
+                  </View>
+                </View>
               </Card>
 
-              <Button
-                title="Continue to eNACH & eSign"
-                onPress={handleProceed}
-                style={styles.proceedBtn}
-              />
+              {isVerified ? (
+                <Button
+                  title="Continue to eNACH & eSign"
+                  onPress={handleProceed}
+                  style={styles.proceedBtn}
+                />
+              ) : (
+                <Button
+                  title="Retake Selfie"
+                  onPress={handleRetake}
+                  variant="outline"
+                  icon="🔄"
+                  style={styles.proceedBtn}
+                />
+              )}
             </>
           )}
 
@@ -497,6 +610,10 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
 
+  // Loading
+  centeredSection: { alignItems: 'center', paddingVertical: 40 },
+  loadingText: { fontSize: 14, marginTop: 16, textAlign: 'center' },
+
   // Preview
   previewContainer: {
     width: '100%',
@@ -547,7 +664,37 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  scoresTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
   resultDetails: { marginBottom: 16 },
+  failureHint: { fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 4, marginBottom: 12 },
+
+  // Photo comparison
+  comparisonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  comparisonItem: {
+    alignItems: 'center',
+  },
+  comparisonLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  comparisonImage: {
+    width: 100,
+    height: 130,
+    borderRadius: 10,
+    borderWidth: 2,
+  },
+
   proceedBtn: { marginTop: 16 },
   bottomSpacer: { height: 100 },
 });
