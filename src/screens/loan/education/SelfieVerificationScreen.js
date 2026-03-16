@@ -8,9 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
-  Dimensions,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
@@ -20,38 +18,31 @@ import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useTheme } from '../../../store/ThemeContext';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 const SelfieVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, dispatch } = useLoan();
 
-  // Flow states: 'intro' → 'camera' → 'preview' → 'verifying' → 'result'
+  // Flow states: 'intro' → 'loading' → 'liveness' → 'verifying' → 'result'
   const [step, setStep] = useState('intro');
-  const [capturedPhoto, setCapturedPhoto] = useState(null);
-  const [location, setLocation] = useState(null);
-  const [captureTimestamp, setCaptureTimestamp] = useState(null);
+  const [livenessUrl, setLivenessUrl] = useState('');
+  const [livenessToken, setLivenessToken] = useState('');
   const [verificationResult, setVerificationResult] = useState(null);
   const [error, setError] = useState('');
-  const cameraRef = useRef(null);
-
-  const [permission, requestPermission] = useCameraPermissions();
+  const [location, setLocation] = useState(null);
+  const [captureTimestamp, setCaptureTimestamp] = useState(null);
+  const iframeRef = useRef(null);
 
   const kycPhoto = state.kycData?.photo;
-  // Ensure KYC photo is a real image — not empty, placeholder, or too short
   const hasValidKycPhoto = !!(kycPhoto && (
     kycPhoto.startsWith('http') ||
     kycPhoto.startsWith('data:image') ||
-    kycPhoto.length > 100 // raw base64 should be substantial
+    kycPhoto.length > 100
   ));
   const kycCompleted = !!(state.kycData && hasValidKycPhoto);
 
   // ─── Geolocation ────────────────────────────────────────────────────
   const fetchLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      console.log('[SelfieVerification] Geolocation not available');
-      return;
-    }
+    if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocation({
@@ -59,9 +50,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
           longitude: position.coords.longitude.toFixed(6),
         });
       },
-      (err) => {
-        console.log('[SelfieVerification] Location error:', err.message);
-      },
+      () => {},
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
   }, []);
@@ -70,87 +59,88 @@ const SelfieVerificationScreen = ({ navigation }) => {
     fetchLocation();
   }, [fetchLocation]);
 
-  // ─── Camera Permission ──────────────────────────────────────────────
-  const handleOpenCamera = async () => {
+  // ─── Listen for Signzy liveness WebView completion ──────────────────
+  useEffect(() => {
+    if (step !== 'liveness') return;
+
+    const handleMessage = (event) => {
+      try {
+        const msg = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
+        console.log('[SelfieVerification] postMessage from liveness:', msg);
+
+        // Signzy posts "Verification Done" or similar when user completes
+        if (
+          msg.includes('Verification Done') ||
+          msg.includes('verification_done') ||
+          msg.includes('SUCCESS') ||
+          msg.includes('success')
+        ) {
+          setCaptureTimestamp(new Date());
+          fetchLocation();
+          handleFetchResults();
+        }
+
+        // Handle failure/error messages
+        if (msg.includes('FAILED') || msg.includes('failed') || msg.includes('ERROR')) {
+          setError('Liveness verification was not successful. Please try again.');
+          setStep('intro');
+        }
+      } catch (e) {
+        // Ignore non-parseable messages
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [step, livenessToken]);
+
+  // ─── Start Liveness Flow ───────────────────────────────────────────
+  const handleStartLiveness = async () => {
     if (!kycCompleted) {
       Alert.alert('KYC Required', 'Please complete KYC verification before selfie verification.');
       return;
     }
 
-    if (!permission?.granted) {
-      const result = await requestPermission();
-      if (!result.granted) {
-        Alert.alert(
-          'Camera Permission Required',
-          'Please allow camera access to take a selfie for verification.',
-        );
-        return;
-      }
-    }
-
+    setStep('loading');
     setError('');
-    setStep('camera');
-  };
-
-  // ─── Capture Selfie ─────────────────────────────────────────────────
-  const handleCapture = async () => {
-    if (!cameraRef.current) return;
 
     try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
-        base64: true,
-        skipProcessing: false,
-      });
+      const matchImages = kycPhoto ? [kycPhoto] : [];
+      const result = await kycService.createLivenessUrl(matchImages);
 
-      const now = new Date();
-      setCapturedPhoto(photo);
-      setCaptureTimestamp(now);
-
-      // Refresh location at capture time
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            setLocation({
-              latitude: position.coords.latitude.toFixed(6),
-              longitude: position.coords.longitude.toFixed(6),
-            });
-          },
-          () => {},
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
-        );
+      if (!result.videoUrl) {
+        throw new Error('Failed to get liveness verification URL');
       }
 
-      setStep('preview');
+      setLivenessUrl(result.videoUrl);
+      setLivenessToken(result.token);
+      setStep('liveness');
     } catch (err) {
-      console.log('[SelfieVerification] Capture error:', err.message);
-      setError('Failed to capture selfie. Please try again.');
+      console.log('[SelfieVerification] createLivenessUrl error:', err.message);
+      setError(err.message || 'Failed to start verification. Please try again.');
+      setStep('intro');
     }
   };
 
-  // ─── Retake ─────────────────────────────────────────────────────────
-  const handleRetake = () => {
-    setCapturedPhoto(null);
-    setCaptureTimestamp(null);
-    setVerificationResult(null);
-    setError('');
-    setStep('camera');
-  };
-
-  // ─── Confirm & Verify ───────────────────────────────────────────────
-  const handleConfirm = async () => {
+  // ─── Fetch Results ─────────────────────────────────────────────────
+  const handleFetchResults = async () => {
     setStep('verifying');
-    setError('');
 
     try {
-      // Build selfie image for verification — use raw base64 without double-wrapping
-      const selfieImage = capturedPhoto.base64
-        ? (capturedPhoto.base64.startsWith('data:')
-            ? capturedPhoto.base64
-            : `data:image/jpeg;base64,${capturedPhoto.base64}`)
-        : capturedPhoto.uri;
+      const data = await kycService.getLivenessData(livenessToken);
+      console.log('[SelfieVerification] livenessGetData result:', JSON.stringify(data));
 
-      const result = await kycService.verifySelfieWithKyc(selfieImage, kycPhoto);
+      const faceMatch = data.faceMatch || {};
+      const liveness = data.passiveLiveliness || {};
+
+      const result = {
+        verified: faceMatch.verified ?? false,
+        matchPercentage: faceMatch.matchPercentage || '0.00%',
+        message: faceMatch.message || '',
+        liveness: liveness.liveness ?? false,
+        livenessScore: liveness.score ?? 0,
+        capturedImage: data.capturedImage || '',
+      };
 
       setVerificationResult(result);
 
@@ -159,11 +149,11 @@ const SelfieVerificationScreen = ({ navigation }) => {
       dispatch({
         type: 'SET_SELFIE',
         payload: {
-          uri: capturedPhoto.uri,
+          uri: result.capturedImage || '',
           matched: result.verified,
           livenessVerified: result.liveness,
           faceMatchPercentage: result.matchPercentage,
-          timestamp: captureTimestamp?.toISOString(),
+          timestamp: captureTimestamp?.toISOString() || new Date().toISOString(),
           location: location
             ? `${location.latitude}, ${location.longitude}`
             : 'Unavailable',
@@ -172,17 +162,25 @@ const SelfieVerificationScreen = ({ navigation }) => {
 
       setStep('result');
     } catch (err) {
-      console.log('[SelfieVerification] Verification error:', err.message);
-      setError(err.message || 'Face verification failed. Please retake and try again.');
-      setStep('preview');
+      console.log('[SelfieVerification] getLivenessData error:', err.message);
+      setError(err.message || 'Failed to get verification results. Please try again.');
+      setStep('intro');
     }
+  };
+
+  // ─── Manual "I'm Done" button (fallback if postMessage doesn't fire)
+  const handleManualComplete = () => {
+    setCaptureTimestamp(new Date());
+    fetchLocation();
+    handleFetchResults();
   };
 
   // ─── Reset ──────────────────────────────────────────────────────────
   const handleReset = () => {
-    setCapturedPhoto(null);
-    setCaptureTimestamp(null);
+    setLivenessUrl('');
+    setLivenessToken('');
     setVerificationResult(null);
+    setCaptureTimestamp(null);
     setError('');
     setStep('intro');
   };
@@ -218,47 +216,40 @@ const SelfieVerificationScreen = ({ navigation }) => {
       <Header title="Selfie Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={5} />
 
-      {/* ── Camera View (full screen overlay) ── */}
-      {step === 'camera' && (
-        <View style={[styles.cameraContainer, { backgroundColor: '#000' }]}>
-          <CameraView
-            ref={cameraRef}
-            style={styles.camera}
-            facing="front"
-            mirror={true}
-          >
-            {/* Oval guide overlay */}
-            <View style={styles.cameraOverlay}>
-              <View style={styles.ovalGuide}>
-                <View style={[styles.ovalBorder, { borderColor: colors.teal }]} />
-              </View>
-              <Text style={styles.cameraHintText}>
-                Position your face within the frame
-              </Text>
-            </View>
-          </CameraView>
-
-          <View style={styles.cameraControls}>
+      {/* ── Signzy Liveness WebView (iframe on web) ── */}
+      {step === 'liveness' && livenessUrl && (
+        <View style={styles.livenessContainer}>
+          {Platform.OS === 'web' ? (
+            <iframe
+              ref={iframeRef}
+              src={livenessUrl}
+              style={iframeStyle}
+              allow="camera;microphone"
+              title="Liveness Verification"
+            />
+          ) : (
+            <Text style={[styles.infoText, { color: colors.textSecondary, padding: 20 }]}>
+              WebView not available. Please use the web version.
+            </Text>
+          )}
+          <View style={styles.livenessControls}>
             <Button
               title="Cancel"
               onPress={handleReset}
               variant="outline"
-              style={styles.cameraCancelBtn}
+              style={styles.controlBtn}
             />
-            <View style={styles.captureButtonOuter}>
-              <Button
-                title=""
-                onPress={handleCapture}
-                style={[styles.captureButton, { backgroundColor: colors.teal }]}
-              />
-            </View>
-            <View style={{ width: 80 }} />
+            <Button
+              title="I've Completed Verification"
+              onPress={handleManualComplete}
+              style={styles.controlBtn}
+            />
           </View>
         </View>
       )}
 
       {/* ── Scrollable content for other steps ── */}
-      {step !== 'camera' && (
+      {step !== 'liveness' && (
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
 
           {/* KYC Not Done Guard */}
@@ -288,15 +279,16 @@ const SelfieVerificationScreen = ({ navigation }) => {
                 Live Selfie & Face Match
               </Text>
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                We'll capture your selfie and verify it against your KYC photo.
-                The photo will include your location and timestamp. Please ensure:
+                We'll open a secure verification page where you'll take a live selfie.
+                Your selfie will be verified for liveness and matched against your KYC photo.
+                Please ensure:
               </Text>
               <View style={styles.tipsList}>
                 {[
                   'Good lighting on your face',
                   'No hat, mask, or sunglasses',
                   'Look directly at the camera',
-                  'Keep your face within the frame',
+                  'Allow camera permission when prompted',
                 ].map((tip) => (
                   <View key={tip} style={styles.tipRow}>
                     <Text style={[styles.tipBullet, { color: colors.teal }]}>•</Text>
@@ -324,80 +316,40 @@ const SelfieVerificationScreen = ({ navigation }) => {
               ) : null}
 
               <Button
-                title="Open Camera"
-                onPress={handleOpenCamera}
+                title="Start Verification"
+                onPress={handleStartLiveness}
                 icon="📷"
                 style={styles.startBtn}
               />
             </Card>
           )}
 
-          {/* ── Preview: Show captured selfie with overlay ── */}
-          {step === 'preview' && capturedPhoto && (
-            <>
-              <Card>
-                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-                  Review Your Selfie
-                </Text>
-
-                <View style={styles.previewContainer}>
-                  <Image
-                    source={{ uri: capturedPhoto.uri }}
-                    style={styles.previewImage}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.overlayContainer}>
-                    <Text style={styles.overlayText}>FinZ Finance Pvt Ltd</Text>
-                    {location && (
-                      <Text style={styles.overlayText}>
-                        Lat: {location.latitude}, Lng: {location.longitude}
-                      </Text>
-                    )}
-                    {captureTimestamp && (
-                      <Text style={styles.overlayText}>
-                        {formatTimestamp(captureTimestamp)}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-
-                {error ? (
-                  <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
-                ) : null}
-              </Card>
-
-              <View style={styles.previewActions}>
-                <Button
-                  title="Retake"
-                  onPress={handleRetake}
-                  variant="outline"
-                  icon="🔄"
-                  style={styles.actionBtn}
-                />
-                <Button
-                  title="Verify & Confirm"
-                  onPress={handleConfirm}
-                  icon="✓"
-                  style={styles.actionBtn}
-                />
-              </View>
-            </>
-          )}
-
-          {/* ── Verifying: Running face match ── */}
-          {step === 'verifying' && (
+          {/* ── Loading: Creating liveness URL ── */}
+          {step === 'loading' && (
             <Card>
               <View style={styles.centeredSection}>
                 <ActivityIndicator size="large" color={colors.teal} />
                 <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                  Verifying selfie & matching with KYC photo...
+                  Preparing verification...
                 </Text>
               </View>
             </Card>
           )}
 
-          {/* ── Result: Show selfie + verification scores ── */}
-          {step === 'result' && capturedPhoto && (
+          {/* ── Verifying: Fetching results ── */}
+          {step === 'verifying' && (
+            <Card>
+              <View style={styles.centeredSection}>
+                <ActivityIndicator size="large" color={colors.teal} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                  Fetching verification results...
+                </Text>
+              </View>
+            </Card>
+          )}
+
+          {/* ── Result: Show verification scores ── */}
+          {step === 'result' && verificationResult && (
             <>
               <Card>
                 <View style={styles.resultHeader}>
@@ -407,27 +359,29 @@ const SelfieVerificationScreen = ({ navigation }) => {
                   </Text>
                 </View>
 
-                {/* Captured selfie with overlay */}
-                <View style={styles.resultImageContainer}>
-                  <Image
-                    source={{ uri: capturedPhoto.uri }}
-                    style={styles.resultImage}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.overlayContainer}>
-                    <Text style={styles.overlayText}>FinZ Finance Pvt Ltd</Text>
-                    {location && (
-                      <Text style={styles.overlayText}>
-                        Lat: {location.latitude}, Lng: {location.longitude}
-                      </Text>
-                    )}
-                    {captureTimestamp && (
-                      <Text style={styles.overlayText}>
-                        {formatTimestamp(captureTimestamp)}
-                      </Text>
-                    )}
+                {/* Captured selfie from liveness */}
+                {verificationResult.capturedImage ? (
+                  <View style={styles.resultImageContainer}>
+                    <Image
+                      source={{ uri: verificationResult.capturedImage }}
+                      style={styles.resultImage}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.overlayContainer}>
+                      <Text style={styles.overlayText}>FinZ Finance Pvt Ltd</Text>
+                      {location && (
+                        <Text style={styles.overlayText}>
+                          Lat: {location.latitude}, Lng: {location.longitude}
+                        </Text>
+                      )}
+                      {captureTimestamp && (
+                        <Text style={styles.overlayText}>
+                          {formatTimestamp(captureTimestamp)}
+                        </Text>
+                      )}
+                    </View>
                   </View>
-                </View>
+                ) : null}
 
                 {/* ── Verification Scores ── */}
                 <Text style={[styles.scoresTitle, { color: colors.textPrimary }]}>
@@ -437,23 +391,23 @@ const SelfieVerificationScreen = ({ navigation }) => {
                 <View style={styles.resultDetails}>
                   <InfoRow
                     label="Face Match"
-                    value={verificationResult?.verified ? 'Matched' : 'Not Matched'}
-                    valueColor={verificationResult?.verified ? colors.teal : colors.error}
+                    value={verificationResult.verified ? 'Matched' : 'Not Matched'}
+                    valueColor={verificationResult.verified ? colors.teal : colors.error}
                   />
                   <InfoRow
                     label="Match Score"
-                    value={verificationResult?.matchPercentage || 'N/A'}
+                    value={verificationResult.matchPercentage || 'N/A'}
                     valueColor={colors.textPrimary}
                   />
                   <InfoRow
                     label="Liveness"
-                    value={verificationResult?.liveness ? 'Live' : 'Not Live'}
-                    valueColor={verificationResult?.liveness ? colors.teal : colors.error}
+                    value={verificationResult.liveness ? 'Live' : 'Not Live'}
+                    valueColor={verificationResult.liveness ? colors.teal : colors.error}
                   />
                   <InfoRow
                     label="Liveness Score"
                     value={
-                      verificationResult?.livenessScore != null
+                      verificationResult.livenessScore != null
                         ? `${(verificationResult.livenessScore * 100).toFixed(1)}%`
                         : 'N/A'
                     }
@@ -473,40 +427,29 @@ const SelfieVerificationScreen = ({ navigation }) => {
                   />
                 </View>
 
-                {verificationResult?.message && !isVerified && (
+                {verificationResult.message && !isVerified && (
                   <Text style={[styles.failureHint, { color: colors.textSecondary }]}>
                     {verificationResult.message}
                   </Text>
                 )}
 
-                {/* KYC vs Selfie side-by-side comparison */}
-                <Text style={[styles.scoresTitle, { color: colors.textPrimary, marginTop: 8 }]}>
-                  Photo Comparison
-                </Text>
-                <View style={styles.comparisonRow}>
-                  <View style={styles.comparisonItem}>
-                    <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
-                      KYC Photo
+                {/* KYC Photo for reference */}
+                {kycPhotoSource && (
+                  <>
+                    <Text style={[styles.scoresTitle, { color: colors.textPrimary, marginTop: 8 }]}>
+                      KYC Reference Photo
                     </Text>
-                    {kycPhotoSource && (
-                      <Image
-                        source={kycPhotoSource}
-                        style={[styles.comparisonImage, { borderColor: colors.border }]}
-                        resizeMode="cover"
-                      />
-                    )}
-                  </View>
-                  <View style={styles.comparisonItem}>
-                    <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
-                      Selfie
-                    </Text>
-                    <Image
-                      source={{ uri: capturedPhoto.uri }}
-                      style={[styles.comparisonImage, { borderColor: isVerified ? colors.teal : colors.error }]}
-                      resizeMode="cover"
-                    />
-                  </View>
-                </View>
+                    <View style={styles.kycPhotoSection}>
+                      {kycPhotoSource && (
+                        <Image
+                          source={kycPhotoSource}
+                          style={[styles.kycPhoto, { borderColor: colors.border }]}
+                          resizeMode="cover"
+                        />
+                      )}
+                    </View>
+                  </>
+                )}
               </Card>
 
               {isVerified ? (
@@ -517,8 +460,8 @@ const SelfieVerificationScreen = ({ navigation }) => {
                 />
               ) : (
                 <Button
-                  title="Retake Selfie"
-                  onPress={handleRetake}
+                  title="Retry Verification"
+                  onPress={handleReset}
                   variant="outline"
                   icon="🔄"
                   style={styles.proceedBtn}
@@ -532,6 +475,13 @@ const SelfieVerificationScreen = ({ navigation }) => {
       )}
     </View>
   );
+};
+
+// Plain object for iframe (web only) — not a StyleSheet value
+const iframeStyle = {
+  width: '100%',
+  height: '100%',
+  border: 'none',
 };
 
 const styles = StyleSheet.create({
@@ -570,70 +520,22 @@ const styles = StyleSheet.create({
   guardText: { fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 16 },
   guardBtn: { width: '100%' },
 
-  // Camera
-  cameraContainer: { flex: 1 },
-  camera: { flex: 1 },
-  cameraOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ovalGuide: {
-    width: 220,
-    height: 300,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ovalBorder: {
-    width: 220,
-    height: 300,
-    borderRadius: 110,
-    borderWidth: 3,
-    borderStyle: 'dashed',
-  },
-  cameraHintText: {
-    color: '#fff',
-    fontSize: 14,
-    marginTop: 20,
-    textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  cameraControls: {
+  // Liveness WebView
+  livenessContainer: { flex: 1 },
+  livenessControls: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)',
   },
-  cameraCancelBtn: { width: 80 },
-  captureButtonOuter: { alignItems: 'center' },
-  captureButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 4,
-    borderColor: '#fff',
-  },
+  controlBtn: { flex: 1 },
 
   // Loading
   centeredSection: { alignItems: 'center', paddingVertical: 40 },
   loadingText: { fontSize: 14, marginTop: 16, textAlign: 'center' },
 
-  // Preview
-  previewContainer: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-  },
+  // Overlay
   overlayContainer: {
     position: 'absolute',
     bottom: 0,
@@ -650,12 +552,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
-  previewActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
-  actionBtn: { flex: 1 },
 
   // Result
   resultHeader: { alignItems: 'center', marginBottom: 16 },
@@ -679,29 +575,6 @@ const styles = StyleSheet.create({
   },
   resultDetails: { marginBottom: 16 },
   failureHint: { fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 4, marginBottom: 12 },
-
-  // Photo comparison
-  comparisonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  comparisonItem: {
-    alignItems: 'center',
-  },
-  comparisonLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  comparisonImage: {
-    width: 100,
-    height: 130,
-    borderRadius: 10,
-    borderWidth: 2,
-  },
 
   proceedBtn: { marginTop: 16 },
   bottomSpacer: { height: 100 },

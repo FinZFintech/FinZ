@@ -615,11 +615,16 @@ export const signzyService = {
       redirectUrl,
     } = options;
 
-    // Signzy requires publicly accessible URLs for matchImage.
-    // Filter out data URIs and base64 strings.
-    const validMatchImages = matchImage.filter(
-      (url) => typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://')),
-    );
+    // Signzy matchImage: prefer http(s) URLs; also accept data URIs and raw base64
+    // since the pre-production API may support them.
+    const validMatchImages = matchImage
+      .filter((img) => typeof img === 'string' && img.length > 10)
+      .map((img) => {
+        if (img.startsWith('http://') || img.startsWith('https://')) return img;
+        if (img.startsWith('data:image')) return img;
+        // Assume raw base64 — wrap as data URI
+        return `data:image/jpeg;base64,${img}`;
+      });
 
     const body = {
       languageCode,
