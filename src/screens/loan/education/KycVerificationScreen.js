@@ -799,7 +799,7 @@ const KycVerificationScreen = ({ navigation }) => {
               onPress={handleProceed}
             >
               <Text style={[styles.modalButtonText, { color: colors.background }]}>
-                {requiresVkyc ? 'Continue to Bank Details' : 'Continue to Selfie Verification'}
+                {requiresVkyc ? 'Continue to eNACH & eSign' : 'Continue to Selfie Verification'}
               </Text>
             </TouchableOpacity>
           </View>
