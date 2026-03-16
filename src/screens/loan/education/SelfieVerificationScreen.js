@@ -232,6 +232,28 @@ const SelfieVerificationScreen = ({ navigation }) => {
               WebView not available. Please use the web version.
             </Text>
           )}
+          {/* ── Guidance messages below selfie area ── */}
+          <View style={[styles.guidanceContainer, { backgroundColor: colors.surface || '#F8F9FA' }]}>
+            <View style={styles.guidanceRow}>
+              <Text style={[styles.guidanceBullet, { color: colors.teal }]}>1.</Text>
+              <Text style={[styles.guidanceText, { color: colors.textPrimary }]}>
+                Keep your face inside the circle
+              </Text>
+            </View>
+            <View style={styles.guidanceRow}>
+              <Text style={[styles.guidanceBullet, { color: colors.teal }]}>2.</Text>
+              <Text style={[styles.guidanceText, { color: colors.textPrimary }]}>
+                Ensure your selfie overlaps the reference image properly
+              </Text>
+            </View>
+            <View style={styles.guidanceRow}>
+              <Text style={[styles.guidanceBullet, { color: colors.teal }]}>3.</Text>
+              <Text style={[styles.guidanceText, { color: colors.textPrimary }]}>
+                Your full face must be clearly visible — no part should be cut off
+              </Text>
+            </View>
+          </View>
+
           <View style={styles.livenessControls}>
             <Button
               title="Cancel"
@@ -522,6 +544,28 @@ const styles = StyleSheet.create({
 
   // Liveness WebView
   livenessContainer: { flex: 1 },
+  guidanceContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.08)',
+  },
+  guidanceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  guidanceBullet: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginRight: 8,
+    minWidth: 18,
+  },
+  guidanceText: {
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+  },
   livenessControls: {
     flexDirection: 'row',
     gap: 12,
