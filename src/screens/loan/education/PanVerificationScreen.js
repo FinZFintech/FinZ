@@ -11,6 +11,7 @@ import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { maskPan, validatePan } from '../../../utils/helpers';
+import { MOCK_MODE } from '../../../config/constants';
 
 const PanVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -219,6 +220,44 @@ const PanVerificationScreen = ({ navigation }) => {
     navigation.navigate('InstituteSelection');
   };
 
+  const handleSkipWithTestData = () => {
+    const mockPan = 'ABCDE1234F';
+    const mockName = state.borrowerDetails?.name || 'RAHUL SHARMA';
+    const mockPanDetails = {
+      isValid: true,
+      name: mockName,
+      panStatus: 'E',
+      panStatusLabel: 'Existing and Valid',
+      isIndividual: true,
+      typeOfHolder: 'Individual',
+      aadhaarSeedingStatus: 'Y',
+      individualTaxComplianceStatus: 'Compliant',
+    };
+    const mockCreditResult = { score: 720, gatingPassed: true, cibilScore: 720 };
+
+    setPan(mockPan);
+    setPanName(mockName);
+    setPanFetched(true);
+    setPanVerified(true);
+    setPanDetails(mockPanDetails);
+    setCreditPassed(true);
+
+    dispatch({
+      type: 'SET_PAN',
+      payload: {
+        panNumber: mockPan,
+        name: mockName,
+        panStatus: 'E',
+        isIndividual: true,
+        aadhaarSeedingStatus: 'Y',
+      },
+    });
+    dispatch({ type: 'SET_CREDIT_SCORE', payload: mockCreditResult });
+    dispatch({ type: 'SET_STATUS', payload: 'pan_verified' });
+    dispatch({ type: 'SET_STEP', payload: 2 });
+    feedCreditBureauData(mockCreditResult);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
@@ -292,6 +331,17 @@ const PanVerificationScreen = ({ navigation }) => {
             </View>
           )}
         </Card>
+
+        {/* Skip with Test Data (Mock Mode) */}
+        {MOCK_MODE && !panVerified && (
+          <TouchableOpacity
+            style={styles.skipTestBtn}
+            onPress={handleSkipWithTestData}
+          >
+            <Text style={styles.skipTestText}>Skip with Test Data</Text>
+            <Text style={styles.skipTestHint}>Uses mock PAN & credit check for testing</Text>
+          </TouchableOpacity>
+        )}
 
         {/* PAN Verification Error */}
         {panError && (
@@ -506,6 +556,26 @@ const getStyles = (colors) => StyleSheet.create({
     color: colors.background,
     fontWeight: '700',
     fontSize: 15,
+  },
+  skipTestBtn: {
+    marginTop: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.warning,
+    borderStyle: 'dashed',
+    backgroundColor: `${colors.warning}14`,
+    alignItems: 'center',
+  },
+  skipTestText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.warning,
+  },
+  skipTestHint: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   bottomSpacer: { height: 100 },
 });
