@@ -218,7 +218,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
 
       {/* ── Signzy Liveness WebView (iframe on web) ── */}
       {step === 'liveness' && livenessUrl && (
-        <View style={styles.livenessContainer}>
+        <ScrollView style={styles.livenessContainer} contentContainerStyle={styles.livenessContentContainer}>
           <View style={styles.iframeWrapper}>
             {Platform.OS === 'web' ? (
               <iframe
@@ -269,7 +269,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
               style={styles.controlBtn}
             />
           </View>
-        </View>
+        </ScrollView>
       )}
 
       {/* ── Scrollable content for other steps ── */}
@@ -545,8 +545,9 @@ const styles = StyleSheet.create({
   guardBtn: { width: '100%' },
 
   // Liveness WebView
-  livenessContainer: { flex: 1, flexDirection: 'column' },
-  iframeWrapper: { flex: 1, minHeight: 300 },
+  livenessContainer: { flex: 1 },
+  livenessContentContainer: { flexGrow: 1 },
+  iframeWrapper: { height: 580, minHeight: 580 },
   guidanceContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
