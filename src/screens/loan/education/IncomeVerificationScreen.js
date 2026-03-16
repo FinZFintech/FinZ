@@ -335,6 +335,26 @@ const IncomeVerificationScreen = ({ navigation }) => {
     navigation.navigate('InstituteSelection');
   };
 
+  const handleSkipBankWithTestData = () => {
+    const mockIfsc = 'SBIN0001234';
+    const mockBankName = 'State Bank of India';
+    const mockBranch = 'Main Branch, Mumbai';
+    const mockAccount = '91234567890';
+    const mockAccountType = 'Savings';
+    const mockFip = { id: 'SBIN', code: 'SBIN', name: 'State Bank of India' };
+
+    setIfsc(mockIfsc);
+    setBankName(mockBankName);
+    setBranchName(mockBranch);
+    setAccountNumber(mockAccount);
+    setConfirmAccountNumber(mockAccount);
+    setAccountType(mockAccountType);
+    setSelectedBank(mockFip);
+    setOccupationCategory('salaried_private');
+    setOccupationDetail('Software Developer');
+    if (!method) setMethod('aa');
+  };
+
   const tealBg = `${colors.teal}14`;
   const errorBg = `${colors.error}14`;
   const tealBadgeBg = `${colors.teal}1F`;
@@ -486,6 +506,17 @@ const IncomeVerificationScreen = ({ navigation }) => {
             </View>
             {errors.accountType && <Text style={[styles.errorText, { color: colors.error }]}>{errors.accountType}</Text>}
           </Card>
+        )}
+
+        {/* Skip with Test Data */}
+        {!verificationDone && (
+          <TouchableOpacity
+            style={styles.skipTestBtn}
+            onPress={handleSkipBankWithTestData}
+          >
+            <Text style={styles.skipTestText}>Skip with Test Data</Text>
+            <Text style={styles.skipTestHint}>Pre-fills bank details, IFSC, occupation for testing</Text>
+          </TouchableOpacity>
         )}
 
         {/* Income Method Selection */}
@@ -874,6 +905,26 @@ const styles = StyleSheet.create({
   },
   bankInfoIcon: { fontSize: 18, marginRight: 10, marginTop: 1 },
   bankInfoText: { fontSize: 13, lineHeight: 20, flex: 1 },
+  skipTestBtn: {
+    marginTop: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#F5A623',
+    borderStyle: 'dashed',
+    backgroundColor: 'rgba(245,166,35,0.08)',
+    alignItems: 'center',
+  },
+  skipTestText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#F5A623',
+  },
+  skipTestHint: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+  },
 });
 
 export default IncomeVerificationScreen;
