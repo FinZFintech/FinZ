@@ -72,6 +72,8 @@ export const getStatusColor = (status) => {
   const statusColors = {
     draft: '#6B7280',
     institute_verified: '#7B6DAF',
+    student_details_done: '#7B6DAF',
+    borrower_selected: '#7B6DAF',
     pan_verified: '#7B6DAF',
     credit_check_passed: '#4AEDC4',
     credit_check_failed: '#FF6B6B',
@@ -98,6 +100,8 @@ export const getStatusLabel = (status) => {
   const labels = {
     draft: 'Draft',
     institute_verified: 'Institute Verified',
+    student_details_done: 'Student Details Done',
+    borrower_selected: 'Borrower Selected',
     pan_verified: 'PAN Verified',
     credit_check_passed: 'Credit Check Passed',
     credit_check_failed: 'Credit Check Failed',

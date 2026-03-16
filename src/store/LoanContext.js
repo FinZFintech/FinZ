@@ -20,73 +20,134 @@ const TERMINAL_STATUSES = new Set([
   LOAN_STATUS.CLOSED,
 ]);
 
+// ─── Actual screen flow (education loan) ─────────────────────────────────────
+//
+//  Step 0: InstituteSelection  → dispatches SET_INSTITUTE, SET_LOAN_TYPE
+//  Step 1: StudentDetails      → dispatches SET_STUDENT
+//  Step 1: BorrowerSelection   → dispatches SET_BORROWER_TYPE/DETAILS, SET_PRODUCT, SET_TENURE
+//  Step 2: PanVerification     → dispatches SET_PAN, SET_CREDIT_SCORE
+//  Step 3: IncomeVerification  → dispatches SET_PENNY_DROP, SET_BANK_DETAILS, SET_INCOME, SET_ELIGIBILITY
+//  Step 4: KycVerification     → dispatches SET_KYC_DATA, SET_KYC_METHOD
+//  Step 5: SelfieVerification  → dispatches SET_SELFIE
+//  Step 6: EnachEsign          → dispatches SET_ENACH, SET_ESIGN, SET_VKYC, SET_RISK_PROFILE
+//  Step 7: LoanSuccess         → dispatches RESET
+
 // ─── Map state data → current application status ─────────────────────────────
+// Checked in reverse order (most complete first) so the highest stage wins.
 function computeStatus(state) {
   if (!state.loanType && !state.instituteDetails) return null; // no application
 
-  if (state.esignStatus?.completed) return LOAN_STATUS.ESIGN_DONE;
-  if (state.enachStatus?.completed) return LOAN_STATUS.ENACH_DONE;
-  if (state.vkycStatus?.completed) return LOAN_STATUS.VKYC_DONE;
-  if (state.eligibilityResult?.eligible === false) return LOAN_STATUS.NOT_ELIGIBLE;
-  if (state.eligibilityResult?.eligible) return LOAN_STATUS.FULLY_ELIGIBLE;
-  if (state.incomeData) return LOAN_STATUS.INCOME_VERIFIED;
-  if (state.bankDetails) return LOAN_STATUS.BANK_VERIFIED;
-  if (state.selfieData?.matched) return LOAN_STATUS.SELFIE_VERIFIED;
-  if (state.kycData?.nameMatchFailed) return LOAN_STATUS.KYC_FAILED;
-  if (state.kycData) return LOAN_STATUS.KYC_COMPLETED;
-  if (state.creditScore && state.creditScore < 500) return LOAN_STATUS.CREDIT_CHECK_FAILED;
-  if (state.creditScore) return LOAN_STATUS.CREDIT_CHECK_PASSED;
-  if (state.panDetails) return LOAN_STATUS.PAN_VERIFIED;
-  if (state.instituteDetails) return LOAN_STATUS.INSTITUTE_VERIFIED;
+  // Stage 6: EnachEsign outputs
+  if (state.esignStatus?.completed)                     return LOAN_STATUS.ESIGN_DONE;
+  if (state.enachStatus?.completed)                     return LOAN_STATUS.ENACH_DONE;
+  if (state.vkycStatus?.completed)                      return LOAN_STATUS.VKYC_DONE;
+
+  // Stage 5: Selfie
+  if (state.selfieData?.matched)                        return LOAN_STATUS.SELFIE_VERIFIED;
+
+  // Stage 4: KYC
+  if (state.kycData?.nameMatchFailed)                   return LOAN_STATUS.KYC_FAILED;
+  if (state.kycData && state.kycMethod)                 return LOAN_STATUS.KYC_COMPLETED;
+
+  // Stage 3: Income / eligibility
+  if (state.eligibilityResult?.eligible === false)      return LOAN_STATUS.NOT_ELIGIBLE;
+  if (state.eligibilityResult)                          return LOAN_STATUS.FULLY_ELIGIBLE;
+  if (state.incomeData)                                 return LOAN_STATUS.INCOME_VERIFIED;
+  if (state.bankDetails)                                return LOAN_STATUS.BANK_VERIFIED;
+
+  // Stage 2: PAN / credit
+  if (state.creditScore && state.creditScore < 500)     return LOAN_STATUS.CREDIT_CHECK_FAILED;
+  if (state.panDetails && state.creditScore)            return LOAN_STATUS.CREDIT_CHECK_PASSED;
+  if (state.panDetails)                                 return LOAN_STATUS.PAN_VERIFIED;
+
+  // Stage 1: Application form
+  if (state.borrowerDetails && state.selectedProduct)   return LOAN_STATUS.BORROWER_SELECTED;
+  if (state.studentDetails)                             return LOAN_STATUS.STUDENT_DETAILS_DONE;
+  if (state.instituteDetails)                           return LOAN_STATUS.INSTITUTE_VERIFIED;
+
   return LOAN_STATUS.DRAFT;
 }
 
-// ─── Map status → screen where the customer should resume ────────────────────
+// ─── Map status → the NEXT screen the customer should land on ────────────────
+// Key rule: status X means "X is DONE", so resume goes to X+1.
 function getResumeScreen(status) {
   switch (status) {
+    // Nothing done → start from scratch
     case LOAN_STATUS.DRAFT:
       return 'InstituteSelection';
+
+    // Institute selected → need student details next
     case LOAN_STATUS.INSTITUTE_VERIFIED:
       return 'StudentDetails';
+
+    // Student details done → need borrower / product selection
+    case LOAN_STATUS.STUDENT_DETAILS_DONE:
+      return 'BorrowerSelection';
+
+    // Borrower selected → need PAN verification
+    case LOAN_STATUS.BORROWER_SELECTED:
+      return 'PanVerification';
+
+    // PAN / credit done → need income verification
     case LOAN_STATUS.PAN_VERIFIED:
     case LOAN_STATUS.CREDIT_CHECK_PASSED:
       return 'IncomeVerification';
-    case LOAN_STATUS.KYC_COMPLETED:
-      return 'SelfieVerification';
-    case LOAN_STATUS.SELFIE_VERIFIED:
+
+    // Bank verified but income not yet complete → still on income screen
     case LOAN_STATUS.BANK_VERIFIED:
-    case LOAN_STATUS.INCOME_VERIFIED:
       return 'IncomeVerification';
+
+    // Income verified / eligible → need KYC next
+    case LOAN_STATUS.INCOME_VERIFIED:
     case LOAN_STATUS.FULLY_ELIGIBLE:
     case LOAN_STATUS.PARTIALLY_ELIGIBLE:
+      return 'KycVerification';
+
+    // KYC done → need selfie next (or EnachEsign for >=60k, handled at screen level)
+    case LOAN_STATUS.KYC_COMPLETED:
+      return 'SelfieVerification';
+
+    // Selfie done → need eNACH/eSign
+    case LOAN_STATUS.SELFIE_VERIFIED:
+      return 'EnachEsign';
+
+    // eNACH/VKYC done but not eSigned → still on EnachEsign
     case LOAN_STATUS.ENACH_DONE:
     case LOAN_STATUS.VKYC_DONE:
       return 'EnachEsign';
+
+    // eSigned → show success
     case LOAN_STATUS.ESIGN_DONE:
       return 'LoanSuccess';
+
     default:
       return 'InstituteSelection';
   }
 }
 
-// ─── Map status → step index for StepIndicator ───────────────────────────────
+// ─── Map status → step index for StepIndicator (0-based, 7 steps) ───────────
+//  0: Institute  1: Apply(Student/Borrower)  2: PAN  3: Income  4: KYC  5: Verify(Selfie)  6: Sign(eNACH/eSign)
 function getStepFromStatus(status) {
   switch (status) {
     case LOAN_STATUS.DRAFT:
+      return 0;
     case LOAN_STATUS.INSTITUTE_VERIFIED:
       return 0;
+    case LOAN_STATUS.STUDENT_DETAILS_DONE:
+    case LOAN_STATUS.BORROWER_SELECTED:
+      return 1;
     case LOAN_STATUS.PAN_VERIFIED:
     case LOAN_STATUS.CREDIT_CHECK_PASSED:
       return 2;
+    case LOAN_STATUS.BANK_VERIFIED:
+    case LOAN_STATUS.INCOME_VERIFIED:
+    case LOAN_STATUS.FULLY_ELIGIBLE:
+    case LOAN_STATUS.PARTIALLY_ELIGIBLE:
+      return 3;
     case LOAN_STATUS.KYC_COMPLETED:
       return 4;
     case LOAN_STATUS.SELFIE_VERIFIED:
       return 5;
-    case LOAN_STATUS.BANK_VERIFIED:
-    case LOAN_STATUS.INCOME_VERIFIED:
-      return 3;
-    case LOAN_STATUS.FULLY_ELIGIBLE:
-    case LOAN_STATUS.PARTIALLY_ELIGIBLE:
     case LOAN_STATUS.ENACH_DONE:
     case LOAN_STATUS.ESIGN_DONE:
     case LOAN_STATUS.VKYC_DONE:
@@ -101,14 +162,16 @@ function getStatusLabel(status) {
   const labels = {
     [LOAN_STATUS.DRAFT]: 'Draft',
     [LOAN_STATUS.INSTITUTE_VERIFIED]: 'Institute Selected',
+    [LOAN_STATUS.STUDENT_DETAILS_DONE]: 'Student Details Done',
+    [LOAN_STATUS.BORROWER_SELECTED]: 'Borrower Selected',
     [LOAN_STATUS.PAN_VERIFIED]: 'PAN Verified',
     [LOAN_STATUS.CREDIT_CHECK_PASSED]: 'Credit Check Passed',
     [LOAN_STATUS.CREDIT_CHECK_FAILED]: 'Credit Check Failed',
+    [LOAN_STATUS.BANK_VERIFIED]: 'Bank Verified',
+    [LOAN_STATUS.INCOME_VERIFIED]: 'Income Verified',
     [LOAN_STATUS.KYC_COMPLETED]: 'KYC Done',
     [LOAN_STATUS.KYC_FAILED]: 'KYC Failed',
     [LOAN_STATUS.SELFIE_VERIFIED]: 'Selfie Verified',
-    [LOAN_STATUS.BANK_VERIFIED]: 'Bank Verified',
-    [LOAN_STATUS.INCOME_VERIFIED]: 'Income Verified',
     [LOAN_STATUS.FULLY_ELIGIBLE]: 'Eligible',
     [LOAN_STATUS.PARTIALLY_ELIGIBLE]: 'Partially Eligible',
     [LOAN_STATUS.NOT_ELIGIBLE]: 'Not Eligible',
