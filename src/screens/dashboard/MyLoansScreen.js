@@ -5,6 +5,7 @@ import Card from '../../components/common/Card';
 import StatusBadge from '../../components/common/StatusBadge';
 import { COLORS } from '../../config/constants';
 import { useTheme } from '../../store/ThemeContext';
+import { useLoan } from '../../store/LoanContext';
 import { loanService } from '../../services/loanService';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 
@@ -12,6 +13,7 @@ const TABS = ['All', 'Active', 'Pending', 'Closed'];
 
 const MyLoansScreen = ({ navigation }) => {
   const { colors } = useTheme();
+  const { hasSavedApplication, getResumeInfo, dispatch: loanDispatch } = useLoan();
   const [activeTab, setActiveTab] = useState('All');
   const [loans, setLoans] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,6 +49,69 @@ const MyLoansScreen = ({ navigation }) => {
     return loans;
   };
 
+  // Show draft application in "All" and "Pending" tabs
+  const showDraft = hasSavedApplication && (activeTab === 'All' || activeTab === 'Pending');
+  const resumeInfo = showDraft ? getResumeInfo() : null;
+
+  const renderDraftCard = () => {
+    if (!resumeInfo) return null;
+    const timeAgo = resumeInfo.lastUpdated
+      ? Math.round((Date.now() - new Date(resumeInfo.lastUpdated).getTime()) / 60000)
+      : null;
+    const timeLabel = timeAgo != null
+      ? timeAgo < 60 ? `${timeAgo}m ago` : timeAgo < 1440 ? `${Math.round(timeAgo / 60)}h ago` : `${Math.round(timeAgo / 1440)}d ago`
+      : '';
+
+    return (
+      <Card
+        onPress={() => navigation.navigate(resumeInfo.screen)}
+        accent={colors.teal}
+        style={styles.draftCard}
+      >
+        <View style={styles.loanHeader}>
+          <Text style={[styles.loanId, { color: colors.textSecondary }]}>
+            #{resumeInfo.applicationId}
+          </Text>
+          <StatusBadge status={resumeInfo.status} />
+        </View>
+        <Text style={[styles.loanName, { color: colors.textPrimary }]}>
+          🎓 {resumeInfo.instituteName || resumeInfo.loanType || 'Loan Application'}
+        </Text>
+
+        {/* Progress bar */}
+        <View style={styles.progressRow}>
+          <View style={[styles.progressBg, { backgroundColor: colors.border }]}>
+            <View style={[styles.progressFill, { width: `${Math.min(100, ((resumeInfo.step + 1) / 7) * 100)}%`, backgroundColor: colors.teal }]} />
+          </View>
+          <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>
+            Step {resumeInfo.step + 1}/7
+          </Text>
+        </View>
+
+        {timeLabel ? (
+          <Text style={[styles.draftTime, { color: colors.textSecondary }]}>
+            Last updated {timeLabel}
+          </Text>
+        ) : null}
+
+        <View style={styles.draftActions}>
+          <TouchableOpacity
+            style={[styles.resumeBtn, { backgroundColor: colors.teal }]}
+            onPress={() => navigation.navigate(resumeInfo.screen)}
+          >
+            <Text style={[styles.resumeBtnText, { color: colors.background }]}>Resume</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.discardBtn, { borderColor: colors.error }]}
+            onPress={() => loanDispatch({ type: 'RESET' })}
+          >
+            <Text style={[styles.discardBtnText, { color: colors.error }]}>Discard</Text>
+          </TouchableOpacity>
+        </View>
+      </Card>
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="My Loans" onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
@@ -57,7 +122,10 @@ const MyLoansScreen = ({ navigation }) => {
             style={[styles.tab, activeTab === tab && { backgroundColor: colors.teal, borderColor: colors.teal }]}
             onPress={() => setActiveTab(tab)}
           >
-            <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === tab && { color: colors.background }]}>{tab}</Text>
+            <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === tab && { color: colors.background }]}>
+              {tab}
+              {tab === 'Pending' && resumeInfo ? ' •' : ''}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -66,6 +134,7 @@ const MyLoansScreen = ({ navigation }) => {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.teal]} />}
+        ListHeaderComponent={renderDraftCard}
         renderItem={({ item }) => (
           <Card onPress={() => navigation.navigate('LoanDetail', { loanId: item.id })}>
             <View style={styles.loanHeader}>
@@ -86,7 +155,9 @@ const MyLoansScreen = ({ navigation }) => {
           </Card>
         )}
         ListEmptyComponent={
-          <View style={styles.empty}><Text style={[styles.emptyText, { color: colors.textSecondary }]}>No loans found</Text></View>
+          !resumeInfo ? (
+            <View style={styles.empty}><Text style={[styles.emptyText, { color: colors.textSecondary }]}>No loans found</Text></View>
+          ) : null
         }
       />
     </View>
@@ -110,6 +181,45 @@ const styles = StyleSheet.create({
   nextEmi: { fontSize: 12, color: COLORS.teal, marginTop: 10, fontWeight: '500' },
   empty: { alignItems: 'center', paddingTop: 60 },
   emptyText: { fontSize: 16, color: COLORS.textSecondary },
+
+  // Draft application card
+  draftCard: { marginBottom: 4 },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  progressBg: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  progressLabel: { fontSize: 10, fontWeight: '600' },
+  draftTime: { fontSize: 10, marginBottom: 10 },
+  draftActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  resumeBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  resumeBtnText: { fontSize: 13, fontWeight: '700' },
+  discardBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  discardBtnText: { fontSize: 13, fontWeight: '600' },
 });
 
 export default MyLoansScreen;
