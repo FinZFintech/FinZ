@@ -163,14 +163,14 @@ export const kycService = {
 
     if (MOCK_MODE) {
       await new Promise((resolve) => setTimeout(resolve, 1500));
-      const mockScore = 85 + Math.random() * 10; // 85–95%
-      const mockLivenessScore = 0.92 + Math.random() * 0.07; // 0.92–0.99
+      // Mock mode cannot perform real face comparison — return unverified
+      // so different faces are never falsely marked as matched.
       return {
-        verified: true,
-        matchPercentage: `${mockScore.toFixed(2)}%`,
-        message: 'Face match verified successfully',
+        verified: false,
+        matchPercentage: '0.00%',
+        message: 'Face match unavailable in mock mode. Enable backend for real verification.',
         liveness: true,
-        livenessScore: parseFloat(mockLivenessScore.toFixed(2)),
+        livenessScore: 0.95,
       };
     }
 
