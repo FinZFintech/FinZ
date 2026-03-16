@@ -9,7 +9,6 @@ import InfoRow from '../../../components/common/InfoRow';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useTheme } from '../../../store/ThemeContext';
-import { MOCK_MODE } from '../../../config/constants';
 
 const SelfieVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -28,20 +27,18 @@ const SelfieVerificationScreen = ({ navigation }) => {
   /**
    * Resolve KYC photo to a publicly accessible URL for Signzy matchImage.
    * If the photo is already a URL, use it directly.
-   * If it's base64, we'd need to upload it first — in mock mode we use a placeholder.
+   * If it's base64, convert to a data URI that Signzy can process.
    */
   const getMatchImageUrl = useCallback(() => {
     if (!kycPhoto) return null;
     if (kycPhoto.startsWith('http://') || kycPhoto.startsWith('https://')) {
       return kycPhoto;
     }
-    // For base64 photos, in production you'd upload to a temp hosting endpoint.
-    // The Signzy API requires publicly accessible URLs.
-    // In mock mode, return a placeholder.
-    if (MOCK_MODE) {
-      return 'https://api.finzfintech.com/v1/temp-images/kyc-photo-placeholder.jpg';
+    if (kycPhoto.startsWith('data:image')) {
+      return kycPhoto;
     }
-    return null;
+    // Raw base64 — wrap as data URI
+    return `data:image/jpeg;base64,${kycPhoto}`;
   }, [kycPhoto]);
 
   /**
@@ -73,16 +70,6 @@ const SelfieVerificationScreen = ({ navigation }) => {
       setStep('liveness');
     } catch (err) {
       console.log('[SelfieVerification] createUrl error:', err.message);
-
-      if (MOCK_MODE) {
-        // In mock mode, simulate a successful liveness flow
-        const mockToken = `mock_liveness_${Date.now()}`;
-        setLivenessToken(mockToken);
-        setLivenessUrl('https://liveness.signzy.app/mock-session');
-        setStep('liveness');
-        return;
-      }
-
       setError(err.message || 'Failed to start selfie verification. Please try again.');
       setStep('intro');
     }
@@ -128,31 +115,6 @@ const SelfieVerificationScreen = ({ navigation }) => {
       }
     } catch (err) {
       console.log('[SelfieVerification] getData error:', err.message);
-
-      if (MOCK_MODE) {
-        // Mock successful result
-        const mockResult = {
-          status: true,
-          capturedImage: 'https://api.finzfintech.com/v1/temp-images/selfie-captured.jpg',
-          faceMatch: { verified: true, message: 'Verification completed successfully', matchPercentage: '87.50%' },
-          passiveLiveliness: { liveness: true, score: 1 },
-          additionalChecks: { status: true, attemptNumber: 1, failedChecks: [], isFaceCovered: false },
-        };
-        setResult(mockResult);
-        dispatch({
-          type: 'SET_SELFIE',
-          payload: {
-            uri: mockResult.capturedImage,
-            matched: true,
-            livenessVerified: true,
-            faceMatchPercentage: mockResult.faceMatch.matchPercentage,
-            token: livenessToken,
-          },
-        });
-        setStep('result');
-        return;
-      }
-
       setError(err.message || 'Failed to fetch verification results.');
       setStep('intro');
     }
@@ -203,54 +165,31 @@ const SelfieVerificationScreen = ({ navigation }) => {
             );
           }}
         />
-        {MOCK_MODE ? (
-          // Mock mode: simulate the WebView with a button
-          <View style={[styles.mockWebView, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.mockTitle, { color: colors.textPrimary }]}>Liveness Verification</Text>
-            <Text style={[styles.mockSubtitle, { color: colors.textSecondary }]}>
-              In production, the Signzy liveness camera will appear here.{'\n'}
-              The user will look at the camera for live selfie capture.
-            </Text>
-            <View style={[styles.mockCameraFrame, { borderColor: colors.teal }]}>
-              <Text style={[styles.mockCameraIcon, { color: colors.teal }]}>📷</Text>
-              <Text style={[styles.mockCameraText, { color: colors.textSecondary }]}>Camera Preview</Text>
+        <WebView
+          ref={webViewRef}
+          source={{ uri: livenessUrl }}
+          style={styles.webView}
+          javaScriptEnabled
+          domStorageEnabled
+          mediaPlaybackRequiresUserAction={false}
+          allowsInlineMediaPlayback
+          mediaCapturePermissionGrantType="grant"
+          injectedJavaScript={injectedJs}
+          onMessage={handleWebViewMessage}
+          startInLoadingState
+          renderLoading={() => (
+            <View style={[styles.webViewLoading, { backgroundColor: colors.background }]}>
+              <ActivityIndicator size="large" color={colors.teal} />
+              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading camera...</Text>
             </View>
-            <Button
-              title="Simulate Verification Done"
-              onPress={() => {
-                setStep('verifying');
-                fetchLivenessResults();
-              }}
-              style={styles.mockBtn}
-            />
-          </View>
-        ) : (
-          <WebView
-            ref={webViewRef}
-            source={{ uri: livenessUrl }}
-            style={styles.webView}
-            javaScriptEnabled
-            domStorageEnabled
-            mediaPlaybackRequiresUserAction={false}
-            allowsInlineMediaPlayback
-            mediaCapturePermissionGrantType="grant"
-            injectedJavaScript={injectedJs}
-            onMessage={handleWebViewMessage}
-            startInLoadingState
-            renderLoading={() => (
-              <View style={[styles.webViewLoading, { backgroundColor: colors.background }]}>
-                <ActivityIndicator size="large" color={colors.teal} />
-                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading camera...</Text>
-              </View>
-            )}
-            onError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.warn('[SelfieVerification] WebView error:', nativeEvent);
-              setError('Camera failed to load. Please check permissions and try again.');
-              setStep('intro');
-            }}
-          />
-        )}
+          )}
+          onError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.warn('[SelfieVerification] WebView error:', nativeEvent);
+            setError('Camera failed to load. Please check permissions and try again.');
+            setStep('intro');
+          }}
+        />
       </View>
     );
   }
@@ -385,7 +324,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
 
             {isVerified ? (
               <Button
-                title="Continue to Bank Details"
+                title="Continue to eNACH & eSign"
                 onPress={handleProceed}
                 style={styles.proceedBtn}
               />
@@ -427,14 +366,6 @@ const styles = StyleSheet.create({
   // WebView
   webView: { flex: 1 },
   webViewLoading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
-  // Mock WebView
-  mockWebView: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  mockTitle: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
-  mockSubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  mockCameraFrame: { width: 200, height: 260, borderRadius: 16, borderWidth: 3, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', marginBottom: 32 },
-  mockCameraIcon: { fontSize: 48, marginBottom: 8 },
-  mockCameraText: { fontSize: 13 },
-  mockBtn: { width: '100%' },
   // Result
   resultHeader: { alignItems: 'center', marginBottom: 20 },
   resultIcon: { fontSize: 48, marginBottom: 8 },
