@@ -26,6 +26,7 @@ import { useRisk } from '../../../store/RiskContext';
 
 const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 45; // ~3 minutes
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 const KycVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -46,6 +47,10 @@ const KycVerificationScreen = ({ navigation }) => {
   const [digilockerPolling, setDigilockerPolling] = useState(false);
   const pollTimerRef = useRef(null);
   const pollCountRef = useRef(0);
+
+  // Session timeout (15 min for DigiLocker / Aadhaar XML)
+  const sessionTimerRef = useRef(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // Details review state — shown after KYC data is fetched
   const [fetchedKycData, setFetchedKycData] = useState(null);
@@ -69,9 +74,48 @@ const KycVerificationScreen = ({ navigation }) => {
   const tealBg = `${colors.teal}14`;
   const errorBg = `${colors.error}14`;
 
+  /**
+   * Start 15-minute session timeout for DigiLocker / Aadhaar XML flows.
+   * On expiry, cancels any in-flight activity and shows session expired screen.
+   */
+  const startSessionTimer = () => {
+    clearSessionTimer();
+    sessionTimerRef.current = setTimeout(() => {
+      // Cancel any polling / waiting
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      setDigilockerPolling(false);
+      setDigilockerWaiting(false);
+      setDigilockerRequestId(null);
+      setLoading(false);
+      setSessionExpired(true);
+    }, SESSION_TIMEOUT_MS);
+  };
+
+  const clearSessionTimer = () => {
+    if (sessionTimerRef.current) {
+      clearTimeout(sessionTimerRef.current);
+      sessionTimerRef.current = null;
+    }
+  };
+
+  /**
+   * Reset session expiry and go back to KYC method selection.
+   */
+  const handleSessionExpiredRetry = () => {
+    setSessionExpired(false);
+    setCurrentMethod(null);
+    setOtpSent(false);
+    setOtp('');
+    setKycFailed(false);
+    setKycErrorMsg('');
+    setFetchedKycData(null);
+    setDetailsReviewStep(false);
+  };
+
   useEffect(() => {
     return () => {
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
     };
   }, []);
 
@@ -173,6 +217,7 @@ const KycVerificationScreen = ({ navigation }) => {
       setDigilockerRequestId(requestId);
       setDigilockerWaiting(true);
       setLoading(false);
+      startSessionTimer();
 
       const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
@@ -285,6 +330,7 @@ const KycVerificationScreen = ({ navigation }) => {
 
   const handleCancelDigilocker = () => {
     if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    clearSessionTimer();
     setDigilockerPolling(false);
     setDigilockerWaiting(false);
     setDigilockerRequestId(null);
@@ -293,6 +339,7 @@ const KycVerificationScreen = ({ navigation }) => {
 
   // ─── Details Review Step ────────────────────────────────────────────────
   const showDetailsReview = (kycData, method) => {
+    clearSessionTimer();
     setFetchedKycData({ ...kycData, method });
     setDetailsReviewStep(true);
 
@@ -449,7 +496,7 @@ const KycVerificationScreen = ({ navigation }) => {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
         {/* ── Method Selection ── */}
-        {!kycCompleted && !kycFailed && !currentMethod && !detailsReviewStep && (
+        {!kycCompleted && !kycFailed && !sessionExpired && !currentMethod && !detailsReviewStep && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Choose KYC Method</Text>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
@@ -502,7 +549,7 @@ const KycVerificationScreen = ({ navigation }) => {
         )}
 
         {/* ── CKYC Flow ── */}
-        {!kycCompleted && !kycFailed && !detailsReviewStep && currentMethod === KYC_METHODS.CKYC && (
+        {!kycCompleted && !kycFailed && !sessionExpired && !detailsReviewStep && currentMethod === KYC_METHODS.CKYC && (
           <Card>
             <View style={styles.methodHeaderRow}>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>CKYC Verification</Text>
@@ -549,7 +596,7 @@ const KycVerificationScreen = ({ navigation }) => {
         )}
 
         {/* ── DigiLocker Flow ── */}
-        {!kycCompleted && !kycFailed && !detailsReviewStep && currentMethod === KYC_METHODS.DIGILOCKER && (
+        {!kycCompleted && !kycFailed && !sessionExpired && !detailsReviewStep && currentMethod === KYC_METHODS.DIGILOCKER && (
           <Card>
             <View style={styles.methodHeaderRow}>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>DigiLocker Verification</Text>
@@ -623,7 +670,7 @@ const KycVerificationScreen = ({ navigation }) => {
         )}
 
         {/* ── Details Review + Communication Address ── */}
-        {detailsReviewStep && fetchedKycData && !kycCompleted && !kycFailed && (
+        {detailsReviewStep && fetchedKycData && !kycCompleted && !kycFailed && !sessionExpired && (
           <>
             <Card>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Verify Your Details</Text>
@@ -756,8 +803,27 @@ const KycVerificationScreen = ({ navigation }) => {
           </>
         )}
 
+        {/* ── Session Expired ── */}
+        {sessionExpired && (
+          <Card>
+            <View style={styles.sessionExpiredWrap}>
+              <Text style={styles.sessionExpiredIcon}>⏱️</Text>
+              <Text style={[styles.sessionExpiredTitle, { color: colors.error }]}>Session Expired</Text>
+              <Text style={[styles.sessionExpiredText, { color: colors.textSecondary }]}>
+                Your KYC session has timed out after 15 minutes of inactivity.
+                Please re-initiate the KYC verification process.
+              </Text>
+              <Button
+                title="Re-initiate KYC"
+                onPress={handleSessionExpiredRetry}
+                style={styles.sessionExpiredBtn}
+              />
+            </View>
+          </Card>
+        )}
+
         {/* ── KYC Failed ── */}
-        {kycFailed && (
+        {kycFailed && !sessionExpired && (
           <Card style={[styles.resultCard, { backgroundColor: errorBg }]}>
             <Text style={[styles.resultIcon, { color: colors.error }]}>✕</Text>
             <Text style={[styles.resultTitle, { color: colors.error }]}>KYC Failed</Text>
@@ -875,6 +941,13 @@ const styles = StyleSheet.create({
   modalNoteText: { fontSize: 12, lineHeight: 18, textAlign: 'center' },
   modalButton: { borderRadius: 10, paddingVertical: 14, paddingHorizontal: 28, width: '100%', alignItems: 'center' },
   modalButtonText: { fontWeight: '700', fontSize: 15 },
+
+  // Session Expired
+  sessionExpiredWrap: { alignItems: 'center', paddingVertical: 20 },
+  sessionExpiredIcon: { fontSize: 56, marginBottom: 12 },
+  sessionExpiredTitle: { fontSize: 20, fontWeight: '800', marginBottom: 10 },
+  sessionExpiredText: { fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 20 },
+  sessionExpiredBtn: { width: '100%' },
 
   resultCard: { alignItems: 'center' },
   resultIcon: { fontSize: 48, marginBottom: 8 },
