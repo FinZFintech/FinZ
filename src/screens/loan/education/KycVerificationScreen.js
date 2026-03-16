@@ -612,13 +612,13 @@ const KycVerificationScreen = ({ navigation }) => {
               <>
                 <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                   Verify your identity by linking your Aadhaar through DigiLocker.
-                  Your documents will be fetched securely.
+                  Your documents will be fetched securely by FinZ Finance Pvt Ltd.
                 </Text>
 
                 <View style={[styles.stepsCard, { backgroundColor: `${colors.primary}08` }]}>
                   <Text style={[styles.stepText, { color: colors.textSecondary }]}>1. You will be redirected to DigiLocker</Text>
                   <Text style={[styles.stepText, { color: colors.textSecondary }]}>2. Login with your Aadhaar number</Text>
-                  <Text style={[styles.stepText, { color: colors.textSecondary }]}>3. Approve consent to share documents</Text>
+                  <Text style={[styles.stepText, { color: colors.textSecondary }]}>3. Approve consent to share documents with FinZ Finance</Text>
                   <Text style={[styles.stepText, { color: colors.textSecondary }]}>4. You'll be redirected back to FinZ automatically</Text>
                 </View>
 

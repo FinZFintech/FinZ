@@ -272,8 +272,10 @@ export const signzyService = {
       consentValidTill: String(Math.floor(Date.now() / 1000) + 86400 * 30), // 30 days
       showLoaderState: true,
       ...(internalId ? { internalId } : {}),
-      companyName: 'FinZ',
+      companyName: 'FinZ Finance Pvt Ltd',
       favIcon: 'https://www.finz.finance/favicon.png',
+      title: 'FinZ Finance Pvt Ltd',
+      headerTitle: 'FinZ Finance Pvt Ltd',
       getBase64Files: true,
       getEAadhaarPdf: true,
       getEAadhaarJpeg: true,
