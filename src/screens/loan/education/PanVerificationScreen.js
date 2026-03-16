@@ -11,7 +11,6 @@ import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { maskPan, validatePan } from '../../../utils/helpers';
-import { MOCK_MODE } from '../../../config/constants';
 
 const PanVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -332,8 +331,8 @@ const PanVerificationScreen = ({ navigation }) => {
           )}
         </Card>
 
-        {/* Skip with Test Data (Mock Mode) */}
-        {MOCK_MODE && !panVerified && (
+        {/* Skip with Test Data */}
+        {!panVerified && (
           <TouchableOpacity
             style={styles.skipTestBtn}
             onPress={handleSkipWithTestData}
