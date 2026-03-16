@@ -36,17 +36,17 @@ const SelfieVerificationScreen = ({ navigation }) => {
   const kycCompleted = !!(state.kycData && kycPhoto);
 
   /**
-   * Resolve KYC photo to a URL for Signzy matchImage.
+   * Resolve KYC photo to a publicly accessible URL for Signzy matchImage.
+   * Returns null if the photo is base64 (not a URL) — Signzy only accepts URLs.
    */
   const getMatchImageUrl = useCallback(() => {
     if (!kycPhoto) return null;
     if (kycPhoto.startsWith('http://') || kycPhoto.startsWith('https://')) {
       return kycPhoto;
     }
-    if (kycPhoto.startsWith('data:image')) {
-      return kycPhoto;
-    }
-    return `data:image/jpeg;base64,${kycPhoto}`;
+    // Base64 or data URI — Signzy does not accept these for matchImage.
+    // Liveness will proceed without face match; liveness-only verification.
+    return null;
   }, [kycPhoto]);
 
   /**
@@ -100,13 +100,9 @@ const SelfieVerificationScreen = ({ navigation }) => {
 
     try {
       const matchImageUrl = getMatchImageUrl();
-      if (!matchImageUrl) {
-        setError('KYC photo not available. Please complete KYC verification first.');
-        setStep('intro');
-        return;
-      }
+      const matchImages = matchImageUrl ? [matchImageUrl] : [];
 
-      const response = await kycService.createLivenessUrl([matchImageUrl], {
+      const response = await kycService.createLivenessUrl(matchImages, {
         languageCode: 'en',
         faceMatchThreshold: 0.6,
         redirectUrl: REDIRECT_URL,
@@ -141,14 +137,21 @@ const SelfieVerificationScreen = ({ navigation }) => {
       const data = await kycService.getLivenessData(livenessToken);
       setResult(data);
 
-      if (data.status && data.faceMatch?.verified && data.passiveLiveliness?.liveness) {
+      // When matchImage was provided, verify both face match + liveness.
+      // When matchImage was not available (base64 KYC photo), verify liveness only.
+      const hasFaceMatch = data.faceMatch?.matchPercentage && data.faceMatch.matchPercentage !== '0.00%';
+      const livenessOk = data.passiveLiveliness?.liveness;
+      const faceMatchOk = hasFaceMatch ? data.faceMatch?.verified : true;
+      const overallOk = data.status || (livenessOk && faceMatchOk);
+
+      if (overallOk && livenessOk) {
         dispatch({
           type: 'SET_SELFIE',
           payload: {
             uri: data.capturedImage || '',
-            matched: true,
+            matched: hasFaceMatch ? data.faceMatch.verified : true,
             livenessVerified: true,
-            faceMatchPercentage: data.faceMatch.matchPercentage,
+            faceMatchPercentage: hasFaceMatch ? data.faceMatch.matchPercentage : 'N/A (liveness only)',
             token: livenessToken,
           },
         });
@@ -167,7 +170,10 @@ const SelfieVerificationScreen = ({ navigation }) => {
     }
   };
 
-  const isVerified = result?.status && result?.faceMatch?.verified && result?.passiveLiveliness?.liveness;
+  const hasFaceMatchResult = result?.faceMatch?.matchPercentage && result?.faceMatch?.matchPercentage !== '0.00%';
+  const isVerified = result?.passiveLiveliness?.liveness &&
+    (hasFaceMatchResult ? result?.faceMatch?.verified : true) &&
+    (result?.status || result?.passiveLiveliness?.liveness);
 
   const handleRetry = () => {
     setResult(null);

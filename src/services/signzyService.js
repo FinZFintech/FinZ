@@ -611,9 +611,14 @@ export const signzyService = {
       redirectUrl,
     } = options;
 
-    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.LIVENESS_CREATE_URL, {
+    // Signzy requires publicly accessible URLs for matchImage.
+    // Filter out data URIs and base64 strings.
+    const validMatchImages = matchImage.filter(
+      (url) => url.startsWith('http://') || url.startsWith('https://'),
+    );
+
+    const body = {
       languageCode,
-      matchImage,
       hideBottomLogo: 'true',
       accentColor: '#4AEDC4',
       backgroundColor: '#0D1017',
@@ -622,9 +627,12 @@ export const signzyService = {
       allowCameraSwitch: 'true',
       faceMatchThreshold,
       piiDeletionTTL: '6 months',
+      ...(validMatchImages.length > 0 ? { matchImage: validMatchImages } : {}),
       ...(callbackUrl ? { callbackUrl } : {}),
       ...(redirectUrl ? { redirectUrl } : {}),
-    });
+    };
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.LIVENESS_CREATE_URL, body);
 
     const r = extractResult(data);
     return {
