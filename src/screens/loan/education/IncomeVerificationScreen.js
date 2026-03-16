@@ -145,16 +145,43 @@ const IncomeVerificationScreen = ({ navigation }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Run penny drop and AA fetch simultaneously
+  // Run penny drop and income fetch (simulated until AA is integrated)
   const handleVerifyAndFetch = async () => {
     if (!validateBankDetails()) return;
     setLoading(true);
 
-    const pennyDropPromise = runPennyDrop();
-    const incomePromise = method === 'aa' ? runAAFetch() : runStatementUpload();
-
     try {
-      const [pdResult, incResult] = await Promise.all([pennyDropPromise, incomePromise]);
+      // Simulate processing delay
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const borrowerName = (state.borrowerDetails?.name || 'RAHUL SHARMA').toUpperCase();
+      const acctLast4 = accountNumber.slice(-4);
+
+      // Simulated penny drop result
+      const pdResult = {
+        verified: true,
+        nameMatch: true,
+        accountHolderName: borrowerName,
+        bankRefNo: 'PD' + Date.now(),
+        accountNumberLast4: acctLast4,
+      };
+      setPennyDropResult(pdResult);
+      setPennyDropDone(true);
+      dispatch({ type: 'SET_PENNY_DROP', payload: pdResult });
+
+      // Simulated income data
+      const incResult = {
+        monthlyIncome: 45000,
+        averageBalance: 32000,
+        totalCredits: 270000,
+        totalDebits: 210000,
+        emiObligations: 8000,
+        bounceCount: 0,
+        accountHolderName: borrowerName,
+        accountNumberLast4: acctLast4,
+      };
+      setIncomeResult(incResult);
+      await runEligibilityCheck(incResult);
 
       // Store bank details
       dispatch({
@@ -162,10 +189,8 @@ const IncomeVerificationScreen = ({ navigation }) => {
         payload: { bankName, accountNumber, ifsc, accountType, branchName, occupationCategory: selectedCategory?.label, occupation: resolvedOccupation },
       });
 
-      // Run matching if both succeeded
-      if (pdResult && incResult) {
-        runMatching(pdResult, incResult);
-      }
+      // Run matching
+      runMatching(pdResult, incResult);
     } finally {
       setLoading(false);
     }
