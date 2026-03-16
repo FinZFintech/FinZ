@@ -6,9 +6,6 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
-  TextInput,
-  FlatList,
-  Modal,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Header from '../../../components/common/Header';
@@ -57,11 +54,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
   // Matching results
   const [matchResult, setMatchResult] = useState(null);
 
-  // Bank selection for AA
+  // Bank selection for AA (auto-filled from IFSC)
   const [fipList, setFipList] = useState([]);
   const [selectedBank, setSelectedBank] = useState(null);
-  const [bankSearch, setBankSearch] = useState('');
-  const [showBankPicker, setShowBankPicker] = useState(false);
   const [aaInitiated, setAaInitiated] = useState(false);
 
   // Validation errors
@@ -69,31 +64,48 @@ const IncomeVerificationScreen = ({ navigation }) => {
 
   const loanAmount = state.studentDetails?.balanceFee || 0;
 
-  // Fetch FIP list when AA method is selected
+  // Fetch FIP list on mount so we can auto-match from IFSC
   useEffect(() => {
-    if (method === 'aa' && fipList.length === 0) {
-      bankService.getFIPList().then((res) => {
-        setFipList(res.fips || []);
-      }).catch(() => {});
-    }
-  }, [method]);
+    bankService.getFIPList().then((res) => {
+      setFipList(res.fips || []);
+    }).catch(() => {});
+  }, []);
 
-  const filteredBanks = fipList.filter((b) =>
-    b.name.toLowerCase().includes(bankSearch.toLowerCase()) ||
-    b.code.toLowerCase().includes(bankSearch.toLowerCase())
-  );
+  // Auto-match bank name to FIP list for AA
+  const matchBankToFip = (name) => {
+    if (!name || fipList.length === 0) return;
+    const lower = name.toLowerCase();
+    const match = fipList.find((fip) =>
+      lower.includes(fip.name.toLowerCase()) ||
+      fip.name.toLowerCase().includes(lower) ||
+      lower.includes(fip.code.toLowerCase())
+    );
+    if (match) {
+      setSelectedBank(match);
+      // Auto-select AA method since bank is identified
+      if (!method) setMethod('aa');
+    }
+  };
 
   const handleIfscLookup = async (ifscCode) => {
     setIfsc(ifscCode.toUpperCase());
     if (ifscCode.length === 11 && validateIfsc(ifscCode.toUpperCase())) {
       try {
         const result = await bankService.validateIfsc(ifscCode.toUpperCase());
-        setBankName(result.bank || '');
-        setBranchName(result.branch || '');
+        const fetchedBank = result.bank || '';
+        const fetchedBranch = result.branch || '';
+        setBankName(fetchedBank);
+        setBranchName(fetchedBranch);
+        matchBankToFip(fetchedBank);
       } catch {
         setBankName('State Bank of India');
         setBranchName('Koramangala Branch');
+        matchBankToFip('State Bank of India');
       }
+    } else {
+      setBankName('');
+      setBranchName('');
+      setSelectedBank(null);
     }
   };
 
@@ -104,7 +116,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
     if (!validateAccountNumber(accountNumber)) newErrors.accountNumber = 'Invalid account number';
     if (accountNumber !== confirmAccountNumber) newErrors.confirmAccountNumber = 'Account numbers do not match';
     if (!accountType) newErrors.accountType = 'Please select account type';
-    if (method === 'aa' && !selectedBank) newErrors.bank = 'Please select your bank';
+    if (method === 'aa' && !selectedBank) newErrors.ifsc = 'Could not identify bank from IFSC. Please check your IFSC code.';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -462,86 +474,36 @@ const IncomeVerificationScreen = ({ navigation }) => {
           </Card>
         )}
 
-        {/* AA - Bank Selection */}
-        {method === 'aa' && !verificationDone && (
+        {/* AA - Pre-filled Bank Account Summary & Initiate */}
+        {method === 'aa' && !verificationDone && bankName && (
           <Card>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Bank for AA</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Account Aggregator</Text>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              Select your bank to securely fetch financial data via Account Aggregator.
+              Your bank has been identified from the IFSC code. Please verify the details below before initiating AA consent.
             </Text>
 
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Select Your Bank</Text>
-            <TouchableOpacity
-              style={[styles.bankSelector, { borderColor: colors.border, backgroundColor: colors.inputBg }, selectedBank && { borderColor: colors.teal }]}
-              onPress={() => setShowBankPicker(true)}
-            >
-              {selectedBank ? (
-                <View style={styles.selectedBankRow}>
+            {/* Pre-filled Bank Details (read-only) */}
+            <View style={[styles.prefillCard, { backgroundColor: tealBg, borderColor: colors.teal }]}>
+              {selectedBank && (
+                <View style={styles.prefillRow}>
                   <View style={[styles.bankCodeBadge, { backgroundColor: tealBadgeBg }]}>
                     <Text style={[styles.bankCodeText, { color: colors.teal }]}>{selectedBank.code}</Text>
                   </View>
-                  <Text style={[styles.selectedBankName, { color: colors.textPrimary }]}>{selectedBank.name}</Text>
+                  <Text style={[styles.prefillBankName, { color: colors.teal }]}>{selectedBank.name}</Text>
                 </View>
-              ) : (
-                <Text style={[styles.bankPlaceholder, { color: colors.textSecondary }]}>Tap to select bank...</Text>
               )}
-              <Text style={[styles.dropdownArrow, { color: colors.textSecondary }]}>▼</Text>
-            </TouchableOpacity>
-            {errors.bank && <Text style={[styles.errorText, { color: colors.error }]}>{errors.bank}</Text>}
+              <InfoRow label="Bank" value={bankName} />
+              {branchName ? <InfoRow label="Branch" value={branchName} /> : null}
+              <InfoRow label="IFSC" value={ifsc} />
+              <InfoRow label="Account No." value={`****${accountNumber.slice(-4)}`} />
+              <InfoRow label="Account Type" value={accountType} />
+            </View>
 
-            {/* Bank Picker Modal */}
-            <Modal visible={showBankPicker} animationType="slide" transparent>
-              <View style={styles.modalOverlay}>
-                <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-                  <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-                    <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Select Your Bank</Text>
-                    <TouchableOpacity onPress={() => setShowBankPicker(false)}>
-                      <Text style={[styles.modalClose, { color: colors.textSecondary }]}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.searchBox}>
-                    <TextInput
-                      style={[styles.searchInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.textPrimary }]}
-                      placeholder="Search bank name..."
-                      placeholderTextColor={colors.textSecondary}
-                      value={bankSearch}
-                      onChangeText={setBankSearch}
-                      autoFocus
-                    />
-                  </View>
-                  <FlatList
-                    data={filteredBanks}
-                    keyExtractor={(item) => item.id}
-                    keyboardShouldPersistTaps="handled"
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={[
-                          styles.bankItem,
-                          { borderBottomColor: colors.border },
-                          selectedBank?.id === item.id && { backgroundColor: tealBg },
-                        ]}
-                        onPress={() => {
-                          setSelectedBank(item);
-                          setShowBankPicker(false);
-                          setBankSearch('');
-                        }}
-                      >
-                        <View style={[styles.bankCodeBadge, { backgroundColor: tealBadgeBg }]}>
-                          <Text style={[styles.bankCodeText, { color: colors.teal }]}>{item.code}</Text>
-                        </View>
-                        <Text style={[styles.bankItemName, { color: colors.textPrimary }]}>{item.name}</Text>
-                        {selectedBank?.id === item.id && (
-                          <Text style={[styles.checkMark, { color: colors.teal }]}>✓</Text>
-                        )}
-                      </TouchableOpacity>
-                    )}
-                    ListEmptyComponent={
-                      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No banks found</Text>
-                    }
-                  />
-                </View>
-              </View>
-            </Modal>
+            {!selectedBank && (
+              <Text style={[styles.warnText, { color: colors.error }]}>
+                Could not auto-match bank from IFSC. Please verify your IFSC code.
+              </Text>
+            )}
 
             <Button
               title="Verify Bank & Fetch Income"
@@ -708,41 +670,18 @@ const styles = StyleSheet.create({
   optionIcon: { fontSize: 32, marginBottom: 8 },
   optionTitle: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   optionDesc: { fontSize: 11, marginTop: 2 },
-  bankSelector: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1.5, borderRadius: 10, padding: 14, marginBottom: 8,
+  prefillCard: {
+    padding: 14, borderRadius: 10, borderWidth: 1, marginBottom: 8,
   },
-  selectedBankRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  selectedBankName: { fontSize: 14, fontWeight: '600', marginLeft: 10 },
-  bankPlaceholder: { fontSize: 14 },
-  dropdownArrow: { fontSize: 10, marginLeft: 8 },
+  prefillRow: {
+    flexDirection: 'row', alignItems: 'center', marginBottom: 10,
+  },
+  prefillBankName: { fontSize: 15, fontWeight: '700', marginLeft: 10 },
+  warnText: { fontSize: 13, marginBottom: 8 },
   bankCodeBadge: {
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, minWidth: 48, alignItems: 'center',
   },
   bankCodeText: { fontSize: 11, fontWeight: '700' },
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end',
-  },
-  modalContent: {
-    maxHeight: '75%', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30,
-  },
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 16, borderBottomWidth: 1,
-  },
-  modalTitle: { fontSize: 17, fontWeight: '700' },
-  modalClose: { fontSize: 20, padding: 4 },
-  searchBox: { paddingHorizontal: 16, paddingVertical: 10 },
-  searchInput: {
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, borderWidth: 1,
-  },
-  bankItem: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
-    paddingHorizontal: 16, borderBottomWidth: 1,
-  },
-  bankItemName: { fontSize: 14, marginLeft: 10, flex: 1 },
-  checkMark: { fontSize: 16, fontWeight: '700' },
-  emptyText: { padding: 20, textAlign: 'center', fontSize: 14 },
   btn: { marginTop: 12 },
   verifyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
   matchRow: { flexDirection: 'row', padding: 12, borderRadius: 8, alignItems: 'flex-start' },
