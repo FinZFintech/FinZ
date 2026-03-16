@@ -136,6 +136,31 @@ export const kycService = {
   async verifySelfieWithKyc(selfieImage, kycPhoto) {
     console.log('[kycService] verifySelfieWithKyc → calling backend selfie match');
 
+    // Validate inputs — both images must be present
+    const hasValidSelfie = selfieImage && selfieImage.length > 100;
+    const hasValidKycPhoto = kycPhoto &&
+      (kycPhoto.startsWith('http') || kycPhoto.startsWith('data:') || kycPhoto.length > 100);
+
+    if (!hasValidSelfie) {
+      return {
+        verified: false,
+        matchPercentage: '0.00%',
+        message: 'Selfie image is missing or invalid. Please retake.',
+        liveness: false,
+        livenessScore: 0,
+      };
+    }
+
+    if (!hasValidKycPhoto) {
+      return {
+        verified: false,
+        matchPercentage: '0.00%',
+        message: 'KYC photo is missing. Please complete KYC verification first.',
+        liveness: true,
+        livenessScore: 1.0,
+      };
+    }
+
     if (MOCK_MODE) {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       const mockScore = 85 + Math.random() * 10; // 85–95%

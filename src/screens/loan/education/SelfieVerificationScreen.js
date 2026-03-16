@@ -38,7 +38,13 @@ const SelfieVerificationScreen = ({ navigation }) => {
   const [permission, requestPermission] = useCameraPermissions();
 
   const kycPhoto = state.kycData?.photo;
-  const kycCompleted = !!(state.kycData && kycPhoto);
+  // Ensure KYC photo is a real image — not empty, placeholder, or too short
+  const hasValidKycPhoto = !!(kycPhoto && (
+    kycPhoto.startsWith('http') ||
+    kycPhoto.startsWith('data:image') ||
+    kycPhoto.length > 100 // raw base64 should be substantial
+  ));
+  const kycCompleted = !!(state.kycData && hasValidKycPhoto);
 
   // ─── Geolocation ────────────────────────────────────────────────────
   const fetchLocation = useCallback(() => {
