@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
+  Modal,
+  TextInput,
+  FlatList,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Header from '../../../components/common/Header';
@@ -20,8 +23,7 @@ import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { useTheme } from '../../../store/ThemeContext';
 import { formatCurrency, validateIfsc, validateAccountNumber } from '../../../utils/helpers';
-
-const OCCUPATIONS = ['Salaried', 'Self-Employed', 'Business', 'Student', 'Homemaker', 'Retired'];
+import { OCCUPATION_CATEGORIES, getOccupationsForCategory } from '../../../utils/occupationData';
 const ACCOUNT_TYPES = ['Savings', 'Current'];
 
 const IncomeVerificationScreen = ({ navigation }) => {
@@ -29,8 +31,13 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
   const { executePhase, feedBankStatementData } = useRisk();
 
-  // Occupation
-  const [occupation, setOccupation] = useState('');
+  // Occupation (two-field)
+  const [occupationCategory, setOccupationCategory] = useState(null);
+  const [occupationDetail, setOccupationDetail] = useState('');
+  const [freeTextOccupation, setFreeTextOccupation] = useState('');
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showOccupationPicker, setShowOccupationPicker] = useState(false);
+  const [occupationSearch, setOccupationSearch] = useState('');
 
   // Bank details
   const [ifsc, setIfsc] = useState('');
@@ -63,6 +70,18 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const [errors, setErrors] = useState({});
 
   const loanAmount = state.studentDetails?.balanceFee || 0;
+
+  // Derived occupation values
+  const selectedCategory = OCCUPATION_CATEGORIES.find((c) => c.id === occupationCategory);
+  const usesFreeText = selectedCategory?.allowFreeText || false;
+  const resolvedOccupation = usesFreeText && freeTextOccupation
+    ? freeTextOccupation
+    : occupationDetail;
+
+  const filteredOccupations = useMemo(() => {
+    if (!occupationCategory) return [];
+    return getOccupationsForCategory(occupationCategory, occupationSearch);
+  }, [occupationCategory, occupationSearch]);
 
   // Fetch FIP list on mount so we can auto-match from IFSC
   useEffect(() => {
@@ -111,7 +130,13 @@ const IncomeVerificationScreen = ({ navigation }) => {
 
   const validateBankDetails = () => {
     const newErrors = {};
-    if (!occupation) newErrors.occupation = 'Please select occupation';
+    if (!occupationCategory) newErrors.occupationCategory = 'Please select occupation category';
+    else if (usesFreeText && !freeTextOccupation && !occupationDetail) newErrors.occupationDetail = 'Please enter or select your occupation';
+    else if (usesFreeText && freeTextOccupation && !occupationDetail) {
+      if (freeTextOccupation.trim().length < 3) newErrors.occupationDetail = 'Minimum 3 characters required';
+      else if (/^\d+$/.test(freeTextOccupation.trim())) newErrors.occupationDetail = 'Numeric-only values are not allowed';
+    }
+    else if (!usesFreeText && !occupationDetail) newErrors.occupationDetail = 'Please select your occupation';
     if (!validateIfsc(ifsc)) newErrors.ifsc = 'Invalid IFSC code';
     if (!validateAccountNumber(accountNumber)) newErrors.accountNumber = 'Invalid account number';
     if (accountNumber !== confirmAccountNumber) newErrors.confirmAccountNumber = 'Account numbers do not match';
@@ -135,7 +160,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
       // Store bank details
       dispatch({
         type: 'SET_BANK_DETAILS',
-        payload: { bankName, accountNumber, ifsc, accountType, branchName, occupation },
+        payload: { bankName, accountNumber, ifsc, accountType, branchName, occupationCategory: selectedCategory?.label, occupation: resolvedOccupation },
       });
 
       // Run matching if both succeeded
@@ -353,28 +378,72 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {!verificationDone && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Occupation</Text>
-            <View style={styles.chipRow}>
-              {OCCUPATIONS.map((occ) => (
-                <TouchableOpacity
-                  key={occ}
-                  style={[
-                    styles.chip,
-                    { borderColor: colors.border, backgroundColor: colors.surface },
-                    occupation === occ && { borderColor: colors.teal, backgroundColor: colors.teal },
-                  ]}
-                  onPress={() => setOccupation(occ)}
-                >
-                  <Text style={[
-                    styles.chipText,
-                    { color: colors.textSecondary },
-                    occupation === occ && { color: colors.background },
-                  ]}>
-                    {occ}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {errors.occupation && <Text style={[styles.errorText, { color: colors.error }]}>{errors.occupation}</Text>}
+
+            {/* Field 1 – Occupation Category */}
+            <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>Occupation Category</Text>
+            <TouchableOpacity
+              style={[styles.pickerButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              onPress={() => setShowCategoryPicker(true)}
+            >
+              <Text style={[styles.pickerButtonText, { color: selectedCategory ? colors.textPrimary : colors.textSecondary }]}>
+                {selectedCategory ? selectedCategory.label : 'Select occupation category'}
+              </Text>
+              <Text style={[styles.pickerArrow, { color: colors.textSecondary }]}>▾</Text>
+            </TouchableOpacity>
+            {errors.occupationCategory && <Text style={[styles.errorText, { color: colors.error }]}>{errors.occupationCategory}</Text>}
+
+            {/* Field 2 – Occupation Detail */}
+            {occupationCategory && (
+              <>
+                <Text style={[styles.fieldLabel, { color: colors.textPrimary, marginTop: 12 }]}>
+                  {usesFreeText ? selectedCategory.freeTextLabel : 'Occupation'}
+                </Text>
+
+                {/* Selected occupation pill */}
+                {occupationDetail ? (
+                  <View style={[styles.selectedPill, { backgroundColor: `${colors.teal}14`, borderColor: colors.teal }]}>
+                    <Text style={[styles.selectedPillText, { color: colors.teal }]}>{occupationDetail}</Text>
+                    <TouchableOpacity onPress={() => setOccupationDetail('')}>
+                      <Text style={[styles.selectedPillClose, { color: colors.teal }]}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.pickerButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                    onPress={() => { setOccupationSearch(''); setShowOccupationPicker(true); }}
+                  >
+                    <Text style={[styles.pickerButtonText, { color: colors.textSecondary }]}>
+                      Select from list
+                    </Text>
+                    <Text style={[styles.pickerArrow, { color: colors.textSecondary }]}>▾</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Free text alternative for Salaried Private / Govt */}
+                {usesFreeText && !occupationDetail && (
+                  <>
+                    <Text style={[styles.orDividerText, { color: colors.textSecondary }]}>or</Text>
+                    <TextInput
+                      style={[styles.freeTextInput, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.textPrimary }]}
+                      placeholder={selectedCategory.freeTextPlaceholder}
+                      placeholderTextColor={colors.textSecondary}
+                      value={freeTextOccupation}
+                      onChangeText={(t) => {
+                        // No numeric-only values, minimum 3 characters enforced at validation
+                        setFreeTextOccupation(t);
+                      }}
+                    />
+                    {freeTextOccupation.length > 0 && freeTextOccupation.length < 3 && (
+                      <Text style={[styles.hintText, { color: colors.warning }]}>Minimum 3 characters required</Text>
+                    )}
+                    {freeTextOccupation.length >= 3 && /^\d+$/.test(freeTextOccupation) && (
+                      <Text style={[styles.hintText, { color: colors.error }]}>Numeric-only values are not allowed</Text>
+                    )}
+                  </>
+                )}
+                {errors.occupationDetail && <Text style={[styles.errorText, { color: colors.error }]}>{errors.occupationDetail}</Text>}
+              </>
+            )}
           </Card>
         )}
 
@@ -382,9 +451,12 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {!verificationDone && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Bank Account Details</Text>
-            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              Please provide the bank account where your salary or income is regularly credited. This allows us to verify your income and assess your loan eligibility.
-            </Text>
+            <View style={[styles.bankInfoBanner, { backgroundColor: `${colors.teal}14`, borderColor: `${colors.teal}40` }]}>
+              <Text style={styles.bankInfoIcon}>🏦</Text>
+              <Text style={[styles.bankInfoText, { color: colors.teal }]}>
+                Please provide the bank account where your salary or income is regularly credited. This helps us verify your income for loan eligibility.
+              </Text>
+            </View>
             <Input
               label="IFSC Code"
               value={ifsc}
@@ -646,6 +718,90 @@ const IncomeVerificationScreen = ({ navigation }) => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Category Picker Modal */}
+      <Modal visible={showCategoryPicker} transparent animationType="slide" onRequestClose={() => setShowCategoryPicker(false)}>
+        <View style={[styles.pickerOverlay, { backgroundColor: colors.overlay }]}>
+          <View style={[styles.pickerModal, { backgroundColor: colors.surface }]}>
+            <View style={styles.pickerHeader}>
+              <Text style={[styles.pickerTitle, { color: colors.textPrimary }]}>Select Occupation Category</Text>
+              <TouchableOpacity onPress={() => setShowCategoryPicker(false)}>
+                <Text style={[styles.pickerClose, { color: colors.textSecondary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={OCCUPATION_CATEGORIES}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.pickerItem, occupationCategory === item.id && { backgroundColor: `${colors.teal}14` }]}
+                  onPress={() => {
+                    setOccupationCategory(item.id);
+                    setOccupationDetail('');
+                    setFreeTextOccupation('');
+                    setShowCategoryPicker(false);
+                  }}
+                >
+                  <Text style={[styles.pickerItemText, { color: colors.textPrimary }, occupationCategory === item.id && { color: colors.teal, fontWeight: '700' }]}>
+                    {item.label}
+                  </Text>
+                  {occupationCategory === item.id && <Text style={[styles.pickerCheck, { color: colors.teal }]}>✓</Text>}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Occupation Detail Picker Modal */}
+      <Modal visible={showOccupationPicker} transparent animationType="slide" onRequestClose={() => setShowOccupationPicker(false)}>
+        <View style={[styles.pickerOverlay, { backgroundColor: colors.overlay }]}>
+          <View style={[styles.pickerModal, { backgroundColor: colors.surface }]}>
+            <View style={styles.pickerHeader}>
+              <Text style={[styles.pickerTitle, { color: colors.textPrimary }]}>Select Occupation</Text>
+              <TouchableOpacity onPress={() => setShowOccupationPicker(false)}>
+                <Text style={[styles.pickerClose, { color: colors.textSecondary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[styles.pickerSearch, { borderColor: colors.border, backgroundColor: colors.background, color: colors.textPrimary }]}
+              placeholder="Search occupations..."
+              placeholderTextColor={colors.textSecondary}
+              value={occupationSearch}
+              onChangeText={setOccupationSearch}
+              autoFocus
+            />
+            <FlatList
+              data={filteredOccupations}
+              keyExtractor={(item, idx) => (item.group || '') + idx}
+              renderItem={({ item: group }) => (
+                <View>
+                  {group.group && <Text style={[styles.pickerGroupLabel, { color: colors.textSecondary }]}>{group.group}</Text>}
+                  {group.items.map((occ) => (
+                    <TouchableOpacity
+                      key={occ}
+                      style={[styles.pickerItem, occupationDetail === occ && { backgroundColor: `${colors.teal}14` }]}
+                      onPress={() => {
+                        setOccupationDetail(occ);
+                        setFreeTextOccupation('');
+                        setShowOccupationPicker(false);
+                      }}
+                    >
+                      <Text style={[styles.pickerItemText, { color: colors.textPrimary }, occupationDetail === occ && { color: colors.teal, fontWeight: '700' }]}>
+                        {occ}
+                      </Text>
+                      {occupationDetail === occ && <Text style={[styles.pickerCheck, { color: colors.teal }]}>✓</Text>}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              ListEmptyComponent={
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No occupations found</Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -701,6 +857,51 @@ const styles = StyleSheet.create({
   resultTitle: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
   resultText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
   bottomSpacer: { height: 100 },
+  // Occupation pickers
+  pickerButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 8,
+  },
+  pickerButtonText: { fontSize: 14, flex: 1 },
+  pickerArrow: { fontSize: 16, marginLeft: 8 },
+  selectedPill: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8,
+  },
+  selectedPillText: { fontSize: 14, fontWeight: '600', flex: 1 },
+  selectedPillClose: { fontSize: 16, fontWeight: '700', marginLeft: 10, padding: 2 },
+  orDividerText: { textAlign: 'center', fontSize: 13, marginVertical: 8 },
+  freeTextInput: {
+    borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 14, marginBottom: 8,
+  },
+  hintText: { fontSize: 12, marginTop: -4, marginBottom: 8 },
+  // Picker modals
+  pickerOverlay: { flex: 1, justifyContent: 'flex-end' },
+  pickerModal: { maxHeight: '70%', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30 },
+  pickerHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingTop: 18, paddingBottom: 12,
+  },
+  pickerTitle: { fontSize: 17, fontWeight: '700' },
+  pickerClose: { fontSize: 22, fontWeight: '600', padding: 4 },
+  pickerSearch: {
+    marginHorizontal: 16, borderWidth: 1.5, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, marginBottom: 8,
+  },
+  pickerGroupLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
+  pickerItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 14,
+  },
+  pickerItemText: { fontSize: 14, flex: 1 },
+  pickerCheck: { fontSize: 16, fontWeight: '700', marginLeft: 10 },
+  emptyText: { textAlign: 'center', padding: 20, fontSize: 14 },
+  bankInfoBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', padding: 12, borderRadius: 10, marginBottom: 14, borderWidth: 1,
+  },
+  bankInfoIcon: { fontSize: 18, marginRight: 10, marginTop: 1 },
+  bankInfoText: { fontSize: 13, lineHeight: 20, flex: 1 },
 });
 
 export default IncomeVerificationScreen;
