@@ -1,6 +1,15 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
-import { WebView } from 'react-native-webview';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  Alert,
+  ActivityIndicator,
+  Linking,
+  AppState,
+} from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
@@ -10,24 +19,24 @@ import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useTheme } from '../../../store/ThemeContext';
 
+const REDIRECT_URL = 'finz://selfie/verification-callback';
+
 const SelfieVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, dispatch } = useLoan();
-  const webViewRef = useRef(null);
 
-  // Flow states: 'intro' → 'loading' → 'liveness' → 'verifying' → 'result'
+  // Flow states: 'intro' → 'loading' → 'browser' → 'verifying' → 'result'
   const [step, setStep] = useState('intro');
-  const [livenessUrl, setLivenessUrl] = useState('');
   const [livenessToken, setLivenessToken] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const appStateRef = useRef(AppState.currentState);
 
   const kycPhoto = state.kycData?.photo;
+  const kycCompleted = !!(state.kycData && kycPhoto);
 
   /**
-   * Resolve KYC photo to a publicly accessible URL for Signzy matchImage.
-   * If the photo is already a URL, use it directly.
-   * If it's base64, convert to a data URI that Signzy can process.
+   * Resolve KYC photo to a URL for Signzy matchImage.
    */
   const getMatchImageUrl = useCallback(() => {
     if (!kycPhoto) return null;
@@ -37,14 +46,55 @@ const SelfieVerificationScreen = ({ navigation }) => {
     if (kycPhoto.startsWith('data:image')) {
       return kycPhoto;
     }
-    // Raw base64 — wrap as data URI
     return `data:image/jpeg;base64,${kycPhoto}`;
   }, [kycPhoto]);
 
   /**
-   * Step 1: Call createUrl to get a liveness verification URL from Signzy.
+   * When user returns from browser (app comes to foreground while in 'browser' step),
+   * automatically fetch liveness results.
+   */
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === 'active' &&
+        step === 'browser' &&
+        livenessToken
+      ) {
+        console.log('[SelfieVerification] App foregrounded, fetching results...');
+        setStep('verifying');
+        fetchLivenessResults();
+      }
+      appStateRef.current = nextAppState;
+    });
+    return () => subscription.remove();
+  }, [step, livenessToken]);
+
+  /**
+   * Listen for deep link redirect from Signzy liveness.
+   */
+  useEffect(() => {
+    const handleDeepLink = ({ url }) => {
+      if (url && url.startsWith('finz://selfie/verification-callback') && livenessToken) {
+        console.log('[SelfieVerification] Deep link received, fetching results...');
+        setStep('verifying');
+        fetchLivenessResults();
+      }
+    };
+
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    return () => subscription.remove();
+  }, [livenessToken]);
+
+  /**
+   * Step 1: Call createUrl to get a liveness verification URL, then open in browser.
    */
   const handleStartLiveness = async () => {
+    if (!kycCompleted) {
+      Alert.alert('KYC Required', 'Please complete KYC verification before proceeding with selfie verification.');
+      return;
+    }
+
     setError('');
     setStep('loading');
 
@@ -59,6 +109,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
       const response = await kycService.createLivenessUrl([matchImageUrl], {
         languageCode: 'en',
         faceMatchThreshold: 0.6,
+        redirectUrl: REDIRECT_URL,
       });
 
       if (!response.videoUrl || !response.token) {
@@ -66,8 +117,15 @@ const SelfieVerificationScreen = ({ navigation }) => {
       }
 
       setLivenessToken(response.token);
-      setLivenessUrl(response.videoUrl);
-      setStep('liveness');
+
+      // Open liveness URL in device browser
+      const canOpen = await Linking.canOpenURL(response.videoUrl);
+      if (canOpen) {
+        await Linking.openURL(response.videoUrl);
+        setStep('browser');
+      } else {
+        throw new Error('Unable to open verification page. Please try again.');
+      }
     } catch (err) {
       console.log('[SelfieVerification] createUrl error:', err.message);
       setError(err.message || 'Failed to start selfie verification. Please try again.');
@@ -76,20 +134,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
   };
 
   /**
-   * Step 2: Handle WebView messages — listen for "Verification Done".
-   */
-  const handleWebViewMessage = async (event) => {
-    const message = event.nativeEvent.data;
-    console.log('[SelfieVerification] WebView message:', message);
-
-    if (message === 'Verification Done') {
-      setStep('verifying');
-      await fetchLivenessResults();
-    }
-  };
-
-  /**
-   * Step 3: Fetch liveness results from Signzy getData API.
+   * Step 2: Fetch liveness results from Signzy getData API.
    */
   const fetchLivenessResults = async () => {
     try {
@@ -97,7 +142,6 @@ const SelfieVerificationScreen = ({ navigation }) => {
       setResult(data);
 
       if (data.status && data.faceMatch?.verified && data.passiveLiveliness?.liveness) {
-        // Selfie verified — store in context
         dispatch({
           type: 'SET_SELFIE',
           payload: {
@@ -109,13 +153,16 @@ const SelfieVerificationScreen = ({ navigation }) => {
           },
         });
         setStep('result');
+      } else if (data.isUsed === 0) {
+        // Journey not yet completed — user may have come back before finishing
+        setError('Selfie verification was not completed. Please try again.');
+        setStep('intro');
       } else {
-        // Verification failed
         setStep('result');
       }
     } catch (err) {
       console.log('[SelfieVerification] getData error:', err.message);
-      setError(err.message || 'Failed to fetch verification results.');
+      setError(err.message || 'Failed to fetch verification results. Please try again.');
       setStep('intro');
     }
   };
@@ -125,7 +172,6 @@ const SelfieVerificationScreen = ({ navigation }) => {
   const handleRetry = () => {
     setResult(null);
     setError('');
-    setLivenessUrl('');
     setLivenessToken('');
     setStep('intro');
   };
@@ -134,80 +180,40 @@ const SelfieVerificationScreen = ({ navigation }) => {
     navigation.navigate('EnachEsign');
   };
 
-  /**
-   * JS to inject into WebView to forward postMessage events to React Native.
-   */
-  const injectedJs = `
-    (function() {
-      window.addEventListener('message', function(event) {
-        if (event.data === 'Verification Done') {
-          window.ReactNativeWebView.postMessage('Verification Done');
-        }
-      }, false);
-      true;
-    })();
-  `;
-
-  // ─── Render: Liveness WebView (full-screen overlay) ─────────────────
-  if (step === 'liveness') {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Header
-          title="Selfie Verification"
-          onBack={() => {
-            Alert.alert(
-              'Cancel Verification?',
-              'Are you sure you want to cancel the selfie verification?',
-              [
-                { text: 'No', style: 'cancel' },
-                { text: 'Yes', onPress: handleRetry },
-              ],
-            );
-          }}
-        />
-        <WebView
-          ref={webViewRef}
-          source={{ uri: livenessUrl }}
-          style={styles.webView}
-          javaScriptEnabled
-          domStorageEnabled
-          mediaPlaybackRequiresUserAction={false}
-          allowsInlineMediaPlayback
-          mediaCapturePermissionGrantType="grant"
-          injectedJavaScript={injectedJs}
-          onMessage={handleWebViewMessage}
-          startInLoadingState
-          renderLoading={() => (
-            <View style={[styles.webViewLoading, { backgroundColor: colors.background }]}>
-              <ActivityIndicator size="large" color={colors.teal} />
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading camera...</Text>
-            </View>
-          )}
-          onError={(syntheticEvent) => {
-            const { nativeEvent } = syntheticEvent;
-            console.warn('[SelfieVerification] WebView error:', nativeEvent);
-            setError('Camera failed to load. Please check permissions and try again.');
-            setStep('intro');
-          }}
-        />
-      </View>
-    );
-  }
-
-  // ─── Render: Main screen (intro / loading / verifying / result) ─────
+  // ─── Render ──────────────────────────────────────────────────────────
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Selfie Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={5} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
 
+        {/* KYC Not Done Guard */}
+        {!kycCompleted && step === 'intro' && (
+          <Card>
+            <View style={styles.guardSection}>
+              <Text style={styles.guardIcon}>⚠️</Text>
+              <Text style={[styles.guardTitle, { color: colors.error }]}>KYC Not Completed</Text>
+              <Text style={[styles.guardText, { color: colors.textSecondary }]}>
+                You need to complete KYC verification before selfie verification.
+                Your Aadhaar photo is required for face matching.
+              </Text>
+              <Button
+                title="Go to KYC Verification"
+                onPress={() => navigation.navigate('KycVerification')}
+                variant="outline"
+                style={styles.guardBtn}
+              />
+            </View>
+          </Card>
+        )}
+
         {/* Intro / Start */}
-        {step === 'intro' && (
+        {kycCompleted && step === 'intro' && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Live Selfie & Face Match</Text>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               We'll verify your identity by capturing a live selfie and matching it against your KYC photo.
-              Please ensure:
+              You will be redirected to a secure verification page. Please ensure:
             </Text>
             <View style={styles.tipsList}>
               {['Good lighting on your face', 'No hat, mask, or sunglasses', 'Look directly at the camera', 'Keep your face within the frame'].map((tip) => (
@@ -219,22 +225,20 @@ const SelfieVerificationScreen = ({ navigation }) => {
             </View>
 
             {/* KYC Photo Preview */}
-            {kycPhoto && (
-              <View style={styles.kycPhotoSection}>
-                <Text style={[styles.kycPhotoLabel, { color: colors.textSecondary }]}>Your KYC Photo</Text>
-                <Image
-                  source={
-                    kycPhoto.startsWith('http')
+            <View style={styles.kycPhotoSection}>
+              <Text style={[styles.kycPhotoLabel, { color: colors.textSecondary }]}>Your KYC Photo</Text>
+              <Image
+                source={
+                  kycPhoto.startsWith('http')
+                    ? { uri: kycPhoto }
+                    : kycPhoto.startsWith('data:image')
                       ? { uri: kycPhoto }
-                      : kycPhoto.startsWith('data:image')
-                        ? { uri: kycPhoto }
-                        : { uri: `data:image/jpeg;base64,${kycPhoto}` }
-                  }
-                  style={[styles.kycPhoto, { borderColor: colors.border }]}
-                  resizeMode="cover"
-                />
-              </View>
-            )}
+                      : { uri: `data:image/jpeg;base64,${kycPhoto}` }
+                }
+                style={[styles.kycPhoto, { borderColor: colors.border }]}
+                resizeMode="cover"
+              />
+            </View>
 
             {error ? <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text> : null}
 
@@ -255,6 +259,37 @@ const SelfieVerificationScreen = ({ navigation }) => {
               <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
                 Preparing selfie verification...
               </Text>
+            </View>
+          </Card>
+        )}
+
+        {/* Browser: User is in external browser */}
+        {step === 'browser' && (
+          <Card>
+            <View style={styles.centeredSection}>
+              <Text style={styles.browserIcon}>🌐</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary, textAlign: 'center' }]}>
+                Verification In Progress
+              </Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary, textAlign: 'center' }]}>
+                Complete the selfie verification in your browser.{'\n'}
+                You'll be brought back here automatically once done.
+              </Text>
+              <ActivityIndicator size="small" color={colors.teal} style={{ marginBottom: 16 }} />
+              <Button
+                title="I've Completed Verification"
+                onPress={() => {
+                  setStep('verifying');
+                  fetchLivenessResults();
+                }}
+                style={styles.startBtn}
+              />
+              <Button
+                title="Cancel"
+                onPress={handleRetry}
+                variant="outline"
+                style={styles.cancelBtn}
+              />
             </View>
           </Card>
         )}
@@ -361,11 +396,16 @@ const styles = StyleSheet.create({
   kycPhoto: { width: 100, height: 130, borderRadius: 10, borderWidth: 2 },
   errorText: { fontSize: 13, marginBottom: 12, textAlign: 'center' },
   startBtn: { marginTop: 8 },
+  cancelBtn: { marginTop: 10 },
   centeredSection: { alignItems: 'center', paddingVertical: 40 },
   loadingText: { fontSize: 14, marginTop: 16 },
-  // WebView
-  webView: { flex: 1 },
-  webViewLoading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
+  browserIcon: { fontSize: 48, marginBottom: 12 },
+  // Guard
+  guardSection: { alignItems: 'center', paddingVertical: 24 },
+  guardIcon: { fontSize: 48, marginBottom: 12 },
+  guardTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  guardText: { fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 16 },
+  guardBtn: { width: '100%' },
   // Result
   resultHeader: { alignItems: 'center', marginBottom: 20 },
   resultIcon: { fontSize: 48, marginBottom: 8 },
