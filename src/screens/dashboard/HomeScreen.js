@@ -13,6 +13,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import { COLORS } from '../../config/constants';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
+import { useLoan } from '../../store/LoanContext';
 import { loanService } from '../../services/loanService';
 import { engagementService } from '../../services/engagementService';
 import { formatCurrency, formatDate } from '../../utils/helpers';
@@ -20,6 +21,7 @@ import { formatCurrency, formatDate } from '../../utils/helpers';
 const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
   const { colors } = useTheme();
+  const { hasSavedApplication, getResumeInfo, dispatch: loanDispatch } = useLoan();
   const [loans, setLoans] = useState([]);
   const [dailyTip, setDailyTip] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -107,6 +109,63 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Resume Application Banner */}
+        {hasSavedApplication && (() => {
+          const info = getResumeInfo();
+          if (!info) return null;
+          const timeAgo = info.lastUpdated
+            ? Math.round((Date.now() - new Date(info.lastUpdated).getTime()) / 60000)
+            : null;
+          const timeLabel = timeAgo != null
+            ? timeAgo < 60 ? `${timeAgo}m ago` : timeAgo < 1440 ? `${Math.round(timeAgo / 60)}h ago` : `${Math.round(timeAgo / 1440)}d ago`
+            : '';
+          return (
+            <Card
+              accent={colors.teal}
+              style={styles.resumeCard}
+              onPress={() => navigation.navigate(info.screen)}
+            >
+              <View style={styles.resumeHeader}>
+                <View style={styles.resumeLeft}>
+                  <Text style={[styles.resumeTitle, { color: colors.textPrimary }]}>
+                    Resume Application
+                  </Text>
+                  <Text style={[styles.resumeSub, { color: colors.textSecondary }]}>
+                    {info.instituteName || info.loanType || 'Loan'} — {info.statusLabel}
+                  </Text>
+                  {timeLabel ? (
+                    <Text style={[styles.resumeTime, { color: colors.textSecondary }]}>
+                      Last updated {timeLabel}
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={[styles.resumeArrow, { backgroundColor: colors.teal }]}>
+                  <Text style={styles.resumeArrowText}>→</Text>
+                </View>
+              </View>
+              {/* Progress bar */}
+              <View style={styles.resumeProgress}>
+                <View style={[styles.resumeProgressBg, { backgroundColor: colors.border }]}>
+                  <View style={[styles.resumeProgressFill, { width: `${Math.min(100, ((info.step + 1) / 7) * 100)}%`, backgroundColor: colors.teal }]} />
+                </View>
+                <Text style={[styles.resumeStepLabel, { color: colors.textSecondary }]}>
+                  Step {info.step + 1} of 7
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.resumeDiscard}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  loanDispatch({ type: 'RESET' });
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={[styles.resumeDiscardText, { color: colors.error }]}>Discard</Text>
+              </TouchableOpacity>
+            </Card>
+          );
+        })()}
 
         {/* Credit Score Widget */}
         {creditScore && (
@@ -290,6 +349,49 @@ const styles = StyleSheet.create({
   loanDetailValue: { fontSize: 15, fontWeight: '700', marginTop: 3 },
   tipTitle: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
   tipContent: { fontSize: 13, lineHeight: 20 },
+  // Resume banner
+  resumeCard: { marginBottom: 4 },
+  resumeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  resumeLeft: { flex: 1, marginRight: 12 },
+  resumeTitle: { fontSize: 15, fontWeight: '700' },
+  resumeSub: { fontSize: 12, marginTop: 2 },
+  resumeTime: { fontSize: 10, marginTop: 2 },
+  resumeArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resumeArrowText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  resumeProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  resumeProgressBg: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  resumeProgressFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  resumeStepLabel: { fontSize: 10, fontWeight: '600' },
+  resumeDiscard: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  resumeDiscardText: { fontSize: 11, fontWeight: '600' },
+
   bottomSpacer: { height: 100 },
 });
 
