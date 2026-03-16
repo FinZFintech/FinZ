@@ -105,7 +105,6 @@ const SelfieVerificationScreen = ({ navigation }) => {
       const response = await kycService.createLivenessUrl(matchImages, {
         languageCode: 'en',
         faceMatchThreshold: 0.6,
-        redirectUrl: REDIRECT_URL,
       });
 
       if (!response.videoUrl || !response.token) {

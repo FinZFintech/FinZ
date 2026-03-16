@@ -28,6 +28,8 @@ signzyApi.interceptors.response.use(
     const status = error.response.status;
     const data = error.response.data;
 
+    console.log('[signzyApi] Error response:', status, JSON.stringify(data));
+
     let message = 'Verification failed. Please try again.';
 
     if (status === 400) {
@@ -614,25 +616,41 @@ export const signzyService = {
     // Signzy requires publicly accessible URLs for matchImage.
     // Filter out data URIs and base64 strings.
     const validMatchImages = matchImage.filter(
-      (url) => url.startsWith('http://') || url.startsWith('https://'),
+      (url) => typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://')),
     );
 
     const body = {
       languageCode,
       hideBottomLogo: 'true',
-      accentColor: '#4AEDC4',
-      backgroundColor: '#0D1017',
       reviewImage: 'true',
       additionalChecks: 'true',
       allowCameraSwitch: 'true',
-      faceMatchThreshold,
-      piiDeletionTTL: '6 months',
-      ...(validMatchImages.length > 0 ? { matchImage: validMatchImages } : {}),
-      ...(callbackUrl ? { callbackUrl } : {}),
-      ...(redirectUrl ? { redirectUrl } : {}),
     };
 
-    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.LIVENESS_CREATE_URL, body);
+    // Only include matchImage and faceMatchThreshold when we have valid image URLs
+    if (validMatchImages.length > 0) {
+      body.matchImage = validMatchImages;
+      body.faceMatchThreshold = faceMatchThreshold;
+    }
+
+    // Only include callback/redirect if they are valid http(s) URLs
+    if (callbackUrl && callbackUrl.startsWith('http')) {
+      body.callbackUrl = callbackUrl;
+    }
+    if (redirectUrl && redirectUrl.startsWith('http')) {
+      body.redirectUrl = redirectUrl;
+    }
+
+    console.log('[signzyService] livenessCreateUrl request body:', JSON.stringify(body));
+
+    let data;
+    try {
+      const response = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.LIVENESS_CREATE_URL, body);
+      data = response.data;
+    } catch (err) {
+      console.log('[signzyService] livenessCreateUrl error response:', JSON.stringify(err.signzyError || err.message));
+      throw err;
+    }
 
     const r = extractResult(data);
     return {
