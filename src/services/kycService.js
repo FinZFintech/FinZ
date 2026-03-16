@@ -1,11 +1,10 @@
-import api from './api';
-import { API_ENDPOINTS } from '../config/constants';
 import { signzyService } from './signzyService';
 
 export const kycService = {
+  // ─── REAL APIs (Signzy) ──────────────────────────────────────────────────
+
   /**
    * Phone-to-PAN lookup — calls Signzy phoneToPan API directly.
-   * URL: https://api-preproduction.signzy.app/api/v3/phonekyc/phonetoPan
    */
   async fetchPanByMobile(mobile, firstName = '', lastName = '') {
     console.log('[kycService] fetchPanByMobile → calling signzyService.phoneToPan directly');
@@ -21,33 +20,10 @@ export const kycService = {
 
   /**
    * PAN verification — calls Signzy PAN fetchV2 API directly.
-   * URL: https://api-preproduction.signzy.app/api/v3/pan/fetchV2
    */
   async validatePan(panNumber) {
     console.log('[kycService] validatePan → calling signzyService.verifyPan directly');
     return signzyService.verifyPan(panNumber);
-  },
-
-  // Credit Bureau
-  async softPull(data) {
-    return api.post(API_ENDPOINTS.CREDIT.SOFT_PULL, data);
-  },
-
-  async hardPull(data) {
-    return api.post(API_ENDPOINTS.CREDIT.HARD_PULL, data);
-  },
-
-  async checkGatingCriteria(data) {
-    return api.post(API_ENDPOINTS.CREDIT.GATING_CHECK, data);
-  },
-
-  // CKYC
-  async initiateCkyc(data) {
-    return api.post(API_ENDPOINTS.KYC.CKYC_INITIATE, data);
-  },
-
-  async verifyCkycOtp(data) {
-    return api.post(API_ENDPOINTS.KYC.CKYC_VERIFY, data);
   },
 
   // DigiLocker — calls Signzy DigiLocker API directly (2-step flow)
@@ -79,26 +55,10 @@ export const kycService = {
     return result;
   },
 
-  // Aadhaar XML
-  async uploadAadhaarXml(formData) {
-    return api.post(API_ENDPOINTS.KYC.AADHAAR_XML_UPLOAD, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-  },
-
-  // Pincode check
-  async checkPincode(pincode) {
-    return api.post(API_ENDPOINTS.KYC.PINCODE_CHECK, { pincode });
-  },
-
   // Selfie & Liveness (Signzy)
 
   /**
    * Create liveness verification URL for selfie capture.
-   * Pass the KYC photo URL(s) for face matching.
-   * @param {string[]} matchImageUrls - Publicly accessible image URLs
-   * @param {Object} options - Additional options (languageCode, faceMatchThreshold, etc.)
-   * @returns {{ token: string, videoUrl: string, consumerId: string }}
    */
   async createLivenessUrl(matchImageUrls, options = {}) {
     console.log('[kycService] createLivenessUrl → calling signzyService.livenessCreateUrl');
@@ -112,8 +72,6 @@ export const kycService = {
 
   /**
    * Get liveness verification results after user completes the selfie journey.
-   * @param {string} token - Token from createLivenessUrl response
-   * @returns {Object} Liveness result with faceMatch, passiveLiveliness, status, etc.
    */
   async getLivenessData(token) {
     console.log('[kycService] getLivenessData → calling signzyService.livenessGetData');
@@ -127,16 +85,11 @@ export const kycService = {
   },
 
   /**
-   * Verify a captured selfie against KYC photo.
-   * Uses the backend selfie match endpoint for face comparison.
-   * @param {string} selfieImage - Selfie image (base64 data URI or raw base64)
-   * @param {string} kycPhoto - KYC photo (base64, data URI, or URL)
-   * @returns {{ verified: boolean, matchPercentage: string, message: string, liveness: boolean, livenessScore: number }}
+   * Verify a captured selfie against KYC photo via Signzy face match.
    */
   async verifySelfieWithKyc(selfieImage, kycPhoto) {
-    console.log('[kycService] verifySelfieWithKyc → calling backend selfie match');
+    console.log('[kycService] verifySelfieWithKyc → calling signzyService.faceMatch');
 
-    // Validate inputs — both images must be present
     const hasValidSelfie = selfieImage && selfieImage.length > 100;
     const hasValidKycPhoto = kycPhoto &&
       (kycPhoto.startsWith('http') || kycPhoto.startsWith('data:') || kycPhoto.length > 100);
@@ -161,65 +114,146 @@ export const kycService = {
       };
     }
 
-    // Extract raw base64 from data URI if needed
-    const extractBase64 = (img) => {
-      if (!img) return '';
-      if (img.startsWith('data:')) {
-        return img.split(',')[1] || '';
-      }
-      return img;
-    };
-
-    const selfieBase64 = extractBase64(selfieImage);
-    const kycBase64 = extractBase64(
-      kycPhoto.startsWith('http') ? kycPhoto : kycPhoto.startsWith('data:') ? kycPhoto : `data:image/jpeg;base64,${kycPhoto}`
-    );
-
     try {
-      const result = await api.post(API_ENDPOINTS.VERIFICATION.SELFIE_MATCH, {
-        selfie: selfieBase64,
-        kycImage: kycBase64,
-      });
-
-      console.log('[kycService] selfie match result:', JSON.stringify(result));
-
-      // Normalize backend response
-      const matchPercentage = result?.matchPercentage || result?.match_percentage || result?.score || '0.00%';
-      const verified = result?.verified ?? result?.matched ?? false;
-      const liveness = result?.liveness ?? result?.livenessVerified ?? true;
-      const livenessScore = result?.livenessScore ?? result?.liveness_score ?? 1.0;
-
+      const result = await signzyService.faceMatch(selfieImage, kycPhoto);
+      console.log('[kycService] faceMatch result:', JSON.stringify(result));
       return {
-        verified,
-        matchPercentage: typeof matchPercentage === 'number' ? `${matchPercentage.toFixed(2)}%` : matchPercentage,
-        message: result?.message || '',
-        liveness,
-        livenessScore: typeof livenessScore === 'number' ? livenessScore : parseFloat(livenessScore) || 1.0,
+        verified: result.verified ?? false,
+        matchPercentage: result.matchPercentage || '0.00%',
+        message: result.message || '',
+        liveness: true,
+        livenessScore: 1.0,
       };
     } catch (err) {
-      console.log('[kycService] selfie match error:', err.message || JSON.stringify(err));
+      console.log('[kycService] faceMatch error:', err.message || JSON.stringify(err));
       throw new Error(err.message || 'Face verification failed. Please try again.');
     }
   },
 
+  // ─── MOCK APIs (until backend is integrated) ────────────────────────────
+
+  // Credit Bureau
+  async softPull(data) {
+    console.log('[kycService] Mock softPull for:', data.pan);
+    await new Promise((r) => setTimeout(r, 1000));
+    return {
+      score: 720,
+      cibilScore: 720,
+      gatingPassed: true,
+      enquiryCount: 2,
+      activeAccounts: 3,
+      overdueAccounts: 0,
+    };
+  },
+
+  async hardPull(data) {
+    console.log('[kycService] Mock hardPull for:', data.pan);
+    await new Promise((r) => setTimeout(r, 1000));
+    return {
+      score: 720,
+      cibilScore: 720,
+      totalAccounts: 5,
+      activeAccounts: 3,
+      closedAccounts: 2,
+      overdueAccounts: 0,
+      totalOutstanding: 150000,
+      totalEmi: 8000,
+    };
+  },
+
+  async checkGatingCriteria(data) {
+    console.log('[kycService] Mock checkGatingCriteria');
+    await new Promise((r) => setTimeout(r, 500));
+    return { passed: true, reason: '' };
+  },
+
+  // CKYC
+  async initiateCkyc(data) {
+    console.log('[kycService] Mock initiateCkyc');
+    await new Promise((r) => setTimeout(r, 800));
+    return {
+      ckycNumber: 'CKYC' + Date.now(),
+      name: data.name || 'RAHUL SHARMA',
+      dob: '1995-01-15',
+      address: '123 Main Street, Mumbai, Maharashtra 400001',
+      phone: data.phone || '9876543210',
+      pan: data.pan || '',
+      status: 'verified',
+    };
+  },
+
+  async verifyCkycOtp(data) {
+    console.log('[kycService] Mock verifyCkycOtp');
+    await new Promise((r) => setTimeout(r, 500));
+    return { verified: true };
+  },
+
+  // Aadhaar XML
+  async uploadAadhaarXml(formData) {
+    console.log('[kycService] Mock uploadAadhaarXml');
+    await new Promise((r) => setTimeout(r, 1000));
+    return {
+      name: 'RAHUL SHARMA',
+      dob: '1995-01-15',
+      gender: 'M',
+      address: '123 Main Street, Mumbai, Maharashtra 400001',
+      uid: 'XXXX-XXXX-1234',
+      photo: '',
+      verified: true,
+    };
+  },
+
+  // Pincode check
+  async checkPincode(pincode) {
+    console.log('[kycService] Mock checkPincode:', pincode);
+    await new Promise((r) => setTimeout(r, 300));
+    return {
+      serviceable: true,
+      area: 'Andheri West',
+      district: 'Mumbai',
+      state: 'Maharashtra',
+      status: 'OK',
+    };
+  },
+
   /** @deprecated Use verifySelfieWithKyc instead */
   async verifySelfie(selfieBase64, kycImageBase64) {
-    return api.post(API_ENDPOINTS.VERIFICATION.SELFIE_MATCH, {
-      selfie: selfieBase64,
-      kycImage: kycImageBase64,
-    });
+    console.log('[kycService] Mock verifySelfie (deprecated)');
+    await new Promise((r) => setTimeout(r, 1000));
+    return {
+      verified: true,
+      matchPercentage: '85.50%',
+      message: 'Face match successful (mock)',
+    };
   },
 
   async initiateVkyc(loanId) {
-    return api.post(API_ENDPOINTS.VERIFICATION.VKYC_INITIATE, { loanId });
+    console.log('[kycService] Mock initiateVkyc for loan:', loanId);
+    await new Promise((r) => setTimeout(r, 500));
+    return {
+      sessionId: 'vkyc_' + Date.now(),
+      url: 'https://example.com/vkyc-mock',
+      status: 'initiated',
+    };
   },
 
   async getVkycStatus(loanId) {
-    return api.get(API_ENDPOINTS.VERIFICATION.VKYC_STATUS, { params: { loanId } });
+    console.log('[kycService] Mock getVkycStatus for loan:', loanId);
+    await new Promise((r) => setTimeout(r, 300));
+    return { status: 'completed', verified: true };
   },
 
   // Name Match
   async matchNames(data) {
-    return api.post(API_ENDPOINTS.VERIFICATION.NAME_MATCH, data);
+    console.log('[kycService] Mock matchNames');
+    await new Promise((r) => setTimeout(r, 300));
+    const name1 = (data.name1 || '').toUpperCase();
+    const name2 = (data.name2 || '').toUpperCase();
+    const matched = name1 === name2;
+    return {
+      matched,
+      score: matched ? 100 : 65,
+      status: 'OK',
+    };
   },
 };
