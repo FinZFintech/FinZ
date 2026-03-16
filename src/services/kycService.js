@@ -1,5 +1,5 @@
 import api from './api';
-import { API_ENDPOINTS } from '../config/constants';
+import { API_ENDPOINTS, MOCK_MODE } from '../config/constants';
 import { signzyService } from './signzyService';
 
 export const kycService = {
@@ -135,6 +135,19 @@ export const kycService = {
    */
   async verifySelfieWithKyc(selfieImage, kycPhoto) {
     console.log('[kycService] verifySelfieWithKyc → calling backend selfie match');
+
+    if (MOCK_MODE) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const mockScore = 85 + Math.random() * 10; // 85–95%
+      const mockLivenessScore = 0.92 + Math.random() * 0.07; // 0.92–0.99
+      return {
+        verified: true,
+        matchPercentage: `${mockScore.toFixed(2)}%`,
+        message: 'Face match verified successfully',
+        liveness: true,
+        livenessScore: parseFloat(mockLivenessScore.toFixed(2)),
+      };
+    }
 
     // Extract raw base64 from data URI if needed
     const extractBase64 = (img) => {
