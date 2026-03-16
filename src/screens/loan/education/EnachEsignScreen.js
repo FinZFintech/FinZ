@@ -71,7 +71,9 @@ const EnachEsignScreen = ({ navigation }) => {
         Linking.openURL(result.redirectUrl);
       }
     } catch {
-      // Mock
+      setEnachLoading(false);
+      Alert.alert('Error', 'eNACH setup failed. Please try again.');
+      return;
     }
     setTimeout(() => {
       setEnachDone(true);
@@ -88,7 +90,9 @@ const EnachEsignScreen = ({ navigation }) => {
         Linking.openURL(result.redirectUrl);
       }
     } catch {
-      // Mock
+      setEsignLoading(false);
+      Alert.alert('Error', 'eSign initiation failed. Please try again.');
+      return;
     }
     setTimeout(() => {
       setEsignDone(true);
@@ -103,7 +107,7 @@ const EnachEsignScreen = ({ navigation }) => {
       await kycService.initiateVkyc(state.currentLoan?.id);
       setVkycInitiated(true);
     } catch {
-      setVkycInitiated(true);
+      Alert.alert('Error', 'Video KYC initiation failed. Please try again.');
     } finally {
       setVkycLoading(false);
     }
@@ -120,8 +124,7 @@ const EnachEsignScreen = ({ navigation }) => {
         Alert.alert('Pending', 'Video KYC is still pending. Please complete the video call.');
       }
     } catch {
-      setVkycDone(true);
-      dispatch({ type: 'SET_VKYC', payload: 'completed' });
+      Alert.alert('Error', 'Failed to check VKYC status. Please try again.');
     } finally {
       setVkycLoading(false);
     }

@@ -38,13 +38,7 @@ const InstituteSelectionScreen = ({ navigation }) => {
       const data = await loanService.getInstitutes(query);
       setInstitutes(data.institutes || []);
     } catch {
-      // Mock data for testing
-      setInstitutes([
-        { id: '1', name: 'ABC Institute of Technology', city: 'Bangalore', courses: 12 },
-        { id: '2', name: 'XYZ Coaching Academy', city: 'Delhi', courses: 8 },
-        { id: '3', name: 'PQR Engineering College', city: 'Mumbai', courses: 15 },
-        { id: '4', name: 'LMN Medical Academy', city: 'Chennai', courses: 6 },
-      ]);
+      setInstitutes([]);
     } finally {
       setLoading(false);
     }

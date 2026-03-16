@@ -48,20 +48,7 @@ const StudentDetailsScreen = ({ navigation }) => {
       dispatch({ type: 'SET_STUDENT', payload: data });
       setFetched(true);
     } catch {
-      // Mock data
-      const mock = {
-        regNo,
-        studentName: 'Rahul Sharma',
-        fatherName: 'Rajesh Sharma',
-        courseName: 'B.Tech Computer Science',
-        instituteName: state.instituteDetails?.name || 'ABC Institute',
-        phone: '9876543210',
-        email: 'rahul@example.com',
-        balanceFee: 250000,
-      };
-      setStudentData(mock);
-      dispatch({ type: 'SET_STUDENT', payload: mock });
-      setFetched(true);
+      Alert.alert('Error', 'Failed to fetch student details. Please try again.');
     } finally {
       setLoading(false);
     }

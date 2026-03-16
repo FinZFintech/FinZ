@@ -32,11 +32,7 @@ const EmployeeLoanScreen = ({ navigation }) => {
         const data = await loanService.getCompanies(query);
         setCompanies(data.companies || []);
       } catch {
-        setCompanies([
-          { id: 'c1', name: 'Infosys Ltd', city: 'Bangalore', employees: 300000 },
-          { id: 'c2', name: 'TCS', city: 'Mumbai', employees: 600000 },
-          { id: 'c3', name: 'Wipro', city: 'Bangalore', employees: 250000 },
-        ]);
+        setCompanies([]);
       }
     }
   };
@@ -54,26 +50,7 @@ const EmployeeLoanScreen = ({ navigation }) => {
       setEmployeeData(data);
       setStep('details');
     } catch {
-      const mock = {
-        empId,
-        name: 'Vikram Patel',
-        fatherName: 'Rajendra Patel',
-        pan: 'ABCDE1234F',
-        aadhaar: 'XXXX-XXXX-1234',
-        address: '45, Green Park, New Delhi - 110016',
-        bankName: 'HDFC Bank',
-        accountNumber: '1234567890123',
-        ifsc: 'HDFC0001234',
-        mobile: '9876543210',
-        email: 'vikram@company.com',
-        designation: 'Software Engineer',
-        salary: 65000,
-      };
-      setEmployeeData(mock);
-      dispatch({ type: 'SET_EMPLOYEE', payload: mock });
-      dispatch({ type: 'SET_COMPANY', payload: selectedCompany });
-      dispatch({ type: 'SET_LOAN_TYPE', payload: 'employee' });
-      setStep('details');
+      Alert.alert('Error', 'Failed to fetch employee details. Please try again.');
     } finally {
       setLoading(false);
     }

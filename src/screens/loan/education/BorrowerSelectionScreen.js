@@ -15,6 +15,7 @@ import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
 import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
+import { authService } from '../../../services/authService';
 import { useLoan } from '../../../store/LoanContext';
 import {
   formatCurrency,
@@ -50,31 +51,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       const data = await loanService.getInstituteLoanProducts(state.instituteDetails?.id);
       setProducts(data.products || []);
     } catch {
-      // Mock loan products
-      setProducts([
-        {
-          id: 'p1',
-          name: 'Education Loan - Standard',
-          interestRate: 14,
-          tenures: [6, 9, 12, 18, 24],
-          processingFee: '2%',
-          foreclosureCharges: '4% of outstanding',
-          partPaymentAllowed: true,
-          maxAmount: 500000,
-          minAmount: 10000,
-        },
-        {
-          id: 'p2',
-          name: 'Education Loan - Premium',
-          interestRate: 12,
-          tenures: [12, 18, 24, 36],
-          processingFee: '2.5%',
-          foreclosureCharges: '3% of outstanding',
-          partPaymentAllowed: true,
-          maxAmount: 1000000,
-          minAmount: 50000,
-        },
-      ]);
+      setProducts([]);
     }
   };
 
@@ -101,10 +78,14 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     // In production, call authService.sendOtp(borrowerPhone)
   };
 
-  const handleVerifyOtp = () => {
-    // Mock OTP verification
-    setPhoneVerified(true);
-    setShowOtp(false);
+  const handleVerifyOtp = async () => {
+    try {
+      await authService.verifyOtp(borrowerPhone, otp);
+      setPhoneVerified(true);
+      setShowOtp(false);
+    } catch {
+      Alert.alert('Error', 'OTP verification failed. Please try again.');
+    }
   };
 
   const handleApply = async () => {

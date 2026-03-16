@@ -144,14 +144,6 @@ const KycVerificationScreen = ({ navigation }) => {
     return () => subscription.remove();
   }, [digilockerRequestId]);
 
-  const getMockKycData = () => ({
-    name: state.borrowerDetails?.name || 'RAHUL SHARMA',
-    address: '123, ABC Colony, Bangalore - 560001',
-    pincode: '560001',
-    dob: '1998-05-15',
-    photo: 'base64_photo_data_here',
-  });
-
   /**
    * Resolves photo URI — handles URL, base64, or data URI.
    */
@@ -178,7 +170,7 @@ const KycVerificationScreen = ({ navigation }) => {
       });
       setOtpSent(true);
     } catch {
-      setOtpSent(true);
+      Alert.alert('Error', 'Failed to initiate CKYC. Please try again or use DigiLocker.');
     } finally {
       setLoading(false);
     }
@@ -195,7 +187,7 @@ const KycVerificationScreen = ({ navigation }) => {
       });
       showDetailsReview(result, KYC_METHODS.CKYC);
     } catch {
-      showDetailsReview(getMockKycData(), KYC_METHODS.CKYC);
+      Alert.alert('Error', 'CKYC verification failed. Please try again or use DigiLocker.');
     } finally {
       setLoading(false);
     }
@@ -403,7 +395,7 @@ const KycVerificationScreen = ({ navigation }) => {
         return;
       }
     } catch {
-      // Mock - pincode OK
+      // Pincode check failed — allow to proceed (non-blocking)
     }
 
     try {
@@ -424,7 +416,7 @@ const KycVerificationScreen = ({ navigation }) => {
         return;
       }
     } catch {
-      // Mock - name match OK
+      // Name match check failed — allow to proceed (non-blocking)
     }
 
     dispatch({ type: 'SET_KYC_DATA', payload: { ...kycData, method } });

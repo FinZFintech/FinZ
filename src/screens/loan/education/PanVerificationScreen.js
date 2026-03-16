@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, Alert } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Input from '../../../components/common/Input';
@@ -115,12 +115,8 @@ const PanVerificationScreen = ({ navigation }) => {
         dispatch({ type: 'SET_STEP', payload: 2 });
       }
     } catch {
-      // Mock - credit check passed
-      setCreditPassed(true);
-      const mockCredit = { score: 720, gatingPassed: true, cibilScore: 720 };
-      dispatch({ type: 'SET_CREDIT_SCORE', payload: mockCredit });
-      feedCreditBureauData(mockCredit);
-      dispatch({ type: 'SET_STEP', payload: 2 });
+      setCreditPassed(false);
+      Alert.alert('Error', 'Credit check failed. Please try again.');
     } finally {
       setCreditChecking(false);
 
@@ -223,49 +219,6 @@ const PanVerificationScreen = ({ navigation }) => {
     navigation.navigate('InstituteSelection');
   };
 
-  // Use mock data to skip API calls and move the flow forward
-  const handleUseMockData = () => {
-    const mockPan = 'ABCDE1234F';
-    const mockName = state.borrowerDetails?.name || 'RAHUL SHARMA';
-    const mockPanDetails = {
-      name: mockName,
-      panNumber: mockPan,
-      panStatus: 'E',
-      panStatusLabel: 'VALID',
-      isIndividual: true,
-      isValid: true,
-      typeOfHolder: 'Individual',
-      aadhaarSeedingStatus: 'Y',
-      individualTaxComplianceStatus: 'Compliant',
-    };
-
-    setPan(mockPan);
-    setPanName(mockName);
-    setPanFetched(true);
-    setPanVerified(true);
-    setPanDetails(mockPanDetails);
-    setPanNotLinked(false);
-    setPanError(null);
-
-    dispatch({
-      type: 'SET_PAN',
-      payload: {
-        panNumber: mockPan,
-        name: mockName,
-        panStatus: 'E',
-        isIndividual: true,
-        aadhaarSeedingStatus: 'Y',
-      },
-    });
-
-    // Run mock credit check
-    const mockCredit = { score: 720, gatingPassed: true, cibilScore: 720 };
-    setCreditPassed(true);
-    dispatch({ type: 'SET_CREDIT_SCORE', payload: mockCredit });
-    feedCreditBureauData(mockCredit);
-    dispatch({ type: 'SET_STEP', payload: 2 });
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
@@ -326,21 +279,13 @@ const PanVerificationScreen = ({ navigation }) => {
           )}
 
           {!panVerified ? (
-            <>
-              <Button
-                title="Verify PAN"
-                onPress={handleVerifyPan}
-                loading={loading}
-                disabled={!validatePan(pan)}
-                style={styles.btn}
-              />
-              <Button
-                title="Skip with Test Data"
-                onPress={handleUseMockData}
-                variant="outline"
-                style={styles.btn}
-              />
-            </>
+            <Button
+              title="Verify PAN"
+              onPress={handleVerifyPan}
+              loading={loading}
+              disabled={!validatePan(pan)}
+              style={styles.btn}
+            />
           ) : (
             <View style={styles.verifiedBadge}>
               <Text style={[styles.verifiedText, { color: colors.teal }]}>✓ PAN Verified</Text>

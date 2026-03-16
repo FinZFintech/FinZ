@@ -1,5 +1,5 @@
 import api from './api';
-import { API_ENDPOINTS, MOCK_MODE } from '../config/constants';
+import { API_ENDPOINTS } from '../config/constants';
 import { signzyService } from './signzyService';
 
 export const kycService = {
@@ -158,19 +158,6 @@ export const kycService = {
         message: 'KYC photo is missing. Please complete KYC verification first.',
         liveness: true,
         livenessScore: 1.0,
-      };
-    }
-
-    if (MOCK_MODE) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      // Mock mode cannot perform real face comparison — return unverified
-      // so different faces are never falsely marked as matched.
-      return {
-        verified: false,
-        matchPercentage: '0.00%',
-        message: 'Face match unavailable in mock mode. Enable backend for real verification.',
-        liveness: true,
-        livenessScore: 0.95,
       };
     }
 

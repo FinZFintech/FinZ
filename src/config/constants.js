@@ -2,7 +2,7 @@ export const APP_NAME = 'FinZ';
 export const APP_VERSION = '1.0.0';
 
 // MOCK_MODE: When true, all API calls will use mock data (no backend needed)
-export const MOCK_MODE = true;
+export const MOCK_MODE = false;
 
 // Signzy API Configuration - configurable keys for all Signzy v3 APIs
 export const SIGNZY_CONFIG = {

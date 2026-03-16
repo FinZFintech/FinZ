@@ -117,9 +117,8 @@ const IncomeVerificationScreen = ({ navigation }) => {
         setBranchName(fetchedBranch);
         matchBankToFip(fetchedBank);
       } catch {
-        setBankName('State Bank of India');
-        setBranchName('Koramangala Branch');
-        matchBankToFip('State Bank of India');
+        setBankName('');
+        setBranchName('');
       }
     } else {
       setBankName('');
@@ -184,31 +183,10 @@ const IncomeVerificationScreen = ({ navigation }) => {
       dispatch({ type: 'SET_PENNY_DROP', payload: result });
       return result;
     } catch {
-      // Mock penny drop
-      const mockResult = {
-        verified: true,
-        nameMatch: true,
-        accountHolderName: state.borrowerDetails?.name?.toUpperCase() || 'RAHUL SHARMA',
-        bankRefNo: 'PD' + Date.now(),
-        accountNumberLast4: accountNumber.slice(-4),
-      };
-      setPennyDropResult(mockResult);
-      setPennyDropDone(true);
-      dispatch({ type: 'SET_PENNY_DROP', payload: mockResult });
-      return mockResult;
+      Alert.alert('Error', 'Bank verification (penny drop) failed. Please check your account details.');
+      return null;
     }
   };
-
-  const getMockIncomeData = () => ({
-    monthlyIncome: 45000,
-    averageBalance: 32000,
-    totalCredits: 270000,
-    totalDebits: 210000,
-    emiObligations: 8000,
-    bounceCount: 0,
-    accountHolderName: state.borrowerDetails?.name?.toUpperCase() || 'RAHUL SHARMA',
-    accountNumberLast4: accountNumber.slice(-4),
-  });
 
   const runAAFetch = async () => {
     try {
@@ -220,28 +198,24 @@ const IncomeVerificationScreen = ({ navigation }) => {
       });
       setAaInitiated(true);
 
-      // Simulate AA consent and data fetch
       const result = await bankService.getAAStatus(state.borrowerDetails?.phone);
       if (result.status === 'completed') {
         setIncomeResult(result.income);
         await runEligibilityCheck(result.income);
         return result.income;
       }
+      Alert.alert('Pending', 'Account Aggregator consent is still pending. Please try again.');
+      return null;
     } catch {
-      // Mock AA data
+      Alert.alert('Error', 'Account Aggregator fetch failed. Please try bank statement upload instead.');
+      return null;
     }
-    const mockIncome = getMockIncomeData();
-    setIncomeResult(mockIncome);
-    await runEligibilityCheck(mockIncome);
-    return mockIncome;
   };
 
   const runStatementUpload = async () => {
     if (!statementFile) {
-      const mockIncome = getMockIncomeData();
-      setIncomeResult(mockIncome);
-      await runEligibilityCheck(mockIncome);
-      return mockIncome;
+      Alert.alert('Error', 'Please select a bank statement file to upload.');
+      return null;
     }
     try {
       const formData = new FormData();
@@ -255,10 +229,8 @@ const IncomeVerificationScreen = ({ navigation }) => {
       await runEligibilityCheck(result.income);
       return result.income;
     } catch {
-      const mockIncome = getMockIncomeData();
-      setIncomeResult(mockIncome);
-      await runEligibilityCheck(mockIncome);
-      return mockIncome;
+      Alert.alert('Error', 'Bank statement analysis failed. Please try again.');
+      return null;
     }
   };
 
@@ -305,7 +277,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
         phone: state.borrowerDetails?.phone,
       });
     } catch {
-      // Mock
+      // Hard pull failed — continue with eligibility calculation
     }
 
     const foir = income.emiObligations / income.monthlyIncome;
