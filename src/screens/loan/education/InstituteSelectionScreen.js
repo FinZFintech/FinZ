@@ -150,17 +150,15 @@ const InstituteSelectionScreen = ({ navigation }) => {
             ListEmptyComponent={
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No institutes found</Text>
             }
-            ListFooterComponent={
-              <TouchableOpacity
-                style={styles.manualEntryBtn}
-                onPress={() => setManualEntry(true)}
-              >
-                <Text style={[styles.manualEntryText, { color: colors.teal }]}>My institute is not listed</Text>
-                <Text style={[styles.manualEntryArrow, { color: colors.teal }]}>→</Text>
-              </TouchableOpacity>
-            }
           />
         )}
+        <TouchableOpacity
+          style={styles.manualEntryBtn}
+          onPress={() => setManualEntry(true)}
+        >
+          <Text style={[styles.manualEntryText, { color: colors.teal }]}>My institute is not listed</Text>
+          <Text style={[styles.manualEntryArrow, { color: colors.teal }]}>→</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );

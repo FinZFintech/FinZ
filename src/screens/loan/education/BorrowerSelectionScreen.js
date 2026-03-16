@@ -42,16 +42,40 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const [selectedTenure, setSelectedTenure] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const DEFAULT_LOAN_PRODUCTS = [
+    {
+      id: 'default_emi',
+      name: 'Education Loan - EMI',
+      interestRate: 14,
+      processingFee: '2% + GST',
+      foreclosureCharges: '4% of outstanding',
+      tenures: [6, 9, 12, 18, 24],
+    },
+    {
+      id: 'default_bullet',
+      name: 'Education Loan - Bullet Repayment',
+      interestRate: 12,
+      processingFee: '2.5% + GST',
+      foreclosureCharges: 'Nil',
+      tenures: [3, 6, 9, 12],
+    },
+  ];
+
   useEffect(() => {
     fetchLoanProducts();
   }, []);
 
   const fetchLoanProducts = async () => {
+    if (state.instituteDetails?.isManual || !state.instituteDetails?.id) {
+      setProducts(DEFAULT_LOAN_PRODUCTS);
+      return;
+    }
     try {
-      const data = await loanService.getInstituteLoanProducts(state.instituteDetails?.id);
-      setProducts(data.products || []);
+      const data = await loanService.getInstituteLoanProducts(state.instituteDetails.id);
+      const fetched = data.products || [];
+      setProducts(fetched.length > 0 ? fetched : DEFAULT_LOAN_PRODUCTS);
     } catch {
-      setProducts([]);
+      setProducts(DEFAULT_LOAN_PRODUCTS);
     }
   };
 
