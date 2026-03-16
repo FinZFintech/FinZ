@@ -127,31 +127,54 @@ export const kycService = {
   },
 
   /**
-   * Verify a captured selfie against KYC photo using Signzy face match.
-   * @param {string} selfieUri - Local file URI of captured selfie
+   * Verify a captured selfie against KYC photo.
+   * Uses the backend selfie match endpoint for face comparison.
+   * @param {string} selfieImage - Selfie image (base64 data URI or raw base64)
    * @param {string} kycPhoto - KYC photo (base64, data URI, or URL)
    * @returns {{ verified: boolean, matchPercentage: string, message: string, liveness: boolean, livenessScore: number }}
    */
-  async verifySelfieWithKyc(selfieUri, kycPhoto) {
-    console.log('[kycService] verifySelfieWithKyc → calling signzyService.faceMatch');
+  async verifySelfieWithKyc(selfieImage, kycPhoto) {
+    console.log('[kycService] verifySelfieWithKyc → calling backend selfie match');
 
-    // Convert KYC photo to usable format
-    let kycImage = kycPhoto;
-    if (kycPhoto && !kycPhoto.startsWith('http') && !kycPhoto.startsWith('data:')) {
-      kycImage = `data:image/jpeg;base64,${kycPhoto}`;
-    }
-
-    const faceResult = await signzyService.faceMatch(selfieUri, kycImage, 0.6);
-
-    console.log('[kycService] faceMatch result:', JSON.stringify(faceResult));
-
-    return {
-      verified: faceResult.verified,
-      matchPercentage: faceResult.matchPercentage,
-      message: faceResult.message,
-      liveness: true, // In-app capture inherently provides liveness
-      livenessScore: 1.0,
+    // Extract raw base64 from data URI if needed
+    const extractBase64 = (img) => {
+      if (!img) return '';
+      if (img.startsWith('data:')) {
+        return img.split(',')[1] || '';
+      }
+      return img;
     };
+
+    const selfieBase64 = extractBase64(selfieImage);
+    const kycBase64 = extractBase64(
+      kycPhoto.startsWith('http') ? kycPhoto : kycPhoto.startsWith('data:') ? kycPhoto : `data:image/jpeg;base64,${kycPhoto}`
+    );
+
+    try {
+      const result = await api.post(API_ENDPOINTS.VERIFICATION.SELFIE_MATCH, {
+        selfie: selfieBase64,
+        kycImage: kycBase64,
+      });
+
+      console.log('[kycService] selfie match result:', JSON.stringify(result));
+
+      // Normalize backend response
+      const matchPercentage = result?.matchPercentage || result?.match_percentage || result?.score || '0.00%';
+      const verified = result?.verified ?? result?.matched ?? false;
+      const liveness = result?.liveness ?? result?.livenessVerified ?? true;
+      const livenessScore = result?.livenessScore ?? result?.liveness_score ?? 1.0;
+
+      return {
+        verified,
+        matchPercentage: typeof matchPercentage === 'number' ? `${matchPercentage.toFixed(2)}%` : matchPercentage,
+        message: result?.message || '',
+        liveness,
+        livenessScore: typeof livenessScore === 'number' ? livenessScore : parseFloat(livenessScore) || 1.0,
+      };
+    } catch (err) {
+      console.log('[kycService] selfie match error:', err.message || JSON.stringify(err));
+      throw new Error(err.message || 'Face verification failed. Please try again.');
+    }
   },
 
   /** @deprecated Use verifySelfieWithKyc instead */

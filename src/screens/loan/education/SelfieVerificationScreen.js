@@ -137,12 +137,14 @@ const SelfieVerificationScreen = ({ navigation }) => {
     setError('');
 
     try {
-      // Build selfie data URI from captured base64
-      const selfieDataUri = capturedPhoto.base64
-        ? `data:image/jpeg;base64,${capturedPhoto.base64}`
+      // Build selfie image for verification — use raw base64 without double-wrapping
+      const selfieImage = capturedPhoto.base64
+        ? (capturedPhoto.base64.startsWith('data:')
+            ? capturedPhoto.base64
+            : `data:image/jpeg;base64,${capturedPhoto.base64}`)
         : capturedPhoto.uri;
 
-      const result = await kycService.verifySelfieWithKyc(selfieDataUri, kycPhoto);
+      const result = await kycService.verifySelfieWithKyc(selfieImage, kycPhoto);
 
       setVerificationResult(result);
 
