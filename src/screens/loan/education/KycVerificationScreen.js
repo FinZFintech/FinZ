@@ -79,6 +79,9 @@ const KycVerificationScreen = ({ navigation }) => {
   const [aadhaarXmlFile, setAadhaarXmlFile] = useState(null);
   const [aadhaarShareCode, setAadhaarShareCode] = useState('');
 
+  // CKYC incorrect → show inline DigiLocker prompt (Alert.alert unreliable on web)
+  const [ckycIncorrectPrompt, setCkycIncorrectPrompt] = useState(false);
+
   // Address correction flow (details incorrect)
   const [addressCorrectionStep, setAddressCorrectionStep] = useState(false);
   const [correctedAddress, setCorrectedAddress] = useState({ addressLine: '', city: '', state: '', pincode: '' });
@@ -967,24 +970,8 @@ const KycVerificationScreen = ({ navigation }) => {
                 title="Details are incorrect"
                 onPress={() => {
                   if (fetchedKycData.method === KYC_METHODS.CKYC) {
-                    // CKYC details incorrect → redirect to DigiLocker
-                    Alert.alert(
-                      'Verify via DigiLocker',
-                      'Since your CKYC details are incorrect, please verify your identity via DigiLocker instead.',
-                      [
-                        {
-                          text: 'Continue with DigiLocker',
-                          onPress: () => {
-                            setDetailsReviewStep(false);
-                            setFetchedKycData(null);
-                            setOtpSent(false);
-                            setOtp('');
-                            setCurrentMethod(KYC_METHODS.DIGILOCKER);
-                          },
-                        },
-                        { text: 'Cancel', style: 'cancel' },
-                      ]
-                    );
+                    // CKYC details incorrect → show inline prompt with DigiLocker option
+                    setCkycIncorrectPrompt(true);
                   } else {
                     // DigiLocker or Aadhaar XML details incorrect → address correction flow
                     setAddressCorrectionStep(true);
@@ -994,6 +981,33 @@ const KycVerificationScreen = ({ navigation }) => {
                 variant="outline"
                 style={styles.btn}
               />
+
+              {/* Inline prompt for CKYC incorrect → DigiLocker fallback */}
+              {ckycIncorrectPrompt && fetchedKycData?.method === KYC_METHODS.CKYC && (
+                <View style={[styles.ckycIncorrectBanner, { backgroundColor: `${colors.warning}14`, borderColor: colors.warning, borderWidth: 1, borderRadius: 10, padding: 16, marginTop: 12 }]}>
+                  <Text style={[styles.sectionTitle, { color: colors.warning, fontSize: 15, marginBottom: 4 }]}>Verify via DigiLocker</Text>
+                  <Text style={[styles.infoText, { color: colors.textSecondary, marginBottom: 12 }]}>
+                    Since your CKYC details are incorrect, please verify your identity via DigiLocker instead.
+                  </Text>
+                  <Button
+                    title="Continue with DigiLocker"
+                    onPress={() => {
+                      setCkycIncorrectPrompt(false);
+                      setDetailsReviewStep(false);
+                      setFetchedKycData(null);
+                      setOtpSent(false);
+                      setOtp('');
+                      setCurrentMethod(KYC_METHODS.DIGILOCKER);
+                    }}
+                    style={{ marginBottom: 8 }}
+                  />
+                  <Button
+                    title="Cancel"
+                    onPress={() => setCkycIncorrectPrompt(false)}
+                    variant="outline"
+                  />
+                </View>
+              )}
             </Card>
           </>
         )}
