@@ -209,6 +209,7 @@ const initialState = {
   esignStatus: null,
   vkycStatus: null,
   riskProfile: null,
+  references: null,
   step: 0,
   // Persistence metadata
   status: null,
@@ -284,6 +285,9 @@ const loanReducer = (state, action) => {
       break;
     case 'SET_RISK_PROFILE':
       next = { ...state, riskProfile: action.payload };
+      break;
+    case 'SET_REFERENCES':
+      next = { ...state, references: action.payload };
       break;
     case 'SET_CURRENT_LOAN':
       next = { ...state, currentLoan: action.payload };

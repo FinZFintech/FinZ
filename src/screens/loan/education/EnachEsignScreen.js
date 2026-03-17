@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking, TouchableOpacity } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
+import Input from '../../../components/common/Input';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
 import { loanService } from '../../../services/loanService';
@@ -11,6 +12,8 @@ import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { formatCurrency, calculateEmi } from '../../../utils/helpers';
 import { useTheme } from '../../../store/ThemeContext';
+
+const RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Brother', 'Sister', 'Friend', 'Colleague', 'Other'];
 
 const EnachEsignScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -25,6 +28,18 @@ const EnachEsignScreen = ({ navigation }) => {
   const [vkycLoading, setVkycLoading] = useState(false);
   const [vkycInitiated, setVkycInitiated] = useState(false);
   const [vkycDone, setVkycDone] = useState(false);
+
+  // References (two required)
+  const emptyRef = { name: '', phone: '', address: '', relation: '' };
+  const [ref1, setRef1] = useState({ ...emptyRef });
+  const [ref2, setRef2] = useState({ ...emptyRef });
+  const [refErrors, setRefErrors] = useState({});
+
+  // Restore references from persisted state
+  useEffect(() => {
+    if (state.references?.[0]) setRef1(state.references[0]);
+    if (state.references?.[1]) setRef2(state.references[1]);
+  }, []);
 
   const riskDecision = riskState.decision?.decision;
   const isRiskDeclined = riskDecision === 'decline';
@@ -130,9 +145,34 @@ const EnachEsignScreen = ({ navigation }) => {
     }
   };
 
-  const allDone = enachDone && esignDone && (!requiresVkyc || vkycDone);
+  const validateReferences = () => {
+    const errs = {};
+    [ref1, ref2].forEach((r, i) => {
+      const p = `ref${i + 1}`;
+      if (!r.name || r.name.trim().length < 2) errs[`${p}_name`] = 'Name is required';
+      if (!r.phone || !/^[6-9]\d{9}$/.test(r.phone)) errs[`${p}_phone`] = 'Valid 10-digit mobile required';
+      if (!r.address || r.address.trim().length < 5) errs[`${p}_address`] = 'Address is required (min 5 chars)';
+      if (!r.relation) errs[`${p}_relation`] = 'Please select relation';
+    });
+    // Both references must be different people
+    if (ref1.phone && ref2.phone && ref1.phone === ref2.phone) {
+      errs.ref2_phone = 'Must be a different person from Reference 1';
+    }
+    setRefErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const refsComplete = ref1.name && ref1.phone && ref1.address && ref1.relation
+    && ref2.name && ref2.phone && ref2.address && ref2.relation;
+
+  const allDone = enachDone && esignDone && (!requiresVkyc || vkycDone) && refsComplete;
 
   const handleComplete = () => {
+    if (!validateReferences()) {
+      Alert.alert('References Required', 'Please fill in both references correctly before completing.');
+      return;
+    }
+    dispatch({ type: 'SET_REFERENCES', payload: [ref1, ref2] });
     navigation.navigate('LoanSuccess');
   };
 
@@ -271,6 +311,74 @@ const EnachEsignScreen = ({ navigation }) => {
           </Card>
         )}
 
+        {/* References (2 required) */}
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            {requiresVkyc ? '4' : '3'}. References
+          </Text>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+            Please provide two personal references. They should not be the same person.
+          </Text>
+
+          {[
+            { label: 'Reference 1', data: ref1, setter: setRef1, prefix: 'ref1' },
+            { label: 'Reference 2', data: ref2, setter: setRef2, prefix: 'ref2' },
+          ].map(({ label, data, setter, prefix }) => (
+            <View key={prefix} style={[styles.refBlock, { borderColor: colors.border }]}>
+              <Text style={[styles.refLabel, { color: colors.teal }]}>{label}</Text>
+              <Input
+                label="Full Name"
+                value={data.name}
+                onChangeText={(t) => setter({ ...data, name: t })}
+                placeholder="Enter full name"
+                error={refErrors[`${prefix}_name`]}
+              />
+              <Input
+                label="Mobile Number"
+                value={data.phone}
+                onChangeText={(t) => setter({ ...data, phone: t.replace(/[^0-9]/g, '') })}
+                placeholder="10-digit mobile number"
+                keyboardType="phone-pad"
+                maxLength={10}
+                error={refErrors[`${prefix}_phone`]}
+              />
+              <Input
+                label="Address"
+                value={data.address}
+                onChangeText={(t) => setter({ ...data, address: t })}
+                placeholder="Full address"
+                multiline
+                error={refErrors[`${prefix}_address`]}
+              />
+              <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>Relation</Text>
+              <View style={styles.relationRow}>
+                {RELATION_OPTIONS.map((rel) => (
+                  <TouchableOpacity
+                    key={rel}
+                    style={[
+                      styles.relationChip,
+                      { borderColor: colors.border, backgroundColor: colors.surface },
+                      data.relation === rel && { borderColor: colors.teal, backgroundColor: colors.teal },
+                    ]}
+                    onPress={() => setter({ ...data, relation: rel })}
+                  >
+                    <Text style={[
+                      styles.relationChipText,
+                      { color: colors.textSecondary },
+                      data.relation === rel && { color: colors.background },
+                    ]}>
+                      {rel}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {refErrors[`${prefix}_relation`] && (
+                <Text style={[styles.errorText, { color: colors.error }]}>{refErrors[`${prefix}_relation`]}</Text>
+              )}
+            </View>
+          ))}
+        </Card>
+
         {/* Complete */}
         {allDone && (
           <Button
@@ -305,6 +413,25 @@ const styles = StyleSheet.create({
   instructionItem: { fontSize: 13, lineHeight: 22 },
   pendingBanner: { padding: 14, borderRadius: 8, marginBottom: 16 },
   pendingText: { fontSize: 13, lineHeight: 20 },
+  // References
+  refBlock: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  refLabel: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
+  fieldLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  relationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  relationChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 18,
+    borderWidth: 1.5,
+  },
+  relationChipText: { fontSize: 12, fontWeight: '500' },
+  errorText: { fontSize: 12, color: '#FF6B6B', marginTop: -2, marginBottom: 8 },
+
   completeBtn: { marginTop: 20 },
   bottomSpacer: { height: 100 },
 });
