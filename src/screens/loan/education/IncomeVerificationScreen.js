@@ -38,7 +38,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showOccupationPicker, setShowOccupationPicker] = useState(false);
   const [occupationSearch, setOccupationSearch] = useState('');
-  const [declaredMonthlyIncome, setDeclaredMonthlyIncome] = useState('');
+  const [declaredAnnualIncome, setDeclaredAnnualIncome] = useState('');
 
   // Bank details
   const [ifsc, setIfsc] = useState('');
@@ -137,9 +137,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
       else if (/^\d+$/.test(freeTextOccupation.trim())) newErrors.occupationDetail = 'Numeric-only values are not allowed';
     }
     else if (!usesFreeText && !occupationDetail) newErrors.occupationDetail = 'Please select your occupation';
-    const incomeNum = parseInt(declaredMonthlyIncome, 10);
-    if (!declaredMonthlyIncome || isNaN(incomeNum) || incomeNum <= 0) newErrors.declaredMonthlyIncome = 'Please enter your monthly income';
-    else if (incomeNum < 5000) newErrors.declaredMonthlyIncome = 'Monthly income must be at least ₹5,000';
+    const incomeNum = parseInt(declaredAnnualIncome, 10);
+    if (!declaredAnnualIncome || isNaN(incomeNum) || incomeNum <= 0) newErrors.declaredAnnualIncome = 'Please enter your annual income';
+    else if (incomeNum < 60000) newErrors.declaredAnnualIncome = 'Annual income must be at least ₹60,000';
     if (!validateIfsc(ifsc)) newErrors.ifsc = 'Invalid IFSC code';
     if (!validateAccountNumber(accountNumber)) newErrors.accountNumber = 'Invalid account number';
     if (accountNumber !== confirmAccountNumber) newErrors.confirmAccountNumber = 'Account numbers do not match';
@@ -190,7 +190,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
       // Store bank details
       dispatch({
         type: 'SET_BANK_DETAILS',
-        payload: { bankName, accountNumber, ifsc, accountType, branchName, occupationCategory: selectedCategory?.label, occupation: resolvedOccupation, declaredMonthlyIncome: parseInt(declaredMonthlyIncome, 10) || 0 },
+        payload: { bankName, accountNumber, ifsc, accountType, branchName, occupationCategory: selectedCategory?.label, occupation: resolvedOccupation, declaredAnnualIncome: parseInt(declaredAnnualIncome, 10) || 0 },
       });
 
       // Run matching
@@ -477,20 +477,20 @@ const IncomeVerificationScreen = ({ navigation }) => {
               </>
             )}
 
-            {/* Monthly Income */}
+            {/* Annual Income */}
             <View style={styles.monthlyIncomeSection}>
               <Input
-                label="Monthly Income (₹)"
-                value={declaredMonthlyIncome}
-                onChangeText={(t) => setDeclaredMonthlyIncome(t.replace(/[^0-9]/g, ''))}
-                placeholder="e.g., 45000"
+                label="Annual Income (₹)"
+                value={declaredAnnualIncome}
+                onChangeText={(t) => setDeclaredAnnualIncome(t.replace(/[^0-9]/g, ''))}
+                placeholder="e.g., 540000"
                 keyboardType="number-pad"
                 maxLength={10}
-                error={errors.declaredMonthlyIncome}
+                error={errors.declaredAnnualIncome}
               />
-              {declaredMonthlyIncome && parseInt(declaredMonthlyIncome, 10) > 0 && (
+              {declaredAnnualIncome && parseInt(declaredAnnualIncome, 10) > 0 && (
                 <Text style={[styles.incomeFormatted, { color: colors.teal }]}>
-                  {formatCurrency(parseInt(declaredMonthlyIncome, 10))} / month
+                  {formatCurrency(parseInt(declaredAnnualIncome, 10))} / year (≈ {formatCurrency(Math.round(parseInt(declaredAnnualIncome, 10) / 12))} / month)
                 </Text>
               )}
             </View>

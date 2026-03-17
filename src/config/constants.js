@@ -141,6 +141,7 @@ export const LOAN_STATUS = {
   BANK_VERIFIED: 'bank_verified',
   INCOME_VERIFIED: 'income_verified',
   KYC_COMPLETED: 'kyc_completed',
+  KYC_ADDRESS_REVIEW: 'kyc_address_review',
   KYC_FAILED: 'kyc_failed',
   SELFIE_VERIFIED: 'selfie_verified',
   FULLY_ELIGIBLE: 'fully_eligible',

@@ -185,7 +185,25 @@ export const kycService = {
   async verifyCkycOtp(data) {
     console.log('[kycService] Mock verifyCkycOtp');
     await new Promise((r) => setTimeout(r, 500));
-    return { verified: true };
+    // Return full KYC data (same shape as DigiLocker) so details review works
+    return {
+      verified: true,
+      ckycNumber: 'CKYC' + Date.now(),
+      name: 'RAHUL SHARMA',
+      dob: '1995-01-15',
+      gender: 'M',
+      uid: 'XXXX-XXXX-1234',
+      address: '123, Andheri West, Mumbai, Maharashtra 400053',
+      pincode: '400053',
+      phone: '9876543210',
+      photo: '', // No photo in CKYC
+      splitAddress: {
+        addressLine: '123, Andheri West',
+        city: ['Mumbai'],
+        state: ['Maharashtra'],
+        pincode: '400053',
+      },
+    };
   },
 
   // Aadhaar XML

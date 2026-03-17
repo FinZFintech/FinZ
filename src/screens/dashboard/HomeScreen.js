@@ -21,7 +21,7 @@ import { formatCurrency, formatDate } from '../../utils/helpers';
 const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
   const { colors } = useTheme();
-  const { hasSavedApplication, getResumeInfo, dispatch: loanDispatch } = useLoan();
+  const { hasSavedApplication, savedApplications, getResumeInfoForApp, switchApplication, discardApplication } = useLoan();
   const [loans, setLoans] = useState([]);
   const [dailyTip, setDailyTip] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -99,7 +99,13 @@ const HomeScreen = ({ navigation }) => {
             <TouchableOpacity
               key={item.key}
               style={styles.quickAction}
-              onPress={() => navigation.navigate(item.screen)}
+              onPress={() => {
+                // For loan screens, start a fresh application without overriding existing ones
+                if (item.screen === 'InstituteSelection' || item.screen === 'EmployeeLoan') {
+                  startNewApplication();
+                }
+                navigation.navigate(item.screen);
+              }}
               activeOpacity={0.7}
             >
               <View style={[styles.actionIcon, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
@@ -110,9 +116,14 @@ const HomeScreen = ({ navigation }) => {
           ))}
         </View>
 
-        {/* Resume Application Banner */}
+        {/* Resume Application Banner — show most recent draft */}
         {hasSavedApplication && (() => {
-          const info = getResumeInfo();
+          // Pick the most recently updated draft
+          const resumable = savedApplications
+            .map((app) => getResumeInfoForApp(app))
+            .filter(Boolean)
+            .sort((a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0));
+          const info = resumable[0];
           if (!info) return null;
           const timeAgo = info.lastUpdated
             ? Math.round((Date.now() - new Date(info.lastUpdated).getTime()) / 60000)
@@ -124,7 +135,10 @@ const HomeScreen = ({ navigation }) => {
             <Card
               accent={colors.teal}
               style={styles.resumeCard}
-              onPress={() => navigation.navigate(info.screen)}
+              onPress={() => {
+                switchApplication(info.applicationId);
+                navigation.navigate(info.screen);
+              }}
             >
               <View style={styles.resumeHeader}>
                 <View style={styles.resumeLeft}>
@@ -139,6 +153,11 @@ const HomeScreen = ({ navigation }) => {
                       Last updated {timeLabel}
                     </Text>
                   ) : null}
+                  {resumable.length > 1 && (
+                    <Text style={[styles.resumeTime, { color: colors.teal }]}>
+                      +{resumable.length - 1} more application{resumable.length > 2 ? 's' : ''} in progress
+                    </Text>
+                  )}
                 </View>
                 <View style={[styles.resumeArrow, { backgroundColor: colors.teal }]}>
                   <Text style={styles.resumeArrowText}>→</Text>
@@ -157,7 +176,7 @@ const HomeScreen = ({ navigation }) => {
                 style={styles.resumeDiscard}
                 onPress={(e) => {
                   e.stopPropagation?.();
-                  loanDispatch({ type: 'RESET' });
+                  discardApplication(info.applicationId);
                 }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >

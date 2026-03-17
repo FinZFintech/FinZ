@@ -19,6 +19,7 @@ import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
 import Input from '../../../components/common/Input';
 import OtpInput from '../../../components/common/OtpInput';
+import * as DocumentPicker from 'expo-document-picker';
 import { KYC_METHODS } from '../../../config/constants';
 import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
@@ -74,8 +75,20 @@ const KycVerificationScreen = ({ navigation }) => {
     pincode: '',
   });
 
+  // Address correction flow (details incorrect)
+  const [addressCorrectionStep, setAddressCorrectionStep] = useState(false);
+  const [correctedAddress, setCorrectedAddress] = useState({ addressLine: '', city: '', state: '', pincode: '' });
+  const [addressProofFile, setAddressProofFile] = useState(null);
+  const [addressCorrectionErrors, setAddressCorrectionErrors] = useState({});
+
+  // Check if there's a pending address review from persisted state
+  const addressUnderReview = state.addressCorrection?.status === 'pending';
+  const addressReviewApproved = state.addressCorrection?.status === 'approved';
+  const addressReviewRejected = state.addressCorrection?.status === 'rejected';
+
   const tealBg = `${colors.teal}14`;
   const errorBg = `${colors.error}14`;
+  const warningBg = `${colors.warning || '#F5B731'}14`;
 
   /**
    * Start 15-minute session timeout for DigiLocker / Aadhaar XML flows.
@@ -813,20 +826,228 @@ const KycVerificationScreen = ({ navigation }) => {
               <Button
                 title="Details are incorrect"
                 onPress={() => {
-                  Alert.alert(
-                    'Incorrect Details?',
-                    'If the details fetched are incorrect, please contact support or try a different KYC method.',
-                    [
-                      { text: 'Try Different Method', onPress: () => { setDetailsReviewStep(false); setFetchedKycData(null); setCurrentMethod(null); } },
-                      { text: 'Cancel', style: 'cancel' },
-                    ]
-                  );
+                  setAddressCorrectionStep(true);
+                  setDetailsReviewStep(false);
                 }}
                 variant="outline"
                 style={styles.btn}
               />
             </Card>
           </>
+        )}
+
+        {/* ── Address Correction (Details Incorrect) ── */}
+        {addressCorrectionStep && fetchedKycData && !kycCompleted && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Update Your Address</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              If the address fetched from KYC is incorrect, please provide your current address and upload a valid address proof. Your application will be sent for review by our credit team.
+            </Text>
+
+            <Input
+              label="Address Line"
+              value={correctedAddress.addressLine}
+              onChangeText={(t) => setCorrectedAddress((p) => ({ ...p, addressLine: t }))}
+              placeholder="House/Flat No., Street, Area"
+              multiline
+              error={addressCorrectionErrors.addressLine}
+            />
+            <View style={styles.row}>
+              <View style={styles.halfInput}>
+                <Input
+                  label="City"
+                  value={correctedAddress.city}
+                  onChangeText={(t) => setCorrectedAddress((p) => ({ ...p, city: t }))}
+                  placeholder="City"
+                  error={addressCorrectionErrors.city}
+                />
+              </View>
+              <View style={styles.halfInput}>
+                <Input
+                  label="State"
+                  value={correctedAddress.state}
+                  onChangeText={(t) => setCorrectedAddress((p) => ({ ...p, state: t }))}
+                  placeholder="State"
+                  error={addressCorrectionErrors.state}
+                />
+              </View>
+            </View>
+            <Input
+              label="Pincode"
+              value={correctedAddress.pincode}
+              onChangeText={(t) => setCorrectedAddress((p) => ({ ...p, pincode: t.replace(/[^0-9]/g, '').slice(0, 6) }))}
+              placeholder="6-digit pincode"
+              keyboardType="number-pad"
+              maxLength={6}
+              error={addressCorrectionErrors.pincode}
+            />
+
+            {/* Address Proof Upload */}
+            <Text style={[styles.subTitle, { color: colors.textPrimary, marginTop: 12 }]}>Address Proof</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              Upload any one: Electricity bill, Gas bill, Rent agreement, Passport, Voter ID, or Bank statement (not older than 3 months).
+            </Text>
+            {addressProofFile ? (
+              <View style={[styles.fileChip, { borderColor: colors.teal, backgroundColor: tealBg }]}>
+                <Text style={[styles.fileChipText, { color: colors.teal }]} numberOfLines={1}>
+                  {addressProofFile.name}
+                </Text>
+                <TouchableOpacity onPress={() => setAddressProofFile(null)}>
+                  <Text style={[styles.fileChipRemove, { color: colors.error }]}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Button
+                title="Upload Address Proof"
+                variant="outline"
+                icon="📎"
+                onPress={async () => {
+                  try {
+                    const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'] });
+                    if (!result.canceled && result.assets?.[0]) {
+                      setAddressProofFile(result.assets[0]);
+                    }
+                  } catch {
+                    Alert.alert('Error', 'Could not pick file');
+                  }
+                }}
+              />
+            )}
+            {addressCorrectionErrors.proof && (
+              <Text style={[styles.errorText, { color: colors.error }]}>{addressCorrectionErrors.proof}</Text>
+            )}
+
+            <Button
+              title="Submit for Review"
+              onPress={() => {
+                const errs = {};
+                if (!correctedAddress.addressLine || correctedAddress.addressLine.trim().length < 5) errs.addressLine = 'Address is required (min 5 chars)';
+                if (!correctedAddress.city || correctedAddress.city.trim().length < 2) errs.city = 'City is required';
+                if (!correctedAddress.state || correctedAddress.state.trim().length < 2) errs.state = 'State is required';
+                if (!correctedAddress.pincode || correctedAddress.pincode.length !== 6) errs.pincode = 'Valid 6-digit pincode required';
+                if (!addressProofFile) errs.proof = 'Please upload an address proof document';
+                setAddressCorrectionErrors(errs);
+                if (Object.keys(errs).length > 0) return;
+
+                // Save KYC data + address correction as pending review
+                dispatch({
+                  type: 'SET_KYC_DATA',
+                  payload: { ...fetchedKycData, method: fetchedKycData.method || currentMethod, detailsIncorrect: true },
+                });
+                dispatch({ type: 'SET_KYC_METHOD', payload: fetchedKycData.method || currentMethod });
+                dispatch({
+                  type: 'SET_ADDRESS_CORRECTION',
+                  payload: {
+                    address: correctedAddress.addressLine,
+                    city: correctedAddress.city,
+                    state: correctedAddress.state,
+                    pincode: correctedAddress.pincode,
+                    proofUri: addressProofFile.uri,
+                    proofName: addressProofFile.name,
+                    status: 'pending',
+                    submittedAt: new Date().toISOString(),
+                  },
+                });
+
+                setAddressCorrectionStep(false);
+                setKycCompleted(true);
+                Alert.alert(
+                  'Submitted for Review',
+                  'Your updated address and proof have been submitted. Our credit team will review and get back to you. You cannot proceed until the review is complete.',
+                );
+              }}
+              style={styles.btn}
+              loading={loading}
+            />
+            <Button
+              title="Go Back to Details"
+              onPress={() => {
+                setAddressCorrectionStep(false);
+                setDetailsReviewStep(true);
+              }}
+              variant="outline"
+              style={styles.btn}
+            />
+          </Card>
+        )}
+
+        {/* ── Address Review Status (pending / approved / rejected) ── */}
+        {(addressUnderReview || addressReviewRejected) && !addressCorrectionStep && !detailsReviewStep && (
+          <Card>
+            {addressUnderReview && (
+              <View style={[styles.reviewBanner, { backgroundColor: warningBg }]}>
+                <Text style={styles.reviewIcon}>⏳</Text>
+                <Text style={[styles.reviewTitle, { color: colors.warning || '#F5B731' }]}>Address Under Review</Text>
+                <Text style={[styles.reviewText, { color: colors.textSecondary }]}>
+                  Your updated address and proof document are being reviewed by our credit team. You will be notified once the review is complete. You cannot proceed to further steps until the review is approved.
+                </Text>
+                <View style={[styles.reviewDetail, { borderColor: colors.border }]}>
+                  <InfoRow label="Address" value={state.addressCorrection?.address} />
+                  <InfoRow label="City" value={state.addressCorrection?.city} />
+                  <InfoRow label="Pincode" value={state.addressCorrection?.pincode} />
+                  <InfoRow label="Proof" value={state.addressCorrection?.proofName || 'Uploaded'} />
+                </View>
+                <Button
+                  title="Simulate: Approve Review"
+                  onPress={() => {
+                    dispatch({
+                      type: 'SET_ADDRESS_CORRECTION',
+                      payload: { ...state.addressCorrection, status: 'approved' },
+                    });
+                    Alert.alert('Approved', 'Address review approved by credit team. You may now proceed.');
+                  }}
+                  style={styles.btn}
+                />
+              </View>
+            )}
+            {addressReviewRejected && (
+              <View style={[styles.reviewBanner, { backgroundColor: errorBg }]}>
+                <Text style={styles.reviewIcon}>✕</Text>
+                <Text style={[styles.reviewTitle, { color: colors.error }]}>Address Review Rejected</Text>
+                <Text style={[styles.reviewText, { color: colors.textSecondary }]}>
+                  Your address correction was rejected by the credit team. Please try a different KYC method or contact support.
+                </Text>
+                <Button
+                  title="Try Different Method"
+                  onPress={() => {
+                    setKycCompleted(false);
+                    setFetchedKycData(null);
+                    setCurrentMethod(null);
+                    dispatch({ type: 'SET_ADDRESS_CORRECTION', payload: null });
+                    dispatch({ type: 'SET_KYC_DATA', payload: null });
+                    dispatch({ type: 'SET_KYC_METHOD', payload: null });
+                  }}
+                  variant="outline"
+                  style={styles.btn}
+                />
+              </View>
+            )}
+          </Card>
+        )}
+
+        {/* ── Address Review Approved → Continue ── */}
+        {addressReviewApproved && !successModalVisible && (
+          <Card>
+            <View style={[styles.reviewBanner, { backgroundColor: tealBg }]}>
+              <Text style={styles.reviewIcon}>✓</Text>
+              <Text style={[styles.reviewTitle, { color: colors.teal }]}>Address Verified</Text>
+              <Text style={[styles.reviewText, { color: colors.textSecondary }]}>
+                Your updated address has been approved by the credit team. You can now continue your application.
+              </Text>
+              <Button
+                title={requiresVkyc ? 'Continue to eNACH & eSign' : 'Continue to Selfie Verification'}
+                onPress={() => {
+                  dispatch({ type: 'SET_STEP', payload: 4 });
+                  if (requiresVkyc) {
+                    navigation.navigate('EnachEsign');
+                  } else {
+                    navigation.navigate('SelfieVerification');
+                  }
+                }}
+                style={styles.btn}
+              />
+            </View>
+          </Card>
         )}
 
         {/* ── Session Expired ── */}
@@ -980,6 +1201,36 @@ const styles = StyleSheet.create({
   resultTitle: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
   resultText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
   bottomSpacer: { height: 100 },
+
+  // Address correction & review styles
+  fileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginVertical: 8,
+    gap: 8,
+  },
+  fileChipText: { flex: 1, fontSize: 13, fontWeight: '600' },
+  fileChipRemove: { fontSize: 18, fontWeight: '700', paddingLeft: 8 },
+  errorText: { fontSize: 12, marginTop: 2, marginBottom: 4 },
+  reviewBanner: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  reviewIcon: { fontSize: 40, marginBottom: 8 },
+  reviewTitle: { fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  reviewText: { fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 16 },
+  reviewDetail: {
+    width: '100%',
+    borderTopWidth: 1,
+    paddingTop: 12,
+    marginBottom: 12,
+  },
 });
 
 export default KycVerificationScreen;

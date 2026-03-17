@@ -13,7 +13,7 @@ const TABS = ['All', 'Active', 'Pending', 'Closed'];
 
 const MyLoansScreen = ({ navigation }) => {
   const { colors } = useTheme();
-  const { hasSavedApplication, getResumeInfo, dispatch: loanDispatch } = useLoan();
+  const { hasSavedApplication, savedApplications, getResumeInfoForApp, switchApplication, discardApplication } = useLoan();
   const [activeTab, setActiveTab] = useState('All');
   const [loans, setLoans] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,67 +49,84 @@ const MyLoansScreen = ({ navigation }) => {
     return loans;
   };
 
-  // Show draft application in "All" and "Pending" tabs
-  const showDraft = hasSavedApplication && (activeTab === 'All' || activeTab === 'Pending');
-  const resumeInfo = showDraft ? getResumeInfo() : null;
+  // Show all draft applications in "All" and "Pending" tabs
+  const showDrafts = hasSavedApplication && (activeTab === 'All' || activeTab === 'Pending');
+  const draftApps = showDrafts ? savedApplications.filter((app) => {
+    const info = getResumeInfoForApp(app);
+    return info !== null;
+  }) : [];
 
-  const renderDraftCard = () => {
-    if (!resumeInfo) return null;
-    const timeAgo = resumeInfo.lastUpdated
-      ? Math.round((Date.now() - new Date(resumeInfo.lastUpdated).getTime()) / 60000)
-      : null;
-    const timeLabel = timeAgo != null
-      ? timeAgo < 60 ? `${timeAgo}m ago` : timeAgo < 1440 ? `${Math.round(timeAgo / 60)}h ago` : `${Math.round(timeAgo / 1440)}d ago`
-      : '';
+  const formatTimeAgo = (dateStr) => {
+    if (!dateStr) return '';
+    const mins = Math.round((Date.now() - new Date(dateStr).getTime()) / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
+    return `${Math.round(mins / 1440)}d ago`;
+  };
 
-    return (
-      <Card
-        onPress={() => navigation.navigate(resumeInfo.screen)}
-        accent={colors.teal}
-        style={styles.draftCard}
-      >
-        <View style={styles.loanHeader}>
-          <Text style={[styles.loanId, { color: colors.textSecondary }]}>
-            #{resumeInfo.applicationId}
-          </Text>
-          <StatusBadge status={resumeInfo.status} />
-        </View>
-        <Text style={[styles.loanName, { color: colors.textPrimary }]}>
-          🎓 {resumeInfo.instituteName || resumeInfo.loanType || 'Loan Application'}
-        </Text>
+  const renderDraftCards = () => {
+    if (draftApps.length === 0) return null;
+    return draftApps.map((app) => {
+      const info = getResumeInfoForApp(app);
+      if (!info) return null;
+      const timeLabel = formatTimeAgo(info.lastUpdated);
 
-        {/* Progress bar */}
-        <View style={styles.progressRow}>
-          <View style={[styles.progressBg, { backgroundColor: colors.border }]}>
-            <View style={[styles.progressFill, { width: `${Math.min(100, ((resumeInfo.step + 1) / 7) * 100)}%`, backgroundColor: colors.teal }]} />
+      return (
+        <Card
+          key={info.applicationId}
+          onPress={() => {
+            switchApplication(info.applicationId);
+            navigation.navigate(info.screen);
+          }}
+          accent={colors.teal}
+          style={styles.draftCard}
+        >
+          <View style={styles.loanHeader}>
+            <Text style={[styles.loanId, { color: colors.textSecondary }]}>
+              #{info.applicationId}
+            </Text>
+            <StatusBadge status={info.status} />
           </View>
-          <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>
-            Step {resumeInfo.step + 1}/7
+          <Text style={[styles.loanName, { color: colors.textPrimary }]}>
+            {info.loanType === 'education' ? '🎓' : '💼'} {info.instituteName || info.loanType || 'Loan Application'}
           </Text>
-        </View>
 
-        {timeLabel ? (
-          <Text style={[styles.draftTime, { color: colors.textSecondary }]}>
-            Last updated {timeLabel}
-          </Text>
-        ) : null}
+          {/* Progress bar */}
+          <View style={styles.progressRow}>
+            <View style={[styles.progressBg, { backgroundColor: colors.border }]}>
+              <View style={[styles.progressFill, { width: `${Math.min(100, ((info.step + 1) / 7) * 100)}%`, backgroundColor: colors.teal }]} />
+            </View>
+            <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>
+              Step {info.step + 1}/7
+            </Text>
+          </View>
 
-        <View style={styles.draftActions}>
-          <TouchableOpacity
-            style={[styles.resumeBtn, { backgroundColor: colors.teal }]}
-            onPress={() => navigation.navigate(resumeInfo.screen)}
-          >
-            <Text style={[styles.resumeBtnText, { color: colors.background }]}>Resume</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.discardBtn, { borderColor: colors.error }]}
-            onPress={() => loanDispatch({ type: 'RESET' })}
-          >
-            <Text style={[styles.discardBtnText, { color: colors.error }]}>Discard</Text>
-          </TouchableOpacity>
-        </View>
-      </Card>
-    );
+          {timeLabel ? (
+            <Text style={[styles.draftTime, { color: colors.textSecondary }]}>
+              Last updated {timeLabel}
+            </Text>
+          ) : null}
+
+          <View style={styles.draftActions}>
+            <TouchableOpacity
+              style={[styles.resumeBtn, { backgroundColor: colors.teal }]}
+              onPress={() => {
+                switchApplication(info.applicationId);
+                navigation.navigate(info.screen);
+              }}
+            >
+              <Text style={[styles.resumeBtnText, { color: colors.background }]}>Resume</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.discardBtn, { borderColor: colors.error }]}
+              onPress={() => discardApplication(info.applicationId)}
+            >
+              <Text style={[styles.discardBtnText, { color: colors.error }]}>Discard</Text>
+            </TouchableOpacity>
+          </View>
+        </Card>
+      );
+    });
   };
 
   return (
@@ -124,7 +141,7 @@ const MyLoansScreen = ({ navigation }) => {
           >
             <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === tab && { color: colors.background }]}>
               {tab}
-              {tab === 'Pending' && resumeInfo ? ' •' : ''}
+              {tab === 'Pending' && draftApps.length > 0 ? ` (${draftApps.length})` : ''}
             </Text>
           </TouchableOpacity>
         ))}
@@ -134,7 +151,7 @@ const MyLoansScreen = ({ navigation }) => {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.teal]} />}
-        ListHeaderComponent={renderDraftCard}
+        ListHeaderComponent={renderDraftCards}
         renderItem={({ item }) => (
           <Card onPress={() => navigation.navigate('LoanDetail', { loanId: item.id })}>
             <View style={styles.loanHeader}>
@@ -155,7 +172,7 @@ const MyLoansScreen = ({ navigation }) => {
           </Card>
         )}
         ListEmptyComponent={
-          !resumeInfo ? (
+          draftApps.length === 0 ? (
             <View style={styles.empty}><Text style={[styles.emptyText, { color: colors.textSecondary }]}>No loans found</Text></View>
           ) : null
         }

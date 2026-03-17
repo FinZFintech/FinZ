@@ -5,6 +5,8 @@ import { LOAN_STATUS } from '../config/constants';
 const LoanContext = createContext(null);
 
 const STORAGE_KEY = 'finz_loan_application';
+const MULTI_STORAGE_KEY = 'finz_loan_applications'; // Array of all draft applications
+const AUTO_DISCARD_DAYS = 7;
 
 // ─── Rejected statuses: application cannot be resumed ────────────────────────
 const REJECTED_STATUSES = new Set([
@@ -47,6 +49,8 @@ function computeStatus(state) {
 
   // Stage 4: KYC
   if (state.kycData?.nameMatchFailed)                   return LOAN_STATUS.KYC_FAILED;
+  if (state.addressCorrection?.status === 'pending')    return LOAN_STATUS.KYC_ADDRESS_REVIEW;
+  if (state.addressCorrection?.status === 'rejected')   return LOAN_STATUS.KYC_FAILED;
   if (state.kycData && state.kycMethod)                 return LOAN_STATUS.KYC_COMPLETED;
 
   // Stage 3: Income / eligibility
@@ -103,6 +107,10 @@ function getResumeScreen(status) {
     case LOAN_STATUS.PARTIALLY_ELIGIBLE:
       return 'KycVerification';
 
+    // KYC address under review → back to KYC screen (shows review status)
+    case LOAN_STATUS.KYC_ADDRESS_REVIEW:
+      return 'KycVerification';
+
     // KYC done → need selfie next (or EnachEsign for >=60k, handled at screen level)
     case LOAN_STATUS.KYC_COMPLETED:
       return 'SelfieVerification';
@@ -144,6 +152,7 @@ function getStepFromStatus(status) {
     case LOAN_STATUS.FULLY_ELIGIBLE:
     case LOAN_STATUS.PARTIALLY_ELIGIBLE:
       return 3;
+    case LOAN_STATUS.KYC_ADDRESS_REVIEW:
     case LOAN_STATUS.KYC_COMPLETED:
       return 4;
     case LOAN_STATUS.SELFIE_VERIFIED:
@@ -170,6 +179,7 @@ function getStatusLabel(status) {
     [LOAN_STATUS.BANK_VERIFIED]: 'Bank Verified',
     [LOAN_STATUS.INCOME_VERIFIED]: 'Income Verified',
     [LOAN_STATUS.KYC_COMPLETED]: 'KYC Done',
+    [LOAN_STATUS.KYC_ADDRESS_REVIEW]: 'Address Under Review',
     [LOAN_STATUS.KYC_FAILED]: 'KYC Failed',
     [LOAN_STATUS.SELFIE_VERIFIED]: 'Selfie Verified',
     [LOAN_STATUS.FULLY_ELIGIBLE]: 'Eligible',
@@ -200,6 +210,7 @@ const initialState = {
   creditScore: null,
   kycMethod: null,
   kycData: null,
+  addressCorrection: null,   // { address, city, state, pincode, proofUri, proofName, status: 'pending'|'approved'|'rejected' }
   selfieData: null,
   bankDetails: null,
   pennyDropResult: null,
@@ -259,6 +270,9 @@ const loanReducer = (state, action) => {
     case 'SET_KYC_DATA':
       next = { ...state, kycData: action.payload };
       break;
+    case 'SET_ADDRESS_CORRECTION':
+      next = { ...state, addressCorrection: action.payload };
+      break;
     case 'SET_SELFIE':
       next = { ...state, selfieData: action.payload };
       break;
@@ -315,48 +329,79 @@ const loanReducer = (state, action) => {
   return next;
 };
 
-// ─── Persistence helpers ─────────────────────────────────────────────────────
-async function saveApplication(state) {
+// ─── Persistence helpers (multi-application) ────────────────────────────────
+function isExpired(app) {
+  if (!app.createdAt) return false;
+  const age = Date.now() - new Date(app.createdAt).getTime();
+  return age > AUTO_DISCARD_DAYS * 24 * 60 * 60 * 1000;
+}
+
+async function loadAllApplications() {
   try {
-    if (!state.status || state.status === null) return;
-    // Don't persist terminal applications
-    if (TERMINAL_STATUSES.has(state.status)) {
+    // Migrate from legacy single-application key if present
+    const legacyRaw = await AsyncStorage.getItem(STORAGE_KEY);
+    const multiRaw = await AsyncStorage.getItem(MULTI_STORAGE_KEY);
+    let apps = multiRaw ? JSON.parse(multiRaw) : [];
+
+    if (legacyRaw) {
+      const legacy = JSON.parse(legacyRaw);
+      if (legacy.applicationId && !apps.find((a) => a.applicationId === legacy.applicationId)) {
+        apps.push(legacy);
+      }
       await AsyncStorage.removeItem(STORAGE_KEY);
+    }
+
+    // Auto-discard expired, rejected, and terminal applications
+    apps = apps.filter((a) => {
+      if (isExpired(a)) { console.log('[LoanContext] Auto-discarded expired:', a.applicationId); return false; }
+      if (TERMINAL_STATUSES.has(a.status)) return false;
+      if (REJECTED_STATUSES.has(a.status)) return false;
+      return true;
+    });
+
+    await AsyncStorage.setItem(MULTI_STORAGE_KEY, JSON.stringify(apps));
+    console.log('[LoanContext] Loaded', apps.length, 'application(s)');
+    return apps;
+  } catch (err) {
+    console.log('[LoanContext] Failed to load applications:', err.message);
+    return [];
+  }
+}
+
+async function saveApplicationToList(state) {
+  try {
+    if (!state.status || !state.applicationId) return;
+    if (TERMINAL_STATUSES.has(state.status)) {
+      // Remove terminal apps from draft list
+      await removeApplicationFromList(state.applicationId);
       return;
     }
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    console.log('[LoanContext] Application saved:', state.applicationId, '→', state.status);
+    const raw = await AsyncStorage.getItem(MULTI_STORAGE_KEY);
+    let apps = raw ? JSON.parse(raw) : [];
+    // Auto-discard expired
+    apps = apps.filter((a) => !isExpired(a));
+    const idx = apps.findIndex((a) => a.applicationId === state.applicationId);
+    if (idx >= 0) {
+      apps[idx] = state;
+    } else {
+      apps.push(state);
+    }
+    await AsyncStorage.setItem(MULTI_STORAGE_KEY, JSON.stringify(apps));
+    console.log('[LoanContext] Saved application:', state.applicationId, '→', state.status, `(${apps.length} total)`);
   } catch (err) {
     console.log('[LoanContext] Failed to save application:', err.message);
   }
 }
 
-async function loadApplication() {
+async function removeApplicationFromList(applicationId) {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const saved = JSON.parse(raw);
-
-    // Don't restore rejected or terminal applications
-    if (REJECTED_STATUSES.has(saved.status) || TERMINAL_STATUSES.has(saved.status)) {
-      await AsyncStorage.removeItem(STORAGE_KEY);
-      return null;
-    }
-
-    console.log('[LoanContext] Restored application:', saved.applicationId, '→', saved.status);
-    return saved;
+    const raw = await AsyncStorage.getItem(MULTI_STORAGE_KEY);
+    let apps = raw ? JSON.parse(raw) : [];
+    apps = apps.filter((a) => a.applicationId !== applicationId);
+    await AsyncStorage.setItem(MULTI_STORAGE_KEY, JSON.stringify(apps));
+    console.log('[LoanContext] Removed application:', applicationId);
   } catch (err) {
-    console.log('[LoanContext] Failed to load application:', err.message);
-    return null;
-  }
-}
-
-async function clearSavedApplication() {
-  try {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    console.log('[LoanContext] Cleared saved application');
-  } catch (err) {
-    console.log('[LoanContext] Failed to clear application:', err.message);
+    console.log('[LoanContext] Failed to remove application:', err.message);
   }
 }
 
@@ -365,40 +410,67 @@ export const LoanProvider = ({ children }) => {
   const [state, rawDispatch] = useReducer(loanReducer, initialState);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasSavedApplication, setHasSavedApplication] = useState(false);
+  const [savedApplications, setSavedApplications] = useState([]); // All persisted draft apps
 
-  // Load saved application on mount
+  // Load all saved applications on mount, restore the most recent one as active
   useEffect(() => {
     (async () => {
-      const saved = await loadApplication();
-      if (saved) {
-        rawDispatch({ type: 'RESTORE', payload: saved });
+      const apps = await loadAllApplications();
+      setSavedApplications(apps);
+      if (apps.length > 0) {
+        // Restore the most recently updated application as active
+        const sorted = [...apps].sort((a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0));
+        rawDispatch({ type: 'RESTORE', payload: sorted[0] });
         setHasSavedApplication(true);
       }
       setIsLoaded(true);
     })();
   }, []);
 
-  // Auto-save on every state change (debounced via effect)
+  // Auto-save current application on every state change
   useEffect(() => {
     if (!isLoaded) return;
-    if (state.status) {
-      saveApplication(state);
+    if (state.status && state.applicationId) {
+      saveApplicationToList(state);
       setHasSavedApplication(true);
+      // Update local list cache
+      setSavedApplications((prev) => {
+        const idx = prev.findIndex((a) => a.applicationId === state.applicationId);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = state;
+          return copy;
+        }
+        return [...prev, state];
+      });
     } else {
-      setHasSavedApplication(false);
+      // Check if other apps remain
+      setSavedApplications((prev) => {
+        const remaining = prev.filter((a) => a.applicationId !== state.applicationId);
+        setHasSavedApplication(remaining.length > 0);
+        return remaining;
+      });
     }
   }, [state, isLoaded]);
 
-  // Wrapped dispatch that also handles RESET clearing storage
+  // Wrapped dispatch that handles RESET (discard current) and SWITCH_APPLICATION
   const dispatch = useCallback((action) => {
     if (action.type === 'RESET') {
-      clearSavedApplication();
-      setHasSavedApplication(false);
+      // Remove only the current active application
+      const appId = state.applicationId;
+      if (appId) {
+        removeApplicationFromList(appId);
+        setSavedApplications((prev) => {
+          const remaining = prev.filter((a) => a.applicationId !== appId);
+          setHasSavedApplication(remaining.length > 0);
+          return remaining;
+        });
+      }
     }
     rawDispatch(action);
-  }, []);
+  }, [state.applicationId]);
 
-  // Resume: navigate to the correct screen for the current application stage
+  // Resume info for the current active application
   const getResumeInfo = useCallback(() => {
     if (!state.status || REJECTED_STATUSES.has(state.status) || TERMINAL_STATUSES.has(state.status)) {
       return null;
@@ -416,7 +488,52 @@ export const LoanProvider = ({ children }) => {
     };
   }, [state]);
 
-  // Check if application is rejected (cannot resume)
+  // Get resume info for any saved application
+  const getResumeInfoForApp = useCallback((app) => {
+    if (!app.status || REJECTED_STATUSES.has(app.status) || TERMINAL_STATUSES.has(app.status)) {
+      return null;
+    }
+    return {
+      screen: getResumeScreen(app.status),
+      status: app.status,
+      statusLabel: getStatusLabel(app.status),
+      applicationId: app.applicationId,
+      step: app.step || getStepFromStatus(app.status),
+      createdAt: app.createdAt,
+      lastUpdated: app.lastUpdated,
+      instituteName: app.instituteDetails?.name || app.instituteDetails?.instituteName || null,
+      loanType: app.loanType,
+    };
+  }, []);
+
+  // Switch to a different saved application
+  const switchApplication = useCallback((applicationId) => {
+    const app = savedApplications.find((a) => a.applicationId === applicationId);
+    if (app) {
+      rawDispatch({ type: 'RESTORE', payload: app });
+    }
+  }, [savedApplications]);
+
+  // Start a new application (does NOT discard existing ones)
+  const startNewApplication = useCallback(() => {
+    rawDispatch({ type: 'RESET' });
+    // RESET clears state to initialState — the new app gets a fresh applicationId on first mutation
+  }, []);
+
+  // Discard a specific application by ID
+  const discardApplication = useCallback((applicationId) => {
+    removeApplicationFromList(applicationId);
+    setSavedApplications((prev) => {
+      const remaining = prev.filter((a) => a.applicationId !== applicationId);
+      setHasSavedApplication(remaining.length > 0);
+      return remaining;
+    });
+    // If we just discarded the active one, reset state
+    if (applicationId === state.applicationId) {
+      rawDispatch({ type: 'RESET' });
+    }
+  }, [state.applicationId]);
+
   const isRejected = REJECTED_STATUSES.has(state.status);
 
   return (
@@ -425,7 +542,12 @@ export const LoanProvider = ({ children }) => {
       dispatch,
       isLoaded,
       hasSavedApplication,
+      savedApplications,
       getResumeInfo,
+      getResumeInfoForApp,
+      switchApplication,
+      startNewApplication,
+      discardApplication,
       isRejected,
       computeStatus: () => computeStatus(state),
       getStatusLabel: () => getStatusLabel(state.status),
