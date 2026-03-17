@@ -969,36 +969,42 @@ const KycVerificationScreen = ({ navigation }) => {
               <Button
                 title="Details are incorrect"
                 onPress={() => {
-                  if (fetchedKycData.method === KYC_METHODS.CKYC) {
-                    // CKYC details incorrect → show inline prompt with DigiLocker option
-                    setCkycIncorrectPrompt(true);
-                  } else {
-                    // DigiLocker or Aadhaar XML details incorrect → address correction flow
-                    setAddressCorrectionStep(true);
-                    setDetailsReviewStep(false);
-                  }
+                  // For all methods: show correction options
+                  setCkycIncorrectPrompt(true);
                 }}
                 variant="outline"
                 style={styles.btn}
               />
 
-              {/* Inline prompt for CKYC incorrect → DigiLocker fallback */}
-              {ckycIncorrectPrompt && fetchedKycData?.method === KYC_METHODS.CKYC && (
-                <View style={[styles.ckycIncorrectBanner, { backgroundColor: `${colors.warning}14`, borderColor: colors.warning, borderWidth: 1, borderRadius: 10, padding: 16, marginTop: 12 }]}>
-                  <Text style={[styles.sectionTitle, { color: colors.warning, fontSize: 15, marginBottom: 4 }]}>Verify via DigiLocker</Text>
+              {/* Inline correction options */}
+              {ckycIncorrectPrompt && (
+                <View style={{ backgroundColor: `${colors.warning}14`, borderColor: colors.warning, borderWidth: 1, borderRadius: 10, padding: 16, marginTop: 12 }}>
+                  <Text style={[styles.sectionTitle, { color: colors.warning, fontSize: 15, marginBottom: 4 }]}>What would you like to do?</Text>
                   <Text style={[styles.infoText, { color: colors.textSecondary, marginBottom: 12 }]}>
-                    Since your CKYC details are incorrect, please verify your identity via DigiLocker instead.
+                    Choose how you'd like to correct your details.
                   </Text>
+                  {fetchedKycData?.method !== KYC_METHODS.DIGILOCKER && (
+                    <Button
+                      title="Verify via DigiLocker"
+                      onPress={() => {
+                        setCkycIncorrectPrompt(false);
+                        setDetailsReviewStep(false);
+                        setFetchedKycData(null);
+                        setOtpSent(false);
+                        setOtp('');
+                        setCurrentMethod(KYC_METHODS.DIGILOCKER);
+                      }}
+                      style={{ marginBottom: 8 }}
+                    />
+                  )}
                   <Button
-                    title="Continue with DigiLocker"
+                    title="Update Address Manually"
                     onPress={() => {
                       setCkycIncorrectPrompt(false);
+                      setAddressCorrectionStep(true);
                       setDetailsReviewStep(false);
-                      setFetchedKycData(null);
-                      setOtpSent(false);
-                      setOtp('');
-                      setCurrentMethod(KYC_METHODS.DIGILOCKER);
                     }}
+                    variant={fetchedKycData?.method !== KYC_METHODS.DIGILOCKER ? 'outline' : 'primary'}
                     style={{ marginBottom: 8 }}
                   />
                   <Button
