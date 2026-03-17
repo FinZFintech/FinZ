@@ -240,13 +240,36 @@ const EnachEsignScreen = ({ navigation }) => {
 
   const allDone = enachDone && esignDone && (!requiresVkyc || vkycDone) && refsComplete;
 
-  const handleComplete = () => {
+  const [submitLoading, setSubmitLoading] = useState(false);
+
+  const handleSubmit = async () => {
     if (!validateReferences()) {
-      Alert.alert('References Required', 'Please fill in both references correctly before completing.');
+      Alert.alert('References Required', 'Please fill in both references correctly before submitting.');
       return;
     }
     dispatch({ type: 'SET_REFERENCES', payload: [ref1, ref2] });
-    navigation.navigate('LoanSuccess');
+    setSubmitLoading(true);
+    try {
+      const result = await loanService.submitApplication({
+        applicationId: state.applicationId,
+        loanType: state.loanType,
+        instituteDetails: state.instituteDetails,
+        studentDetails: state.studentDetails,
+        borrowerDetails: state.borrowerDetails,
+        selectedProduct: state.selectedProduct,
+        selectedTenure: state.selectedTenure,
+        panDetails: state.panDetails,
+        kycMethod: state.kycMethod,
+        bankDetails: state.bankDetails,
+        references: [ref1, ref2],
+      });
+      dispatch({ type: 'SET_SUBMITTED', payload: result.submittedAt });
+      navigation.navigate('LoanSuccess');
+    } catch {
+      Alert.alert('Error', 'Failed to submit application. Please try again.');
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
   return (
@@ -488,11 +511,12 @@ const EnachEsignScreen = ({ navigation }) => {
           ))}
         </Card>
 
-        {/* Complete */}
+        {/* Submit Application */}
         {allDone && (
           <Button
-            title="Complete Application"
-            onPress={handleComplete}
+            title="Submit Application"
+            onPress={handleSubmit}
+            loading={submitLoading}
             style={styles.completeBtn}
           />
         )}

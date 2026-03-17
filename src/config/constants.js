@@ -150,6 +150,7 @@ export const LOAN_STATUS = {
   ENACH_DONE: 'enach_done',
   ESIGN_DONE: 'esign_done',
   VKYC_DONE: 'vkyc_done',
+  SUBMITTED: 'submitted',
   DISBURSED: 'disbursed',
   ACTIVE: 'active',
   CLOSED: 'closed',

@@ -161,4 +161,15 @@ export const loanService = {
     await new Promise((r) => setTimeout(r, 300));
     return { status: 'completed' };
   },
+
+  async submitApplication(applicationData) {
+    console.log('[loanService] Mock submitApplication:', applicationData.applicationId);
+    await new Promise((r) => setTimeout(r, 1500));
+    return {
+      applicationId: applicationData.applicationId,
+      status: 'submitted',
+      message: 'Application submitted successfully',
+      submittedAt: new Date().toISOString(),
+    };
+  },
 };

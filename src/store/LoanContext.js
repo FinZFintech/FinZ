@@ -17,6 +17,7 @@ const REJECTED_STATUSES = new Set([
 
 // ─── Terminal statuses: application is complete, no resume needed ─────────────
 const TERMINAL_STATUSES = new Set([
+  LOAN_STATUS.SUBMITTED,
   LOAN_STATUS.DISBURSED,
   LOAN_STATUS.ACTIVE,
   LOAN_STATUS.CLOSED,
@@ -38,6 +39,9 @@ const TERMINAL_STATUSES = new Set([
 // Checked in reverse order (most complete first) so the highest stage wins.
 function computeStatus(state) {
   if (!state.loanType && !state.instituteDetails) return null; // no application
+
+  // Stage 7: Application submitted
+  if (state.submittedAt)                                return LOAN_STATUS.SUBMITTED;
 
   // Stage 6: EnachEsign outputs
   if (state.esignStatus?.completed)                     return LOAN_STATUS.ESIGN_DONE;
@@ -124,8 +128,12 @@ function getResumeScreen(status) {
     case LOAN_STATUS.VKYC_DONE:
       return 'EnachEsign';
 
-    // eSigned → show success
+    // eSigned → still on EnachEsign (needs to submit)
     case LOAN_STATUS.ESIGN_DONE:
+      return 'EnachEsign';
+
+    // Submitted → show success
+    case LOAN_STATUS.SUBMITTED:
       return 'LoanSuccess';
 
     default:
@@ -160,6 +168,7 @@ function getStepFromStatus(status) {
     case LOAN_STATUS.ENACH_DONE:
     case LOAN_STATUS.ESIGN_DONE:
     case LOAN_STATUS.VKYC_DONE:
+    case LOAN_STATUS.SUBMITTED:
       return 6;
     default:
       return 0;
@@ -188,6 +197,7 @@ function getStatusLabel(status) {
     [LOAN_STATUS.ENACH_DONE]: 'eNACH Done',
     [LOAN_STATUS.ESIGN_DONE]: 'eSigned',
     [LOAN_STATUS.VKYC_DONE]: 'VKYC Done',
+    [LOAN_STATUS.SUBMITTED]: 'Submitted',
     [LOAN_STATUS.MANUAL_REVIEW]: 'Under Review',
   };
   return labels[status] || status || 'Not Started';
@@ -221,6 +231,7 @@ const initialState = {
   vkycStatus: null,
   riskProfile: null,
   references: null,
+  submittedAt: null,
   step: 0,
   // Persistence metadata
   status: null,
@@ -302,6 +313,9 @@ const loanReducer = (state, action) => {
       break;
     case 'SET_REFERENCES':
       next = { ...state, references: action.payload };
+      break;
+    case 'SET_SUBMITTED':
+      next = { ...state, submittedAt: action.payload };
       break;
     case 'SET_CURRENT_LOAN':
       next = { ...state, currentLoan: action.payload };
