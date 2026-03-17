@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Linking, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking, TouchableOpacity, Clipboard, Platform } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
@@ -8,6 +8,7 @@ import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
 import { loanService } from '../../../services/loanService';
 import { kycService } from '../../../services/kycService';
+import { digitapService } from '../../../services/digitapService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { formatCurrency, calculateEmi } from '../../../utils/helpers';
@@ -24,10 +25,12 @@ const EnachEsignScreen = ({ navigation }) => {
   const [enachDone, setEnachDone] = useState(false);
   const [esignDone, setEsignDone] = useState(false);
 
-  // VKYC state — only for loans >= 60K
+  // VKYC state — only for loans >= 60K (Digitap integration)
   const [vkycLoading, setVkycLoading] = useState(false);
   const [vkycInitiated, setVkycInitiated] = useState(false);
   const [vkycDone, setVkycDone] = useState(false);
+  const [vkycUrl, setVkycUrl] = useState(null);
+  const [vkycStatusText, setVkycStatusText] = useState(null);
 
   // References (two required)
   const emptyRef = { name: '', phone: '', address: '', relation: '' };
@@ -119,27 +122,97 @@ const EnachEsignScreen = ({ navigation }) => {
   const handleInitiateVkyc = async () => {
     setVkycLoading(true);
     try {
-      await kycService.initiateVkyc(state.currentLoan?.id);
+      const borrowerName = (state.borrowerDetails?.name || '').trim();
+      const nameParts = borrowerName.split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+      const kycData = state.kycData || {};
+
+      // Build verification questions from application state
+      const verificationQuestions = digitapService.buildVerificationQuestions(state);
+
+      const result = await kycService.initiateVkyc({
+        firstName,
+        lastName,
+        uniqueId: state.applicationId,
+        mobile: state.borrowerDetails?.phone || '',
+        email: state.borrowerDetails?.email || '',
+        nameAsPerAadhaar: kycData.name || borrowerName,
+        guardianNameAsPerAadhaar: kycData.guardianName || '',
+        addressAsPerAadhaar: kycData.address || '',
+        aadhaarLastFourDigits: (kycData.uid || '').replace(/[^0-9]/g, '').slice(-4),
+        dateOfAadhaarFetch: kycData.fetchedAt || new Date().toISOString(),
+        imageOfUserBase64: kycData.photo || '',
+        redirectionUrl: 'https://finz.app/vkyc/complete',
+        verificationQuestions,
+      });
+
+      setVkycUrl(result.url);
       setVkycInitiated(true);
-    } catch {
+
+      if (result.vkycCompleted) {
+        setVkycDone(true);
+        dispatch({ type: 'SET_VKYC', payload: 'completed' });
+        Alert.alert('Already Completed', 'Video KYC was already completed for this application.');
+      } else {
+        Alert.alert(
+          'vKYC Initiated',
+          'A vKYC link has been sent to your registered mobile and email. You can also open the link below to start the video KYC call.',
+        );
+      }
+    } catch (err) {
+      console.log('[EnachEsign] vKYC initiation error:', err.message);
       Alert.alert('Error', 'Video KYC initiation failed. Please try again.');
     } finally {
       setVkycLoading(false);
     }
   };
 
+  const handleOpenVkycUrl = () => {
+    if (vkycUrl) {
+      Linking.openURL(vkycUrl).catch(() => {
+        Alert.alert('Error', 'Could not open the vKYC link. Please copy and open it in your browser.');
+      });
+    }
+  };
+
+  const handleCopyVkycUrl = () => {
+    if (vkycUrl) {
+      if (Platform.OS === 'web') {
+        navigator.clipboard?.writeText(vkycUrl);
+      } else {
+        Clipboard.setString(vkycUrl);
+      }
+      Alert.alert('Copied', 'vKYC link copied to clipboard.');
+    }
+  };
+
   const handleCheckVkycStatus = async () => {
     setVkycLoading(true);
     try {
-      const result = await kycService.getVkycStatus(state.currentLoan?.id);
-      if (result.status === 'completed') {
+      const result = await kycService.getVkycStatus(state.applicationId);
+      if (result.status === 'completed' && result.verified) {
         setVkycDone(true);
+        setVkycStatusText('APPROVED');
         dispatch({ type: 'SET_VKYC', payload: 'completed' });
+        Alert.alert('Verified', 'Video KYC has been approved.');
+      } else if (result.status === 'rejected') {
+        setVkycStatusText('REJECTED');
+        Alert.alert('Rejected', 'Video KYC was rejected. Please re-initiate and try again.');
+        setVkycInitiated(false);
+        setVkycUrl(null);
       } else {
-        Alert.alert('Pending', 'Video KYC is still pending. Please complete the video call.');
+        const statusMsg = result.callStatus === 'AGENT_NOT_PICKED'
+          ? 'Waiting for an agent. Please try again in a few minutes.'
+          : result.callInitiated
+            ? 'Video KYC call is in progress or waiting for review.'
+            : 'Video KYC is still pending. Please open the link to start the video call.';
+        setVkycStatusText(result.vkycStatus || 'PENDING');
+        Alert.alert('Pending', statusMsg);
       }
-    } catch {
-      Alert.alert('Error', 'Failed to check VKYC status. Please try again.');
+    } catch (err) {
+      console.log('[EnachEsign] vKYC status check error:', err.message);
+      Alert.alert('Error', 'Failed to check vKYC status. Please try again.');
     } finally {
       setVkycLoading(false);
     }
@@ -284,7 +357,7 @@ const EnachEsignScreen = ({ navigation }) => {
 
             {!vkycInitiated ? (
               <Button
-                title="Start Video KYC"
+                title="Initiate vKYC"
                 onPress={handleInitiateVkyc}
                 loading={vkycLoading}
                 disabled={isRiskDeclined || isManualReview}
@@ -294,18 +367,54 @@ const EnachEsignScreen = ({ navigation }) => {
               <>
                 <View style={[styles.pendingBanner, { backgroundColor: warningBg }]}>
                   <Text style={[styles.pendingText, { color: colors.warning }]}>
-                    Video KYC session initiated. Please complete the video call.
+                    vKYC link has been sent to your mobile and email. You can also open it directly from here.
                   </Text>
+                  {vkycStatusText && (
+                    <Text style={[styles.pendingText, { color: colors.textSecondary, marginTop: 4, fontSize: 12 }]}>
+                      Status: {vkycStatusText}
+                    </Text>
+                  )}
                 </View>
+
+                {/* vKYC URL actions */}
+                {vkycUrl && (
+                  <View style={styles.vkycUrlSection}>
+                    <Text style={[styles.vkycUrlLabel, { color: colors.textSecondary }]}>
+                      vKYC Link:
+                    </Text>
+                    <TouchableOpacity onPress={handleOpenVkycUrl}>
+                      <Text style={[styles.vkycUrlText, { color: colors.teal }]} numberOfLines={2}>
+                        {vkycUrl}
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={styles.vkycUrlActions}>
+                      <Button
+                        title="Open vKYC Link"
+                        onPress={handleOpenVkycUrl}
+                        icon="🔗"
+                        style={{ flex: 1 }}
+                      />
+                      <TouchableOpacity
+                        style={[styles.copyBtn, { borderColor: colors.teal }]}
+                        onPress={handleCopyVkycUrl}
+                      >
+                        <Text style={[styles.copyBtnText, { color: colors.teal }]}>Copy</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
                 <Button
-                  title="Check VCIP Status"
+                  title="Check vKYC Status"
                   onPress={handleCheckVkycStatus}
                   loading={vkycLoading}
+                  variant="outline"
+                  style={{ marginTop: 8 }}
                 />
               </>
             ) : (
               <View style={[styles.doneBadge, { backgroundColor: tealBg }]}>
-                <Text style={[styles.doneText, { color: colors.teal }]}>✓ Video KYC Completed</Text>
+                <Text style={[styles.doneText, { color: colors.teal }]}>✓ Video KYC Approved</Text>
               </View>
             )}
           </Card>
@@ -413,6 +522,13 @@ const styles = StyleSheet.create({
   instructionItem: { fontSize: 13, lineHeight: 22 },
   pendingBanner: { padding: 14, borderRadius: 8, marginBottom: 16 },
   pendingText: { fontSize: 13, lineHeight: 20 },
+  // vKYC URL section
+  vkycUrlSection: { marginBottom: 12 },
+  vkycUrlLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  vkycUrlText: { fontSize: 12, lineHeight: 18, marginBottom: 8, textDecorationLine: 'underline' },
+  vkycUrlActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  copyBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1.5, alignItems: 'center' },
+  copyBtnText: { fontSize: 13, fontWeight: '700' },
   // References
   refBlock: {
     borderWidth: 1,

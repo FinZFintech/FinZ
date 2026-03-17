@@ -75,6 +75,10 @@ const KycVerificationScreen = ({ navigation }) => {
     pincode: '',
   });
 
+  // Aadhaar XML upload state
+  const [aadhaarXmlFile, setAadhaarXmlFile] = useState(null);
+  const [aadhaarShareCode, setAadhaarShareCode] = useState('');
+
   // Address correction flow (details incorrect)
   const [addressCorrectionStep, setAddressCorrectionStep] = useState(false);
   const [correctedAddress, setCorrectedAddress] = useState({ addressLine: '', city: '', state: '', pincode: '' });
@@ -204,6 +208,50 @@ const KycVerificationScreen = ({ navigation }) => {
       showDetailsReview(result, KYC_METHODS.CKYC);
     } catch {
       Alert.alert('Error', 'CKYC verification failed. Please try again or use DigiLocker.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Aadhaar XML Upload Flow ────────────────────────────────────────────
+  const handleAadhaarXmlUpload = async () => {
+    if (!aadhaarXmlFile) {
+      Alert.alert('Required', 'Please select your Aadhaar XML or ZIP file.');
+      return;
+    }
+    if (!aadhaarShareCode || aadhaarShareCode.length !== 4) {
+      Alert.alert('Required', 'Please enter the 4-digit share code you used when downloading the XML.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: aadhaarXmlFile.uri,
+        name: aadhaarXmlFile.name || 'aadhaar.xml',
+        type: aadhaarXmlFile.mimeType || 'application/xml',
+      });
+      formData.append('shareCode', aadhaarShareCode);
+
+      const result = await kycService.uploadAadhaarXml(formData);
+      if (!result || !result.verified) {
+        Alert.alert('Error', 'Aadhaar XML verification failed. Please check the file and share code.');
+        return;
+      }
+      // Build KYC data from XML result
+      const kycData = {
+        name: result.name,
+        address: result.address,
+        dob: result.dob,
+        gender: result.gender,
+        uid: result.uid,
+        photo: result.photo || '',
+        pincode: result.pincode || '',
+        splitAddress: result.splitAddress || null,
+      };
+      showDetailsReview(kycData, KYC_METHODS.AADHAAR_XML);
+    } catch {
+      Alert.alert('Error', 'Failed to process Aadhaar XML. Please try again or use a different method.');
     } finally {
       setLoading(false);
     }
@@ -583,6 +631,25 @@ const KycVerificationScreen = ({ navigation }) => {
                   Link your Aadhaar via DigiLocker to fetch verified identity documents instantly.
                 </Text>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.methodCard, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                onPress={() => setCurrentMethod(KYC_METHODS.AADHAAR_XML)}
+              >
+                <View style={styles.methodHeader}>
+                  <View style={[styles.methodIconWrap, { backgroundColor: `${colors.warning || '#F5B731'}20` }]}>
+                    <Text style={styles.methodIcon}>📄</Text>
+                  </View>
+                  <View style={styles.methodInfo}>
+                    <Text style={[styles.methodTitle, { color: colors.textPrimary }]}>Aadhaar XML</Text>
+                    <Text style={[styles.methodSubtitle, { color: colors.textSecondary }]}>Upload Aadhaar XML / ZIP</Text>
+                  </View>
+                  <Text style={[styles.methodArrow, { color: colors.textSecondary }]}>›</Text>
+                </View>
+                <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>
+                  Download your Aadhaar XML from UIDAI and upload it here. Use this if CKYC and DigiLocker are not working.
+                </Text>
+              </TouchableOpacity>
             </View>
           </Card>
         )}
@@ -708,13 +775,86 @@ const KycVerificationScreen = ({ navigation }) => {
           </Card>
         )}
 
+        {/* ── Aadhaar XML Upload Flow ── */}
+        {!kycCompleted && !kycFailed && !sessionExpired && !detailsReviewStep && !addressCorrectionStep && currentMethod === KYC_METHODS.AADHAAR_XML && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Upload Aadhaar XML</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              Upload your Aadhaar XML or ZIP file downloaded from the UIDAI website (https://myaadhaar.uidai.gov.in). You will also need the 4-digit share code you set during download.
+            </Text>
+
+            <View style={[styles.instructions, { backgroundColor: `${colors.primary || colors.teal}08` }]}>
+              <Text style={[styles.instructionTitle, { color: colors.textPrimary }]}>How to get your Aadhaar XML:</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>1. Visit myaadhaar.uidai.gov.in</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>2. Login with your Aadhaar and OTP</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>3. Go to "Download Aadhaar" → "Aadhaar Paperless Offline e-KYC"</Text>
+              <Text style={[styles.stepText, { color: colors.textSecondary }]}>4. Set a 4-digit share code and download the ZIP/XML file</Text>
+            </View>
+
+            {/* File Picker */}
+            {aadhaarXmlFile ? (
+              <View style={[styles.fileChip, { borderColor: colors.teal, backgroundColor: tealBg }]}>
+                <Text style={[styles.fileChipText, { color: colors.teal }]} numberOfLines={1}>
+                  {aadhaarXmlFile.name}
+                </Text>
+                <TouchableOpacity onPress={() => setAadhaarXmlFile(null)}>
+                  <Text style={[styles.fileChipRemove, { color: colors.error }]}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Button
+                title="Select Aadhaar XML / ZIP File"
+                variant="outline"
+                icon="📎"
+                onPress={async () => {
+                  try {
+                    const result = await DocumentPicker.getDocumentAsync({
+                      type: ['application/xml', 'text/xml', 'application/zip', 'application/x-zip-compressed', '*/*'],
+                    });
+                    if (!result.canceled && result.assets?.[0]) {
+                      setAadhaarXmlFile(result.assets[0]);
+                    }
+                  } catch {
+                    Alert.alert('Error', 'Could not pick file.');
+                  }
+                }}
+              />
+            )}
+
+            {/* Share Code */}
+            <Input
+              label="4-Digit Share Code"
+              value={aadhaarShareCode}
+              onChangeText={(t) => setAadhaarShareCode(t.replace(/[^0-9]/g, '').slice(0, 4))}
+              placeholder="Enter share code"
+              keyboardType="number-pad"
+              maxLength={4}
+              style={{ marginTop: 12 }}
+            />
+
+            <Button
+              title="Verify Aadhaar XML"
+              onPress={handleAadhaarXmlUpload}
+              loading={loading}
+              disabled={!aadhaarXmlFile || aadhaarShareCode.length !== 4}
+              style={styles.btn}
+            />
+            <Button
+              title="Choose Different Method"
+              onPress={() => { setCurrentMethod(null); setAadhaarXmlFile(null); setAadhaarShareCode(''); }}
+              variant="outline"
+              style={styles.btn}
+            />
+          </Card>
+        )}
+
         {/* ── Details Review + Communication Address ── */}
         {detailsReviewStep && fetchedKycData && !kycCompleted && !kycFailed && !sessionExpired && (
           <>
             <Card>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Verify Your Details</Text>
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                Please review the details fetched from {fetchedKycData.method === KYC_METHODS.CKYC ? 'CKYC' : 'DigiLocker'}. Confirm if they are correct.
+                Please review the details fetched from {fetchedKycData.method === KYC_METHODS.CKYC ? 'CKYC' : fetchedKycData.method === KYC_METHODS.AADHAAR_XML ? 'Aadhaar XML' : 'DigiLocker'}. Confirm if they are correct.
               </Text>
 
               {/* Photo */}

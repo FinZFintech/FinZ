@@ -214,10 +214,17 @@ export const kycService = {
       name: 'RAHUL SHARMA',
       dob: '1995-01-15',
       gender: 'M',
-      address: '123 Main Street, Mumbai, Maharashtra 400001',
+      address: '123, Andheri West, Mumbai, Maharashtra 400053',
+      pincode: '400053',
       uid: 'XXXX-XXXX-1234',
       photo: '',
       verified: true,
+      splitAddress: {
+        addressLine: '123, Andheri West',
+        city: ['Mumbai'],
+        state: ['Maharashtra'],
+        pincode: '400053',
+      },
     };
   },
 
@@ -245,20 +252,85 @@ export const kycService = {
     };
   },
 
-  async initiateVkyc(loanId) {
-    console.log('[kycService] Mock initiateVkyc for loan:', loanId);
-    await new Promise((r) => setTimeout(r, 500));
+  /**
+   * Initiate vKYC via Digitap API.
+   * Creates a lead and returns the shareable URL.
+   * SMS and email are sent to the customer by Digitap automatically.
+   *
+   * @param {Object} params - Application state and borrower details
+   * @returns {Promise<{url: string, uniqueId: string, vkycCompleted: boolean}>}
+   */
+  async initiateVkyc(params) {
+    const { digitapService } = require('./digitapService');
+    console.log('[kycService] Initiating vKYC via Digitap for:', params.uniqueId);
+
+    const result = await digitapService.createLead({
+      firstName: params.firstName,
+      lastName: params.lastName,
+      uniqueId: params.uniqueId,
+      mobile: params.mobile,
+      email: params.email,
+      nameAsPerAadhaar: params.nameAsPerAadhaar,
+      guardianNameAsPerAadhaar: params.guardianNameAsPerAadhaar,
+      addressAsPerAadhaar: params.addressAsPerAadhaar,
+      aadhaarLastFourDigits: params.aadhaarLastFourDigits,
+      dateOfAadhaarFetch: params.dateOfAadhaarFetch,
+      imageOfUserBase64: params.imageOfUserBase64,
+      redirectionUrl: params.redirectionUrl,
+      verificationQuestions: params.verificationQuestions,
+    });
+
     return {
-      sessionId: 'vkyc_' + Date.now(),
-      url: 'https://example.com/vkyc-mock',
-      status: 'initiated',
+      url: result.url,
+      uniqueId: params.uniqueId,
+      vkycCompleted: result.vkycCompleted || false,
+      uniqueIdExist: result.uniqueIdExist || false,
     };
   },
 
-  async getVkycStatus(loanId) {
-    console.log('[kycService] Mock getVkycStatus for loan:', loanId);
-    await new Promise((r) => setTimeout(r, 300));
-    return { status: 'completed', verified: true };
+  /**
+   * Check vKYC status via Digitap API using uniqueId.
+   *
+   * @param {string} uniqueId - The unique application identifier
+   * @returns {Promise<{status: string, vkycStatus: string, sessionId: string, callStatus: string}>}
+   */
+  async getVkycStatus(uniqueId) {
+    const { digitapService } = require('./digitapService');
+    console.log('[kycService] Checking vKYC status for:', uniqueId);
+
+    const sessions = await digitapService.getStatusByUniqueId(uniqueId);
+
+    if (!sessions || sessions.length === 0) {
+      return { status: 'pending', vkycStatus: 'NOT_STARTED' };
+    }
+
+    // Get the latest session
+    const latest = sessions[sessions.length - 1];
+    const isApproved = latest.vkycStatus === 'APPROVED';
+    const isRejected = latest.vkycStatus === 'REJECTED';
+    const isCompleted = isApproved;
+
+    return {
+      status: isCompleted ? 'completed' : isRejected ? 'rejected' : 'pending',
+      vkycStatus: latest.vkycStatus || 'INCOMPLETE',
+      sessionId: latest.sessionId,
+      callStatus: latest.callStatus,
+      callInitiated: latest.callInitiated,
+      verified: isApproved,
+    };
+  },
+
+  /**
+   * Fetch detailed vKYC session data (PAN image, selfie, video, etc.)
+   *
+   * @param {string} sessionId
+   * @returns {Promise<Object>}
+   */
+  async getVkycSessionDetails(sessionId) {
+    const { digitapService } = require('./digitapService');
+    console.log('[kycService] Fetching vKYC session details:', sessionId);
+    const details = await digitapService.getSessionDetails(sessionId);
+    return details[sessionId] || null;
   },
 
   // Name Match (fuzzy, >60% threshold)
