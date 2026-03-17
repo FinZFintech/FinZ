@@ -966,8 +966,30 @@ const KycVerificationScreen = ({ navigation }) => {
               <Button
                 title="Details are incorrect"
                 onPress={() => {
-                  setAddressCorrectionStep(true);
-                  setDetailsReviewStep(false);
+                  if (fetchedKycData.method === KYC_METHODS.CKYC) {
+                    // CKYC details incorrect → redirect to DigiLocker
+                    Alert.alert(
+                      'Verify via DigiLocker',
+                      'Since your CKYC details are incorrect, please verify your identity via DigiLocker instead.',
+                      [
+                        {
+                          text: 'Continue with DigiLocker',
+                          onPress: () => {
+                            setDetailsReviewStep(false);
+                            setFetchedKycData(null);
+                            setOtpSent(false);
+                            setOtp('');
+                            setCurrentMethod(KYC_METHODS.DIGILOCKER);
+                          },
+                        },
+                        { text: 'Cancel', style: 'cancel' },
+                      ]
+                    );
+                  } else {
+                    // DigiLocker or Aadhaar XML details incorrect → address correction flow
+                    setAddressCorrectionStep(true);
+                    setDetailsReviewStep(false);
+                  }
                 }}
                 variant="outline"
                 style={styles.btn}
