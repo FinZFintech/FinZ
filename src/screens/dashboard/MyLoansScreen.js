@@ -64,6 +64,13 @@ const MyLoansScreen = ({ navigation }) => {
     return `${Math.round(mins / 1440)}d ago`;
   };
 
+  // Navigate to a loan flow screen (which lives in the Home tab stack)
+  const navigateToLoanScreen = (screen, applicationId) => {
+    switchApplication(applicationId);
+    // Loan flow screens are in the Home tab stack, so navigate cross-tab
+    navigation.navigate('Home', { screen });
+  };
+
   const renderDraftCards = () => {
     if (draftApps.length === 0) return null;
     return draftApps.map((app) => {
@@ -74,10 +81,7 @@ const MyLoansScreen = ({ navigation }) => {
       return (
         <Card
           key={info.applicationId}
-          onPress={() => {
-            switchApplication(info.applicationId);
-            navigation.navigate(info.screen);
-          }}
+          onPress={() => navigateToLoanScreen(info.screen, info.applicationId)}
           accent={colors.teal}
           style={styles.draftCard}
         >
@@ -110,10 +114,7 @@ const MyLoansScreen = ({ navigation }) => {
           <View style={styles.draftActions}>
             <TouchableOpacity
               style={[styles.resumeBtn, { backgroundColor: colors.teal }]}
-              onPress={() => {
-                switchApplication(info.applicationId);
-                navigation.navigate(info.screen);
-              }}
+              onPress={() => navigateToLoanScreen(info.screen, info.applicationId)}
             >
               <Text style={[styles.resumeBtnText, { color: colors.background }]}>Resume</Text>
             </TouchableOpacity>

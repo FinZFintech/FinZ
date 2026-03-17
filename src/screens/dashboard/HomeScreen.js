@@ -21,7 +21,7 @@ import { formatCurrency, formatDate } from '../../utils/helpers';
 const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
   const { colors } = useTheme();
-  const { hasSavedApplication, savedApplications, getResumeInfoForApp, switchApplication, discardApplication } = useLoan();
+  const { hasSavedApplication, savedApplications, getResumeInfoForApp, switchApplication, discardApplication, startNewApplication } = useLoan();
   const [loans, setLoans] = useState([]);
   const [dailyTip, setDailyTip] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
