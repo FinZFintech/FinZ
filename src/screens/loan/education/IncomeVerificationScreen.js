@@ -38,6 +38,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showOccupationPicker, setShowOccupationPicker] = useState(false);
   const [occupationSearch, setOccupationSearch] = useState('');
+  const [declaredMonthlyIncome, setDeclaredMonthlyIncome] = useState('');
 
   // Bank details
   const [ifsc, setIfsc] = useState('');
@@ -136,6 +137,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
       else if (/^\d+$/.test(freeTextOccupation.trim())) newErrors.occupationDetail = 'Numeric-only values are not allowed';
     }
     else if (!usesFreeText && !occupationDetail) newErrors.occupationDetail = 'Please select your occupation';
+    const incomeNum = parseInt(declaredMonthlyIncome, 10);
+    if (!declaredMonthlyIncome || isNaN(incomeNum) || incomeNum <= 0) newErrors.declaredMonthlyIncome = 'Please enter your monthly income';
+    else if (incomeNum < 5000) newErrors.declaredMonthlyIncome = 'Monthly income must be at least ₹5,000';
     if (!validateIfsc(ifsc)) newErrors.ifsc = 'Invalid IFSC code';
     if (!validateAccountNumber(accountNumber)) newErrors.accountNumber = 'Invalid account number';
     if (accountNumber !== confirmAccountNumber) newErrors.confirmAccountNumber = 'Account numbers do not match';
@@ -186,7 +190,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
       // Store bank details
       dispatch({
         type: 'SET_BANK_DETAILS',
-        payload: { bankName, accountNumber, ifsc, accountType, branchName, occupationCategory: selectedCategory?.label, occupation: resolvedOccupation },
+        payload: { bankName, accountNumber, ifsc, accountType, branchName, occupationCategory: selectedCategory?.label, occupation: resolvedOccupation, declaredMonthlyIncome: parseInt(declaredMonthlyIncome, 10) || 0 },
       });
 
       // Run matching
@@ -387,6 +391,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
     setSelectedBank(mockFip);
     setOccupationCategory('salaried_private');
     setOccupationDetail('Software Developer');
+    setDeclaredMonthlyIncome('45000');
     if (!method) setMethod('aa');
   };
 
@@ -471,6 +476,24 @@ const IncomeVerificationScreen = ({ navigation }) => {
                 {errors.occupationDetail && <Text style={[styles.errorText, { color: colors.error }]}>{errors.occupationDetail}</Text>}
               </>
             )}
+
+            {/* Monthly Income */}
+            <View style={styles.monthlyIncomeSection}>
+              <Input
+                label="Monthly Income (₹)"
+                value={declaredMonthlyIncome}
+                onChangeText={(t) => setDeclaredMonthlyIncome(t.replace(/[^0-9]/g, ''))}
+                placeholder="e.g., 45000"
+                keyboardType="number-pad"
+                maxLength={10}
+                error={errors.declaredMonthlyIncome}
+              />
+              {declaredMonthlyIncome && parseInt(declaredMonthlyIncome, 10) > 0 && (
+                <Text style={[styles.incomeFormatted, { color: colors.teal }]}>
+                  {formatCurrency(parseInt(declaredMonthlyIncome, 10))} / month
+                </Text>
+              )}
+            </View>
           </Card>
         )}
 
@@ -887,6 +910,8 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 13, fontWeight: '500' },
   errorText: { fontSize: 12, marginTop: -4, marginBottom: 8 },
+  monthlyIncomeSection: { marginTop: 12 },
+  incomeFormatted: { fontSize: 12, fontWeight: '600', marginTop: -4, marginBottom: 8 },
   optionsRow: { flexDirection: 'row', gap: 12 },
   option: {
     flex: 1, padding: 16, borderRadius: 12, borderWidth: 2, alignItems: 'center',
