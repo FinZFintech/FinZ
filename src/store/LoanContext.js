@@ -55,6 +55,7 @@ function computeStatus(state) {
   if (state.kycData?.nameMatchFailed)                   return LOAN_STATUS.KYC_FAILED;
   if (state.addressCorrection?.status === 'pending')    return LOAN_STATUS.KYC_ADDRESS_REVIEW;
   if (state.addressCorrection?.status === 'rejected')   return LOAN_STATUS.KYC_FAILED;
+  if (state.kycData?.detailsIncorrect)                  return LOAN_STATUS.KYC_ADDRESS_REVIEW;
   if (state.kycData && state.kycMethod)                 return LOAN_STATUS.KYC_COMPLETED;
 
   // Stage 3: Income / eligibility
