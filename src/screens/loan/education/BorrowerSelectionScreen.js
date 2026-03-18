@@ -389,7 +389,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               <Text style={styles.verifiedText}>✓ Phone Verified</Text>
             )}
             <Input
-              label="Email (Optional)"
+              label="Email"
               value={borrowerEmail}
               onChangeText={(t) => {
                 setBorrowerEmail(t);
@@ -421,8 +421,8 @@ const BorrowerSelectionScreen = ({ navigation }) => {
           </Card>
         )}
 
-        {/* Loan Products — only after phone verification + email must not be risky */}
-        {borrowerType && phoneVerified && (!borrowerEmail || (emailVerification && !emailVerification.isRisky)) && (
+        {/* Loan Products — only after phone + email verification */}
+        {borrowerType && phoneVerified && borrowerEmail && emailVerification && !emailVerification.isRisky && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Loan Product</Text>
             {products.map((product) => (
