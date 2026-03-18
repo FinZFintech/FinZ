@@ -84,6 +84,15 @@ export const SIGNZY_OTP_CONFIG = {
   DEFAULT_OTP_LENGTH: '6',
 };
 
+export const MTALKZ_CONFIG = {
+  BASE_URL: 'https://msgn.mtalkz.com/api',
+  API_KEY: 'LzICQhtamSRXXgqA',
+  SENDER_ID: 'FINZEZ',
+  TEMPLATES: {
+    OTP: '{#otp} is your One Time Password (OTP) for log in to FinZ EZPay. This OTP will only be valid for next 10 minutes. Please don\'t share OTP with anyone. Thanks, FINZ',
+  },
+};
+
 export const COLORS = {
   primary: '#2D2B6B',       // Navy (logo "fin" text & Z dark portion)
   primaryLight: '#3E3C8A',

@@ -16,6 +16,7 @@ import InfoRow from '../../../components/common/InfoRow';
 import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
 import { authService } from '../../../services/authService';
+import { smsService } from '../../../services/smsService';
 import { useLoan } from '../../../store/LoanContext';
 import {
   formatCurrency,
@@ -93,22 +94,26 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     setBorrowerEmail('');
   };
 
-  const handleVerifyPhone = () => {
+  const handleVerifyPhone = async () => {
     if (!validateMobile(borrowerPhone)) {
       Alert.alert('Error', 'Please enter a valid 10-digit mobile number');
       return;
     }
-    setShowOtp(true);
-    // In production, call authService.sendOtp(borrowerPhone)
+    try {
+      await smsService.sendOtp(borrowerPhone);
+      setShowOtp(true);
+    } catch {
+      Alert.alert('Error', 'Failed to send OTP. Please try again.');
+    }
   };
 
   const handleVerifyOtp = async () => {
     try {
-      await authService.verifyOtp(borrowerPhone, otp);
+      smsService.verifyOtp(borrowerPhone, otp);
       setPhoneVerified(true);
       setShowOtp(false);
-    } catch {
-      Alert.alert('Error', 'OTP verification failed. Please try again.');
+    } catch (err) {
+      Alert.alert('Error', err.message || 'OTP verification failed. Please try again.');
     }
   };
 

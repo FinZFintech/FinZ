@@ -1,17 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { smsService } from './smsService';
 
 export const authService = {
   async sendOtp(mobile) {
-    // Mock: simulate OTP sent
-    await new Promise((r) => setTimeout(r, 800));
-    console.log('[authService] Mock OTP sent to', mobile);
-    return { success: true, message: 'OTP sent successfully' };
+    console.log('[authService] Sending OTP to', mobile);
+    return smsService.sendOtp(mobile);
   },
 
   async verifyOtp(mobile, otp) {
-    // Mock: simulate OTP verification with role-based routing
-    await new Promise((r) => setTimeout(r, 800));
+    // Verify the OTP sent via SMS
+    smsService.verifyOtp(mobile, otp);
 
+    // Role-based routing for test numbers
     let role = 'customer';
     if (mobile === '9999900000') role = 'admin';
     else if (mobile === '9999900001') role = 'credit_team';
