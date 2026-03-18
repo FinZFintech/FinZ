@@ -5,6 +5,7 @@ import Card from '../../components/common/Card';
 import StatusBadge from '../../components/common/StatusBadge';
 import { COLORS } from '../../config/constants';
 import { useTheme } from '../../store/ThemeContext';
+import { useAuth } from '../../store/AuthContext';
 import { useLoan } from '../../store/LoanContext';
 import { loanService } from '../../services/loanService';
 import { formatCurrency, formatDate } from '../../utils/helpers';
@@ -13,13 +14,19 @@ const TABS = ['All', 'Active', 'Pending', 'Closed'];
 
 const MyLoansScreen = ({ navigation }) => {
   const { colors } = useTheme();
+  const { linkedWards } = useAuth();
   const { hasSavedApplication, savedApplications, getResumeInfoForApp, switchApplication, discardApplication } = useLoan();
   const [activeTab, setActiveTab] = useState('All');
   const [loans, setLoans] = useState([]);
+  const [wardLoans, setWardLoans] = useState([]);
+  const [showWardLoans, setShowWardLoans] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const hasWards = linkedWards && linkedWards.length > 0;
 
   useEffect(() => {
     loadLoans();
+    if (hasWards) loadWardLoans();
   }, [activeTab]);
 
   const loadLoans = async () => {
@@ -32,6 +39,27 @@ const MyLoansScreen = ({ navigation }) => {
         { id: 'L002', type: 'education', instituteName: 'XYZ Coaching', amount: 80000, emi: 14200, status: 'pan_verified', nextEmiDate: null, tenure: 6 },
         { id: 'L003', type: 'education', instituteName: 'PQR College', amount: 150000, emi: 13800, status: 'closed', nextEmiDate: null, tenure: 12 },
       ]);
+    }
+  };
+
+  const loadWardLoans = async () => {
+    try {
+      const allWardLoans = [];
+      for (const ward of linkedWards) {
+        const data = await loanService.getLoans({ userId: ward.userId, status: activeTab === 'All' ? undefined : activeTab.toLowerCase() });
+        const loans = (data.loans || []).map(l => ({ ...l, wardName: ward.name, wardRelation: ward.relation }));
+        allWardLoans.push(...loans);
+      }
+      setWardLoans(allWardLoans);
+    } catch {
+      // Mock ward loans for demo
+      if (linkedWards.length > 0) {
+        setWardLoans(linkedWards.map((ward, i) => ({
+          id: `WL00${i + 1}`, type: 'education', instituteName: 'Demo Institute',
+          amount: 200000, emi: 18000, status: 'active', nextEmiDate: '2026-04-10', tenure: 12,
+          wardName: ward.name, wardRelation: ward.relation,
+        })));
+      }
     }
   };
 
@@ -147,18 +175,37 @@ const MyLoansScreen = ({ navigation }) => {
           </TouchableOpacity>
         ))}
       </View>
+      {/* Ward Loans Toggle */}
+      {hasWards && wardLoans.length > 0 && (
+        <TouchableOpacity
+          style={[styles.wardToggle, { backgroundColor: showWardLoans ? colors.teal : colors.cardBg, borderColor: colors.teal }]}
+          onPress={() => setShowWardLoans(!showWardLoans)}
+        >
+          <Text style={[styles.wardToggleText, { color: showWardLoans ? colors.background : colors.teal }]}>
+            {showWardLoans ? 'Showing Ward Loans' : `View Ward Loans (${wardLoans.length})`}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <FlatList
-        data={filterLoans()}
-        keyExtractor={item => item.id}
+        data={showWardLoans ? wardLoans : filterLoans()}
+        keyExtractor={item => item.id + (item.wardName || '')}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.teal]} />}
-        ListHeaderComponent={renderDraftCards}
+        ListHeaderComponent={!showWardLoans ? renderDraftCards : null}
         renderItem={({ item }) => (
           <Card onPress={() => navigation.navigate('LoanDetail', { loanId: item.id })}>
             <View style={styles.loanHeader}>
               <Text style={[styles.loanId, { color: colors.textSecondary }]}>#{item.id}</Text>
               <StatusBadge status={item.status} />
             </View>
+            {item.wardName && (
+              <View style={[styles.wardBadge, { backgroundColor: `${colors.info}20`, borderColor: colors.info }]}>
+                <Text style={[styles.wardBadgeText, { color: colors.info }]}>
+                  {item.wardName} ({item.wardRelation})
+                </Text>
+              </View>
+            )}
             <Text style={[styles.loanName, { color: colors.textPrimary }]}>
               {item.type === 'education' ? '🎓' : '💼'} {item.instituteName || item.companyName}
             </Text>
@@ -173,7 +220,7 @@ const MyLoansScreen = ({ navigation }) => {
           </Card>
         )}
         ListEmptyComponent={
-          draftApps.length === 0 ? (
+          draftApps.length === 0 && !showWardLoans ? (
             <View style={styles.empty}><Text style={[styles.emptyText, { color: colors.textSecondary }]}>No loans found</Text></View>
           ) : null
         }
@@ -238,6 +285,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   discardBtnText: { fontSize: 13, fontWeight: '600' },
+  wardToggle: {
+    marginHorizontal: 16, marginBottom: 8, paddingVertical: 10,
+    borderRadius: 10, borderWidth: 1.5, alignItems: 'center',
+  },
+  wardToggleText: { fontSize: 13, fontWeight: '700' },
+  wardBadge: {
+    alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 8, borderWidth: 1, marginBottom: 6,
+  },
+  wardBadgeText: { fontSize: 11, fontWeight: '600' },
 });
 
 export default MyLoansScreen;

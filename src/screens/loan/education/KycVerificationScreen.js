@@ -24,6 +24,7 @@ import { KYC_METHODS } from '../../../config/constants';
 import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
+import { useAuth } from '../../../store/AuthContext';
 import { useRisk } from '../../../store/RiskContext';
 
 const POLL_INTERVAL_MS = 4000;
@@ -32,6 +33,7 @@ const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 const KycVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
+  const { user, updateUser } = useAuth();
   const { state, dispatch } = useLoan();
   const { executePhase } = useRisk();
   const [currentMethod, setCurrentMethod] = useState(null);
@@ -523,6 +525,11 @@ const KycVerificationScreen = ({ navigation }) => {
     setKycCompleted(true);
     setDetailsReviewStep(false);
     setSuccessModalVisible(true);
+
+    // Mark user profile as KYC verified
+    if (user && !user.kycVerified) {
+      updateUser({ ...user, kycVerified: true });
+    }
 
     const borrowerName = state.borrowerDetails?.name || '';
     const nameParts = borrowerName.trim().split(/\s+/);

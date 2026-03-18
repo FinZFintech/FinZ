@@ -26,6 +26,11 @@ export const authService = {
         phone: mobile,
         email: 'test@finz.finance',
         role,
+        kycVerified: false,
+        dob: '',
+        gender: '',
+        address: '',
+        guardians: [],
       },
     };
 

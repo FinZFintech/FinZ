@@ -19,6 +19,7 @@ import { authService } from '../../../services/authService';
 import { smsService } from '../../../services/smsService';
 import { signzyService } from '../../../services/signzyService';
 import { useLoan } from '../../../store/LoanContext';
+import { useAuth } from '../../../store/AuthContext';
 import {
   formatCurrency,
   calculateEmi,
@@ -30,6 +31,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const styles = getStyles(colors);
   const { state, dispatch } = useLoan();
+  const { user } = useAuth();
   const student = state.studentDetails;
 
   const [borrowerType, setBorrowerType] = useState(null);
@@ -109,9 +111,9 @@ const BorrowerSelectionScreen = ({ navigation }) => {
 
   const handleSelfBorrower = () => {
     setBorrowerType('self');
-    setBorrowerName(student?.studentName || '');
-    setBorrowerPhone(student?.phone || '');
-    setBorrowerEmail(student?.email || '');
+    setBorrowerName(student?.studentName || user?.name || '');
+    setBorrowerPhone(student?.phone || user?.phone || '');
+    setBorrowerEmail(student?.email || user?.email || '');
   };
 
   const handleParentBorrower = () => {

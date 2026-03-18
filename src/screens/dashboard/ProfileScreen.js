@@ -18,8 +18,11 @@ const ProfileScreen = ({ navigation }) => {
     navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
+  const isKycVerified = !!user?.kycVerified;
+
   const menuItems = [
     { icon: '👤', label: 'Personal Details', screen: 'PersonalDetails' },
+    { icon: '👨‍👧', label: 'Parent / Guardian', screen: 'GuardianManagement' },
     { icon: '📋', label: 'My Loans', screen: 'MyLoans' },
     { icon: '📊', label: 'Credit Score', screen: 'CreditScore' },
     { icon: '🎁', label: 'Refer & Earn', screen: 'Referral' },
@@ -42,6 +45,11 @@ const ProfileScreen = ({ navigation }) => {
           </View>
           <Text style={[styles.name, { color: colors.textPrimary }]}>{user?.name || 'User'}</Text>
           <Text style={[styles.phone, { color: colors.textSecondary }]}>{user?.phone || '+91 XXXXXXXXXX'}</Text>
+          {isKycVerified && (
+            <View style={[styles.kycBadge, { backgroundColor: `${colors.success}20`, borderColor: colors.success }]}>
+              <Text style={[styles.kycBadgeText, { color: colors.success }]}>KYC Verified</Text>
+            </View>
+          )}
         </Card>
 
         {/* Theme Toggle */}
@@ -116,6 +124,11 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 30, fontWeight: '800' },
   name: { fontSize: 20, fontWeight: '700' },
   phone: { fontSize: 14, marginTop: 4 },
+  kycBadge: {
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
+    borderWidth: 1, marginTop: 8,
+  },
+  kycBadgeText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
   menuItem: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 14,
     borderBottomWidth: 0.5,

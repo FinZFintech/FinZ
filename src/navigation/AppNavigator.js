@@ -14,6 +14,8 @@ import HomeScreen from '../screens/dashboard/HomeScreen';
 import MyLoansScreen from '../screens/dashboard/MyLoansScreen';
 import LoanDetailScreen from '../screens/dashboard/LoanDetailScreen';
 import ProfileScreen from '../screens/dashboard/ProfileScreen';
+import PersonalDetailsScreen from '../screens/dashboard/PersonalDetailsScreen';
+import GuardianManagementScreen from '../screens/dashboard/GuardianManagementScreen';
 
 // Education Loan Screens
 import InstituteSelectionScreen from '../screens/loan/education/InstituteSelectionScreen';
@@ -124,6 +126,8 @@ const LoansStack = () => (
 const ProfileStack = () => (
   <ProfileStackNav.Navigator screenOptions={noHeader}>
     <ProfileStackNav.Screen name="ProfileMain" component={ProfileScreen} />
+    <ProfileStackNav.Screen name="PersonalDetails" component={PersonalDetailsScreen} />
+    <ProfileStackNav.Screen name="GuardianManagement" component={GuardianManagementScreen} />
     <ProfileStackNav.Screen name="MyLoans" component={MyLoansScreen} />
     <ProfileStackNav.Screen name="CreditScore" component={CreditScoreScreen} />
     <ProfileStackNav.Screen name="Referral" component={ReferralScreen} />
