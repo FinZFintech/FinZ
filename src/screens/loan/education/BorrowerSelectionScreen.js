@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -41,6 +41,12 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
   const [sendingOtp, setSendingOtp] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [otpSendCount, setOtpSendCount] = useState(0);
+  const cooldownRef = useRef(null);
+
+  const MAX_OTP_SENDS = 3;
+  const RESEND_COOLDOWN_SECONDS = 30;
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedTenure, setSelectedTenure] = useState(null);
@@ -69,7 +75,23 @@ const BorrowerSelectionScreen = ({ navigation }) => {
 
   useEffect(() => {
     fetchLoanProducts();
+    return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
   }, []);
+
+  const startResendCooldown = () => {
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(cooldownRef.current);
+          cooldownRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const fetchLoanProducts = async () => {
     if (state.instituteDetails?.isManual || !state.instituteDetails?.id) {
@@ -104,12 +126,18 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       Alert.alert('Invalid Mobile Number', 'Please enter a valid 10-digit mobile number to receive OTP.');
       return;
     }
+    if (otpSendCount >= MAX_OTP_SENDS) {
+      Alert.alert('OTP Limit Reached', 'You have exceeded the maximum number of OTP attempts. Please try again later.');
+      return;
+    }
     setSendingOtp(true);
     setOtpError('');
     try {
       await smsService.sendOtp(borrowerPhone);
+      setOtpSendCount((prev) => prev + 1);
       setShowOtp(true);
       setOtp('');
+      startResendCooldown();
     } catch {
       Alert.alert(
         'OTP Sending Failed',
@@ -301,6 +329,10 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               onChangeText={(t) => {
                 setBorrowerPhone(t.replace(/[^0-9]/g, ''));
                 setPhoneVerified(false);
+                setOtpSendCount(0);
+                setResendCooldown(0);
+                setOtpError('');
+                if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
               }}
               placeholder="Enter 10-digit mobile number"
               keyboardType="phone-pad"
@@ -331,13 +363,23 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 <View style={styles.otpActions}>
                   <Button title="Verify OTP" onPress={handleVerifyOtp} variant="outline" style={styles.otpActionBtn} />
                   <Button
-                    title={sendingOtp ? 'Sending...' : 'Resend OTP'}
+                    title={
+                      sendingOtp ? 'Sending...'
+                        : otpSendCount >= MAX_OTP_SENDS ? 'Limit Reached'
+                          : resendCooldown > 0 ? `Resend (${resendCooldown}s)`
+                            : 'Resend OTP'
+                    }
                     onPress={handleVerifyPhone}
                     variant="text"
-                    disabled={sendingOtp}
+                    disabled={sendingOtp || resendCooldown > 0 || otpSendCount >= MAX_OTP_SENDS}
                     style={styles.otpActionBtn}
                   />
                 </View>
+                {otpSendCount > 0 && (
+                  <Text style={styles.otpAttemptsText}>
+                    {otpSendCount}/{MAX_OTP_SENDS} OTP sent
+                  </Text>
+                )}
               </View>
             )}
             {!showOtp && otpError !== '' && (
@@ -520,6 +562,13 @@ const getStyles = (colors) => StyleSheet.create({
   },
   otpActions: { flexDirection: 'row', gap: 10 },
   otpActionBtn: { flex: 1 },
+  otpAttemptsText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    textAlign: 'right',
+    marginTop: 4,
+    marginBottom: 4,
+  },
   verifiedText: {
     color: colors.success,
     fontWeight: '600',
