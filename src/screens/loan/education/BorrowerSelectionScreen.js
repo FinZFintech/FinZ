@@ -248,8 +248,8 @@ const BorrowerSelectionScreen = ({ navigation }) => {
           </Card>
         )}
 
-        {/* Loan Products */}
-        {borrowerType && (
+        {/* Loan Products — only after phone verification */}
+        {borrowerType && phoneVerified && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Loan Product</Text>
             {products.map((product) => (

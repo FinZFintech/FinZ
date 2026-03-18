@@ -87,7 +87,7 @@ export const SIGNZY_OTP_CONFIG = {
 export const MTALKZ_CONFIG = {
   BASE_URL: 'https://msgn.mtalkz.com/api',
   API_KEY: 'LzICQhtamSRXXgqA',
-  SENDER_ID: 'FINZEZ',
+  SENDER_ID: 'FINZ',
   TEMPLATES: {
     OTP: '{#otp} is your One Time Password (OTP) for log in to FinZ EZPay. This OTP will only be valid for next 10 minutes. Please don\'t share OTP with anyone. Thanks, FINZ',
   },
