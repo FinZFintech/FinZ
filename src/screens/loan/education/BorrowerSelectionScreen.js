@@ -408,11 +408,11 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               />
             )}
             {emailVerification && !emailVerification.isRisky && (
-              <Text style={styles.verifiedText}>✓ Email Verified ({emailVerification.status})</Text>
+              <Text style={styles.verifiedText}>✓ Email passes verification (not risky)</Text>
             )}
             {emailVerification?.isRisky && (
               <Text style={styles.riskyEmailText}>
-                ✗ Risky email — {emailVerification.status}{emailVerification.subStatus ? ` (${emailVerification.subStatus})` : ''}
+                ✗ Email did not pass verification. Please use a different email address.
               </Text>
             )}
             {emailVerification && !emailVerification.isRisky && emailVerification.freeEmail && (
