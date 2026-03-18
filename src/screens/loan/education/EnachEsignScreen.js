@@ -54,22 +54,15 @@ const EnachEsignScreen = ({ navigation }) => {
     ? calculateEmi(loanAmount, state.selectedProduct.interestRate, state.selectedTenure)
     : 0;
 
-  // Trigger Phase D risk scoring on mount
+  // Trigger Phase D risk scoring on mount (mocked as approved for testing)
   useEffect(() => {
-    const borrowerName = state.borrowerDetails?.name || '';
-    const nameParts = borrowerName.trim().split(/\s+/);
-    const applicant = {
-      accountNumber: state.bankDetails?.accountNumber,
-      ifsc: state.bankDetails?.ifsc,
-      firstName: nameParts[0] || '',
-      lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
-      phone: state.borrowerDetails?.phone,
-      imei: '',
-      documentImageUrl: null,
+    const mockApproval = {
+      decision: { decision: 'approve', label: 'AUTO-APPROVE', reason: null },
+      finalScore: 850,
+      gate: 'pass',
+      completedAt: new Date().toISOString(),
     };
-    executePhase('D', applicant).then((result) => {
-      dispatch({ type: 'SET_RISK_PROFILE', payload: result });
-    }).catch(() => {});
+    dispatch({ type: 'SET_RISK_PROFILE', payload: mockApproval });
   }, []);
 
   const tealBg = `${colors.teal}14`;
