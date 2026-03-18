@@ -39,6 +39,8 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [sendingOtp, setSendingOtp] = useState(false);
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedTenure, setSelectedTenure] = useState(null);
@@ -99,30 +101,77 @@ const BorrowerSelectionScreen = ({ navigation }) => {
 
   const handleVerifyPhone = async () => {
     if (!validateMobile(borrowerPhone)) {
-      Alert.alert('Error', 'Please enter a valid 10-digit mobile number');
+      Alert.alert('Invalid Mobile Number', 'Please enter a valid 10-digit mobile number to receive OTP.');
       return;
     }
+    setSendingOtp(true);
+    setOtpError('');
     try {
       await smsService.sendOtp(borrowerPhone);
       setShowOtp(true);
+      setOtp('');
     } catch {
-      Alert.alert('Error', 'Failed to send OTP. Please try again.');
+      Alert.alert(
+        'OTP Sending Failed',
+        'We could not send OTP to this number. Please check the number and try again.',
+      );
+    } finally {
+      setSendingOtp(false);
     }
   };
 
   const handleVerifyOtp = async () => {
+    if (otp.length < 6) {
+      setOtpError('Please enter the complete 6-digit OTP');
+      return;
+    }
     try {
       smsService.verifyOtp(borrowerPhone, otp);
       setPhoneVerified(true);
       setShowOtp(false);
+      setOtpError('');
     } catch (err) {
-      Alert.alert('Error', err.message || 'OTP verification failed. Please try again.');
+      const msg = err.message || '';
+      setOtp('');
+      if (/expired/i.test(msg)) {
+        setOtpError('OTP has expired. Please request a new one.');
+      } else if (/too many/i.test(msg)) {
+        setOtpError('Too many incorrect attempts. Please request a new OTP.');
+        setShowOtp(false);
+      } else if (/not found/i.test(msg)) {
+        setOtpError('OTP session expired. Please request a new OTP.');
+        setShowOtp(false);
+      } else {
+        setOtpError('Incorrect OTP. Please check and re-enter.');
+      }
     }
+  };
+
+  const getEmailRiskMessage = (result) => {
+    const statusMessages = {
+      invalid: 'This email address does not exist or is unreachable. Please provide a valid email.',
+      spamtrap: 'This email is identified as a spam trap. Please use your genuine email address.',
+      abuse: 'This email is associated with abuse reports. Please use a different email.',
+      do_not_mail: 'This email cannot receive emails. Please use a different email address.',
+      unknown: 'We could not verify this email. Please use a different email address.',
+    };
+    const subStatusMessages = {
+      disposable: 'Temporary/disposable emails are not accepted. Please use a permanent email address.',
+      toxic: 'This email is flagged as unsafe. Please use a different email address.',
+      role_based: 'Role-based emails (e.g. info@, admin@) are not accepted. Please use a personal email.',
+      mailbox_not_found: 'This email mailbox does not exist. Please check the email address.',
+      no_dns_entries: 'This email domain is invalid. Please check the email address.',
+      possible_typo: 'This email may contain a typo. Please check and correct your email.',
+    };
+    if (result.subStatus && subStatusMessages[result.subStatus]) {
+      return subStatusMessages[result.subStatus];
+    }
+    return statusMessages[result.status] || 'This email could not be verified. Please use a different email address.';
   };
 
   const handleVerifyEmail = async () => {
     if (!validateEmail(borrowerEmail)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      Alert.alert('Invalid Email', 'Please enter a valid email address (e.g. name@example.com).');
       return;
     }
     setEmailVerifying(true);
@@ -131,21 +180,21 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       setEmailVerification(result);
       if (result.didYouMean) {
         Alert.alert(
-          'Did you mean?',
-          `Suggested email: ${result.didYouMean}`,
+          'Possible Typo Detected',
+          `Did you mean "${result.didYouMean}"?`,
           [
-            { text: 'Use Suggestion', onPress: () => { setBorrowerEmail(result.didYouMean); setEmailVerification(null); } },
-            { text: 'Keep Current', style: 'cancel' },
+            { text: 'Yes, Use This', onPress: () => { setBorrowerEmail(result.didYouMean); setEmailVerification(null); } },
+            { text: 'No, Keep Mine', style: 'cancel' },
           ],
         );
       } else if (result.isRisky) {
-        Alert.alert(
-          'Risky Email Detected',
-          `This email is flagged as "${result.status}"${result.subStatus ? ` (${result.subStatus})` : ''}. Please use a different email address.`,
-        );
+        Alert.alert('Email Verification Failed', getEmailRiskMessage(result));
       }
     } catch {
-      Alert.alert('Error', 'Email verification failed. Please try again.');
+      Alert.alert(
+        'Verification Unavailable',
+        'We could not verify this email at the moment. Please check your internet connection and try again.',
+      );
     } finally {
       setEmailVerifying(false);
     }
@@ -169,7 +218,11 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       return;
     }
     if (borrowerEmail && emailVerification?.isRisky) {
-      Alert.alert('Error', 'Please use a valid, non-risky email address before proceeding.');
+      Alert.alert('Email Verification Required', getEmailRiskMessage(emailVerification));
+      return;
+    }
+    if (borrowerEmail && !emailVerification) {
+      Alert.alert('Email Not Verified', 'Please verify your email address before proceeding.');
       return;
     }
 
@@ -255,9 +308,10 @@ const BorrowerSelectionScreen = ({ navigation }) => {
             />
             {!phoneVerified && !showOtp && borrowerPhone.length === 10 && (
               <Button
-                title="Verify Phone"
+                title={sendingOtp ? 'Sending OTP...' : 'Verify Phone'}
                 onPress={handleVerifyPhone}
                 variant="outline"
+                disabled={sendingOtp}
                 style={styles.verifyBtn}
               />
             )}
@@ -266,13 +320,28 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 <Input
                   label="Enter OTP"
                   value={otp}
-                  onChangeText={setOtp}
-                  placeholder="6-digit OTP"
+                  onChangeText={(t) => { setOtp(t); setOtpError(''); }}
+                  placeholder="6-digit OTP sent to your mobile"
                   keyboardType="number-pad"
                   maxLength={6}
                 />
-                <Button title="Verify OTP" onPress={handleVerifyOtp} variant="outline" />
+                {otpError !== '' && (
+                  <Text style={styles.otpErrorText}>{otpError}</Text>
+                )}
+                <View style={styles.otpActions}>
+                  <Button title="Verify OTP" onPress={handleVerifyOtp} variant="outline" style={styles.otpActionBtn} />
+                  <Button
+                    title={sendingOtp ? 'Sending...' : 'Resend OTP'}
+                    onPress={handleVerifyPhone}
+                    variant="text"
+                    disabled={sendingOtp}
+                    style={styles.otpActionBtn}
+                  />
+                </View>
               </View>
+            )}
+            {!showOtp && otpError !== '' && (
+              <Text style={styles.otpErrorText}>{otpError}</Text>
             )}
             {phoneVerified && (
               <Text style={styles.verifiedText}>✓ Phone Verified</Text>
@@ -310,8 +379,8 @@ const BorrowerSelectionScreen = ({ navigation }) => {
           </Card>
         )}
 
-        {/* Loan Products — only after phone verification */}
-        {borrowerType && phoneVerified && (
+        {/* Loan Products — only after phone verification + email must not be risky */}
+        {borrowerType && phoneVerified && (!borrowerEmail || (emailVerification && !emailVerification.isRisky)) && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Loan Product</Text>
             {products.map((product) => (
@@ -443,6 +512,14 @@ const getStyles = (colors) => StyleSheet.create({
   selectedText: { color: colors.teal },
   verifyBtn: { marginTop: -8, marginBottom: 16 },
   otpSection: { marginBottom: 8 },
+  otpErrorText: {
+    color: colors.error,
+    fontSize: 13,
+    marginBottom: 8,
+    marginTop: -4,
+  },
+  otpActions: { flexDirection: 'row', gap: 10 },
+  otpActionBtn: { flex: 1 },
   verifiedText: {
     color: colors.success,
     fontWeight: '600',
