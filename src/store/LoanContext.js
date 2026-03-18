@@ -12,7 +12,6 @@ const AUTO_DISCARD_DAYS = 7;
 const REJECTED_STATUSES = new Set([
   LOAN_STATUS.CREDIT_CHECK_FAILED,
   LOAN_STATUS.KYC_FAILED,
-  LOAN_STATUS.NOT_ELIGIBLE,
 ]);
 
 // ─── Terminal statuses: application is complete, no resume needed ─────────────
@@ -112,6 +111,10 @@ function getResumeScreen(status) {
     case LOAN_STATUS.PARTIALLY_ELIGIBLE:
       return 'KycVerification';
 
+    // Not eligible → allow re-visiting income verification to retry
+    case LOAN_STATUS.NOT_ELIGIBLE:
+      return 'IncomeVerification';
+
     // KYC address under review → back to KYC screen (shows review status)
     case LOAN_STATUS.KYC_ADDRESS_REVIEW:
       return 'KycVerification';
@@ -160,6 +163,7 @@ function getStepFromStatus(status) {
     case LOAN_STATUS.INCOME_VERIFIED:
     case LOAN_STATUS.FULLY_ELIGIBLE:
     case LOAN_STATUS.PARTIALLY_ELIGIBLE:
+    case LOAN_STATUS.NOT_ELIGIBLE:
       return 3;
     case LOAN_STATUS.KYC_ADDRESS_REVIEW:
     case LOAN_STATUS.KYC_COMPLETED:
