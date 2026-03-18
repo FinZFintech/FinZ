@@ -763,6 +763,38 @@ export const signzyService = {
     };
   },
 
+  // ─── Email Validation ─────────────────────────────────────────────────
+
+  RISKY_EMAIL_STATUSES: ['invalid', 'spamtrap', 'abuse', 'do_not_mail', 'unknown'],
+
+  async verifyEmail(emailId) {
+    console.log('[signzyService] verifyEmail →', emailId);
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.EMAIL_VALIDATION, {
+      emailId,
+    });
+
+    const verifyData = data?.result?.emailverifyData || {};
+
+    const isRisky = this.RISKY_EMAIL_STATUSES.includes(verifyData.status);
+
+    return {
+      email: verifyData.email || emailId,
+      status: verifyData.status || 'unknown',
+      subStatus: verifyData.sub_status || '',
+      freeEmail: verifyData.free_email === 'true' || verifyData.free_email === true,
+      disposable: verifyData.sub_status === 'disposable',
+      toxic: verifyData.sub_status === 'toxic',
+      mxFound: verifyData.mx_found === 'true' || verifyData.mx_found === true,
+      mxRecord: verifyData.mx_record || '',
+      smtpProvider: verifyData.smtp_provider || '',
+      domain: verifyData.domain || '',
+      domainAgeDays: verifyData.domain_age_days || '',
+      didYouMean: verifyData.did_you_mean || '',
+      isRisky,
+    };
+  },
+
   // ─── OTP ────────────────────────────────────────────────────────────────
 
   async sendOtp(phoneNumber, options = {}) {

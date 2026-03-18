@@ -56,6 +56,9 @@ export const SIGNZY_CONFIG = {
 
     // Face Match (OVD extraction + face verification)
     FACE_MATCH: '/ovd/extraction-face-verification',
+
+    // Email Validation
+    EMAIL_VALIDATION: '/validation/email',
   },
 };
 

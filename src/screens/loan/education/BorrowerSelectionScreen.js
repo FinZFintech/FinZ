@@ -17,6 +17,7 @@ import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
 import { authService } from '../../../services/authService';
 import { smsService } from '../../../services/smsService';
+import { signzyService } from '../../../services/signzyService';
 import { useLoan } from '../../../store/LoanContext';
 import {
   formatCurrency,
@@ -42,6 +43,8 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedTenure, setSelectedTenure] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [emailVerifying, setEmailVerifying] = useState(false);
+  const [emailVerification, setEmailVerification] = useState(null);
 
   const DEFAULT_LOAN_PRODUCTS = [
     {
@@ -117,6 +120,37 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     }
   };
 
+  const handleVerifyEmail = async () => {
+    if (!validateEmail(borrowerEmail)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+    setEmailVerifying(true);
+    try {
+      const result = await signzyService.verifyEmail(borrowerEmail);
+      setEmailVerification(result);
+      if (result.didYouMean) {
+        Alert.alert(
+          'Did you mean?',
+          `Suggested email: ${result.didYouMean}`,
+          [
+            { text: 'Use Suggestion', onPress: () => { setBorrowerEmail(result.didYouMean); setEmailVerification(null); } },
+            { text: 'Keep Current', style: 'cancel' },
+          ],
+        );
+      } else if (result.isRisky) {
+        Alert.alert(
+          'Risky Email Detected',
+          `This email is flagged as "${result.status}"${result.subStatus ? ` (${result.subStatus})` : ''}. Please use a different email address.`,
+        );
+      }
+    } catch {
+      Alert.alert('Error', 'Email verification failed. Please try again.');
+    } finally {
+      setEmailVerifying(false);
+    }
+  };
+
   const handleApply = async () => {
     if (!borrowerName.trim()) {
       Alert.alert('Error', 'Please enter borrower name');
@@ -134,6 +168,10 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       Alert.alert('Error', 'Please select a tenure');
       return;
     }
+    if (borrowerEmail && emailVerification?.isRisky) {
+      Alert.alert('Error', 'Please use a valid, non-risky email address before proceeding.');
+      return;
+    }
 
     dispatch({ type: 'SET_BORROWER_TYPE', payload: borrowerType });
     dispatch({
@@ -143,6 +181,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         phone: borrowerPhone,
         email: borrowerEmail,
         phoneVerified,
+        emailVerification: emailVerification || null,
       },
     });
     dispatch({ type: 'SET_PRODUCT', payload: selectedProduct });
@@ -241,10 +280,33 @@ const BorrowerSelectionScreen = ({ navigation }) => {
             <Input
               label="Email (Optional)"
               value={borrowerEmail}
-              onChangeText={setBorrowerEmail}
+              onChangeText={(t) => {
+                setBorrowerEmail(t);
+                setEmailVerification(null);
+              }}
               placeholder="Enter email address"
               keyboardType="email-address"
             />
+            {borrowerEmail.length > 0 && !emailVerification && (
+              <Button
+                title={emailVerifying ? 'Verifying...' : 'Verify Email'}
+                onPress={handleVerifyEmail}
+                variant="outline"
+                disabled={emailVerifying}
+                style={styles.verifyBtn}
+              />
+            )}
+            {emailVerification && !emailVerification.isRisky && (
+              <Text style={styles.verifiedText}>✓ Email Verified ({emailVerification.status})</Text>
+            )}
+            {emailVerification?.isRisky && (
+              <Text style={styles.riskyEmailText}>
+                ✗ Risky email — {emailVerification.status}{emailVerification.subStatus ? ` (${emailVerification.subStatus})` : ''}
+              </Text>
+            )}
+            {emailVerification && !emailVerification.isRisky && emailVerification.freeEmail && (
+              <Text style={styles.emailWarningText}>Free email provider detected</Text>
+            )}
           </Card>
         )}
 
@@ -385,6 +447,19 @@ const getStyles = (colors) => StyleSheet.create({
     color: colors.success,
     fontWeight: '600',
     fontSize: 14,
+    marginBottom: 12,
+    marginTop: -8,
+  },
+  riskyEmailText: {
+    color: colors.error,
+    fontWeight: '600',
+    fontSize: 14,
+    marginBottom: 12,
+    marginTop: -8,
+  },
+  emailWarningText: {
+    color: colors.warning,
+    fontSize: 12,
     marginBottom: 12,
     marginTop: -8,
   },
