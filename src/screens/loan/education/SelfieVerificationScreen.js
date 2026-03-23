@@ -14,6 +14,7 @@ import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
+import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
 import { useTheme } from '../../../store/ThemeContext';
@@ -497,6 +498,7 @@ const SelfieVerificationScreen = ({ navigation }) => {
           <View style={styles.bottomSpacer} />
         </ScrollView>
       )}
+      <FloatingAssistButton />
     </View>
   );
 };

@@ -13,6 +13,7 @@ import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
+import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
 import { authService } from '../../../services/authService';
@@ -525,6 +526,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+      <FloatingAssistButton />
     </View>
   );
 };

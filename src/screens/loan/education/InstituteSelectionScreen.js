@@ -13,6 +13,7 @@ import Header from '../../../components/common/Header';
 import Input from '../../../components/common/Input';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
+import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { COLORS } from '../../../config/constants';
 import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
@@ -125,6 +126,7 @@ const InstituteSelectionScreen = ({ navigation }) => {
             />
           </Card>
         </ScrollView>
+        <FloatingAssistButton />
       </View>
     );
   }
@@ -160,6 +162,7 @@ const InstituteSelectionScreen = ({ navigation }) => {
           <Text style={[styles.manualEntryArrow, { color: colors.teal }]}>→</Text>
         </TouchableOpacity>
       </View>
+      <FloatingAssistButton />
     </View>
   );
 };

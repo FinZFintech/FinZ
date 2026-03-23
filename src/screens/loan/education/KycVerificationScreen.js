@@ -19,6 +19,7 @@ import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
 import Input from '../../../components/common/Input';
 import OtpInput from '../../../components/common/OtpInput';
+import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import * as DocumentPicker from 'expo-document-picker';
 import { KYC_METHODS } from '../../../config/constants';
 import { useTheme } from '../../../store/ThemeContext';
@@ -1307,6 +1308,7 @@ const KycVerificationScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+      <FloatingAssistButton />
     </View>
   );
 };

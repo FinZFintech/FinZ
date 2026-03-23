@@ -4,6 +4,7 @@ import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
+import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { COLORS } from '../../../config/constants';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
@@ -101,6 +102,7 @@ const VkycScreen = ({ navigation }) => {
         </Card>
         <View style={styles.bottomSpacer} />
       </ScrollView>
+      <FloatingAssistButton />
     </View>
   );
 };

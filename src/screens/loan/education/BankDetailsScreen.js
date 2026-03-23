@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Header from '../../../components/common/Header';
+import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { useTheme } from '../../../store/ThemeContext';
 
 // Bank details capture has been moved to IncomeVerificationScreen.
@@ -18,6 +19,7 @@ const BankDetailsScreen = ({ navigation }) => {
       <View style={styles.center}>
         <Text style={[styles.text, { color: colors.textSecondary }]}>Redirecting...</Text>
       </View>
+      <FloatingAssistButton />
     </View>
   );
 };

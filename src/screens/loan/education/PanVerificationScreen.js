@@ -6,6 +6,7 @@ import Input from '../../../components/common/Input';
 import Card from '../../../components/common/Card';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
+import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
 import { useLoan } from '../../../store/LoanContext';
@@ -424,6 +425,7 @@ const PanVerificationScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+      <FloatingAssistButton />
     </View>
   );
 };

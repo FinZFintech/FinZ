@@ -8,6 +8,7 @@ import Input from '../../../components/common/Input';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
 import InfoRow from '../../../components/common/InfoRow';
+import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { COLORS } from '../../../config/constants';
 import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
@@ -127,6 +128,7 @@ const EmployeeLoanScreen = ({ navigation }) => {
         )}
         <View style={styles.bottomSpacer} />
       </ScrollView>
+      <FloatingAssistButton />
     </View>
   );
 };

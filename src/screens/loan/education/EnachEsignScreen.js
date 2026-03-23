@@ -6,6 +6,7 @@ import Card from '../../../components/common/Card';
 import Input from '../../../components/common/Input';
 import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
+import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { loanService } from '../../../services/loanService';
 import { kycService } from '../../../services/kycService';
 import { digitapService } from '../../../services/digitapService';
@@ -516,6 +517,7 @@ const EnachEsignScreen = ({ navigation }) => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+      <FloatingAssistButton />
     </View>
   );
 };
