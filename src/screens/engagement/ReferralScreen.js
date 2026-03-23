@@ -4,7 +4,7 @@ import Header from '../../components/common/Header';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Card from '../../components/common/Card';
-import { COLORS, APP_NAME } from '../../config/constants';
+import { APP_NAME } from '../../config/constants';
 import { useTheme } from '../../store/ThemeContext';
 import { engagementService } from '../../services/engagementService';
 import { validateMobile } from '../../utils/helpers';
@@ -61,7 +61,7 @@ const ReferralScreen = ({ navigation }) => {
 
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Your Referral Code</Text>
-          <View style={styles.codeBox}>
+          <View style={[styles.codeBox, { borderColor: colors.border, backgroundColor: `${colors.inputBg}80` }]}>
             <Text style={[styles.codeText, { color: colors.teal }]}>{referralCode}</Text>
           </View>
           <Button title="Share Referral Link" onPress={handleShare} variant="outline" icon="📤" />
@@ -88,17 +88,17 @@ const ReferralScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   heroCard: { alignItems: 'center', backgroundColor: 'rgba(74,237,196,0.08)' },
   heroIcon: { fontSize: 50, marginBottom: 12 },
-  heroTitle: { fontSize: 20, fontWeight: '800', color: COLORS.teal, marginBottom: 8 },
-  heroText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
-  codeBox: { backgroundColor: 'rgba(255,255,255,0.05)', padding: 16, borderRadius: 10, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: COLORS.border, borderStyle: 'dashed' },
-  codeText: { fontSize: 24, fontWeight: '900', color: COLORS.teal, letterSpacing: 3 },
+  heroTitle: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
+  heroText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  codeBox: { padding: 16, borderRadius: 10, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderStyle: 'dashed' },
+  codeText: { fontSize: 24, fontWeight: '900', letterSpacing: 3 },
   stepsCard: { backgroundColor: 'rgba(74,237,196,0.08)' },
-  stepItem: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 28 },
+  stepItem: { fontSize: 14, lineHeight: 28 },
   bottomSpacer: { height: 100 },
 });
 

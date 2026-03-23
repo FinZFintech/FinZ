@@ -43,6 +43,12 @@ import ReferralScreen from '../screens/engagement/ReferralScreen';
 import OffersScreen from '../screens/engagement/OffersScreen';
 import DailyCheckInScreen from '../screens/engagement/DailyCheckInScreen';
 
+// Support Screens
+import HelpSupportScreen from '../screens/support/HelpSupportScreen';
+import TermsAndConditionsScreen from '../screens/support/TermsAndConditionsScreen';
+import PrivacyPolicyScreen from '../screens/support/PrivacyPolicyScreen';
+import LoanAssistanceScreen from '../screens/support/LoanAssistanceScreen';
+
 // Admin Screens
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import LoanQueueScreen from '../screens/admin/LoanQueueScreen';
@@ -94,6 +100,10 @@ const HomeStack = () => (
     <HomeStackNav.Screen name="Referral" component={ReferralScreen} />
     <HomeStackNav.Screen name="Offers" component={OffersScreen} />
     <HomeStackNav.Screen name="DailyCheckIn" component={DailyCheckInScreen} />
+    <HomeStackNav.Screen name="HelpSupport" component={HelpSupportScreen} />
+    <HomeStackNav.Screen name="TermsAndConditions" component={TermsAndConditionsScreen} />
+    <HomeStackNav.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+    <HomeStackNav.Screen name="LoanAssistance" component={LoanAssistanceScreen} />
     {sharedScreens(HomeStackNav)}
     {/* Education Loan Flow */}
     <HomeStackNav.Screen name="InstituteSelection" component={InstituteSelectionScreen} />
@@ -133,6 +143,10 @@ const ProfileStack = () => (
     <ProfileStackNav.Screen name="Referral" component={ReferralScreen} />
     <ProfileStackNav.Screen name="Offers" component={OffersScreen} />
     <ProfileStackNav.Screen name="DailyCheckIn" component={DailyCheckInScreen} />
+    <ProfileStackNav.Screen name="HelpSupport" component={HelpSupportScreen} />
+    <ProfileStackNav.Screen name="TermsAndConditions" component={TermsAndConditionsScreen} />
+    <ProfileStackNav.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+    <ProfileStackNav.Screen name="LoanAssistance" component={LoanAssistanceScreen} />
     {sharedScreens(ProfileStackNav)}
   </ProfileStackNav.Navigator>
 );

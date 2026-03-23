@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import Header from '../../components/common/Header';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
-import { COLORS } from '../../config/constants';
 import { useTheme } from '../../store/ThemeContext';
 import { engagementService } from '../../services/engagementService';
 
@@ -40,9 +39,9 @@ const CreditScoreScreen = ({ navigation }) => {
   };
 
   const getScoreColor = (s) => {
-    if (s >= 750) return COLORS.success;
-    if (s >= 650) return COLORS.warning;
-    return COLORS.error;
+    if (s >= 750) return colors.success;
+    if (s >= 650) return colors.warning;
+    return colors.error;
   };
 
   return (
@@ -61,11 +60,11 @@ const CreditScoreScreen = ({ navigation }) => {
         ) : (
           <>
             <Card style={[styles.scoreCard, { borderLeftColor: getScoreColor(score.score) }]}>
-              <Text style={styles.scoreLabel}>{score.bureau} Score</Text>
+              <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>{score.bureau} Score</Text>
               <Text style={[styles.scoreValue, { color: getScoreColor(score.score) }]}>
                 {score.score}
               </Text>
-              <View style={styles.scoreBar}>
+              <View style={[styles.scoreBar, { backgroundColor: colors.border }]}>
                 <View
                   style={[
                     styles.scoreProgress,
@@ -77,23 +76,23 @@ const CreditScoreScreen = ({ navigation }) => {
                 />
               </View>
               <View style={styles.scaleLabels}>
-                <Text style={styles.scaleText}>300</Text>
-                <Text style={styles.scaleText}>900</Text>
+                <Text style={[styles.scaleText, { color: colors.textSecondary }]}>300</Text>
+                <Text style={[styles.scaleText, { color: colors.textSecondary }]}>900</Text>
               </View>
             </Card>
 
             <Card>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Score Factors</Text>
               {score.factors.map((f) => (
-                <View key={f.label} style={styles.factorRow}>
+                <View key={f.label} style={[styles.factorRow, { borderBottomColor: colors.border }]}>
                   <Text style={[styles.factorLabel, { color: colors.textPrimary }]}>{f.label}</Text>
                   <Text
                     style={[
                       styles.factorScore,
                       {
                         color:
-                          f.impact === 'positive' ? COLORS.success :
-                          f.impact === 'negative' ? COLORS.error : COLORS.textSecondary,
+                          f.impact === 'positive' ? colors.success :
+                          f.impact === 'negative' ? colors.error : colors.textSecondary,
                       },
                     ]}
                   >
@@ -118,25 +117,25 @@ const CreditScoreScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   checkCard: { alignItems: 'center', paddingVertical: 40 },
   checkIcon: { fontSize: 60, marginBottom: 16 },
-  checkTitle: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 8 },
-  checkText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+  checkTitle: { fontSize: 22, fontWeight: '700', marginBottom: 8 },
+  checkText: { fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 },
   scoreCard: { borderLeftWidth: 4, alignItems: 'center', paddingVertical: 24 },
-  scoreLabel: { fontSize: 13, color: COLORS.textSecondary },
+  scoreLabel: { fontSize: 13 },
   scoreValue: { fontSize: 56, fontWeight: '900', marginVertical: 8 },
-  scoreBar: { width: '80%', height: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 4, marginTop: 8 },
+  scoreBar: { width: '80%', height: 8, borderRadius: 4, marginTop: 8 },
   scoreProgress: { height: 8, borderRadius: 4 },
   scaleLabels: { flexDirection: 'row', justifyContent: 'space-between', width: '80%', marginTop: 4 },
-  scaleText: { fontSize: 11, color: COLORS.textSecondary },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
-  factorRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
-  factorLabel: { fontSize: 14, color: COLORS.textPrimary },
+  scaleText: { fontSize: 11 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  factorRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 0.5 },
+  factorLabel: { fontSize: 14 },
   factorScore: { fontSize: 14, fontWeight: '600' },
   tipsCard: { backgroundColor: 'rgba(245,183,49,0.08)', borderColor: 'rgba(245,183,49,0.15)' },
-  tipItem: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 24 },
+  tipItem: { fontSize: 13, lineHeight: 24 },
   bottomSpacer: { height: 100 },
 });
 

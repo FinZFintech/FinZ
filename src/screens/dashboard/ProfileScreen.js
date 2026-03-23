@@ -28,9 +28,9 @@ const ProfileScreen = ({ navigation }) => {
     { icon: '🎁', label: 'Refer & Earn', screen: 'Referral' },
     { icon: '🏷️', label: 'Offers', screen: 'Offers' },
     { icon: '🔥', label: 'Daily Check-In', screen: 'DailyCheckIn' },
-    { icon: '❓', label: 'Help & Support', screen: null },
-    { icon: '📄', label: 'Terms & Conditions', screen: null },
-    { icon: '🔒', label: 'Privacy Policy', screen: null },
+    { icon: '❓', label: 'Help & Support', screen: 'HelpSupport' },
+    { icon: '📄', label: 'Terms & Conditions', screen: 'TermsAndConditions' },
+    { icon: '🔒', label: 'Privacy Policy', screen: 'PrivacyPolicy' },
   ];
 
   return (

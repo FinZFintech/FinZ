@@ -4,7 +4,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
-import { COLORS } from '../../config/constants';
 import { useTheme } from '../../store/ThemeContext';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -78,17 +77,17 @@ const DailyCheckInScreen = ({ navigation }) => {
         {/* Streak Card */}
         <Card style={styles.streakCard}>
           <Text style={styles.streakEmoji}>🔥</Text>
-          <Text style={styles.streakCount}>{streak}</Text>
+          <Text style={[styles.streakCount, { color: colors.secondary }]}>{streak}</Text>
           <Text style={[styles.streakLabel, { color: colors.textSecondary }]}>Day Streak</Text>
           <View style={styles.weekRow}>
             {DAYS.map((day, i) => (
               <View key={day} style={styles.dayItem}>
-                <View style={[styles.dayCircle, weekStatus[i] && styles.dayChecked]}>
-                  <Text style={[styles.dayText, weekStatus[i] && styles.dayCheckedText]}>
+                <View style={[styles.dayCircle, { backgroundColor: colors.inputBg }, weekStatus[i] && { backgroundColor: colors.teal }]}>
+                  <Text style={[styles.dayText, { color: colors.textSecondary }, weekStatus[i] && { color: colors.background }]}>
                     {weekStatus[i] ? '✓' : day[0]}
                   </Text>
                 </View>
-                <Text style={styles.dayLabel}>{day}</Text>
+                <Text style={[styles.dayLabel, { color: colors.textSecondary }]}>{day}</Text>
               </View>
             ))}
           </View>
@@ -111,6 +110,7 @@ const DailyCheckInScreen = ({ navigation }) => {
                 key={`quiz-${opt}`}
                 style={[
                   styles.quizOption,
+                  { borderColor: colors.border },
                   selectedAnswer === optIndex && optIndex === financialQuiz.correct && styles.correctOption,
                   selectedAnswer === optIndex && optIndex !== financialQuiz.correct && styles.wrongOption,
                   selectedAnswer !== null && optIndex === financialQuiz.correct && styles.correctOption,
@@ -132,7 +132,7 @@ const DailyCheckInScreen = ({ navigation }) => {
         )}
 
         {/* Rewards Info */}
-        <Card style={styles.rewardsCard}>
+        <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>🏆 Check-In Rewards</Text>
           <Text style={[styles.rewardItem, { color: colors.textSecondary }]}>7-day streak: Free credit score check</Text>
           <Text style={[styles.rewardItem, { color: colors.textSecondary }]}>14-day streak: ₹100 cashback on EMI</Text>
@@ -146,31 +146,28 @@ const DailyCheckInScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   streakCard: { alignItems: 'center', backgroundColor: 'rgba(245,183,49,0.08)' },
   streakEmoji: { fontSize: 40 },
-  streakCount: { fontSize: 48, fontWeight: '900', color: COLORS.secondary },
-  streakLabel: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 16 },
+  streakCount: { fontSize: 48, fontWeight: '900' },
+  streakLabel: { fontSize: 14, marginBottom: 16 },
   weekRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   dayItem: { alignItems: 'center' },
-  dayCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.cardBg, alignItems: 'center', justifyContent: 'center' },
-  dayChecked: { backgroundColor: COLORS.teal },
-  dayText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  dayCheckedText: { color: COLORS.background },
-  dayLabel: { fontSize: 10, color: COLORS.textSecondary, marginTop: 4 },
+  dayCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  dayText: { fontSize: 13, fontWeight: '600' },
+  dayLabel: { fontSize: 10, marginTop: 4 },
   checkInBtn: { width: '100%' },
   checkedBadge: { backgroundColor: 'rgba(74,237,196,0.08)', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  checkedText: { color: COLORS.teal, fontWeight: '700' },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
-  quizQuestion: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 12, lineHeight: 22 },
-  quizOption: { padding: 12, borderRadius: 8, borderWidth: 1.5, borderColor: COLORS.border, marginBottom: 8 },
-  correctOption: { borderColor: COLORS.teal, backgroundColor: 'rgba(74,237,196,0.08)' },
-  wrongOption: { borderColor: COLORS.error, backgroundColor: 'rgba(255,107,107,0.08)' },
-  quizOptionText: { fontSize: 14, color: COLORS.textPrimary },
+  checkedText: { fontWeight: '700' },
+  sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  quizQuestion: { fontSize: 15, fontWeight: '600', marginBottom: 12, lineHeight: 22 },
+  quizOption: { padding: 12, borderRadius: 8, borderWidth: 1.5, marginBottom: 8 },
+  correctOption: { borderColor: '#4AEDC4', backgroundColor: 'rgba(74,237,196,0.08)' },
+  wrongOption: { borderColor: '#FF6B6B', backgroundColor: 'rgba(255,107,107,0.08)' },
+  quizOptionText: { fontSize: 14 },
   quizResult: { fontSize: 14, fontWeight: '600', marginTop: 8, textAlign: 'center' },
-  rewardsCard: { backgroundColor: COLORS.cardBg },
-  rewardItem: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 28 },
+  rewardItem: { fontSize: 14, lineHeight: 28 },
   bottomSpacer: { height: 100 },
 });
 
