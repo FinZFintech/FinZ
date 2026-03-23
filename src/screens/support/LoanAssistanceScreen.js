@@ -437,7 +437,7 @@ const LoanAssistanceScreen = ({ navigation }) => {
           <Text style={[styles.stillHelpText, { color: colors.textSecondary }]}>
             Our support team is available Monday-Saturday to assist you with your loan application.
           </Text>
-          <Button title="Call Support: 1800-XXX-XXXX" onPress={() => Linking.openURL('tel:1800XXXXXXX').catch(() => {})} variant="outline" />
+          <Button title="Call Support: 080-6506 1588" onPress={() => Linking.openURL('tel:08065061588').catch(() => {})} variant="outline" />
         </Card>
 
         <View style={styles.bottomSpacer} />
