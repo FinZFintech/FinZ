@@ -41,9 +41,8 @@ const FAQ_DATA = [
 ];
 
 const CONTACT_OPTIONS = [
-  { icon: '📞', label: 'Call Us', detail: '1800-XXX-XXXX (Toll Free)', action: 'tel:1800XXXXXXX' },
-  { icon: '📧', label: 'Email Us', detail: 'support@finz.co.in', action: 'mailto:support@finz.co.in' },
-  { icon: '💬', label: 'WhatsApp', detail: '+91 98XXX XXXXX', action: 'https://wa.me/9198XXXXXXXX' },
+  { icon: '📧', label: 'Email Us', detail: 'customersupport@finz.club', action: 'mailto:customersupport@finz.club' },
+  { icon: '📞', label: 'Call Us', detail: '080-6506 1588', action: 'tel:08065061588' },
 ];
 
 const HelpSupportScreen = ({ navigation }) => {
@@ -144,7 +143,7 @@ const HelpSupportScreen = ({ navigation }) => {
           </Text>
           <Text style={[styles.grievanceDetail, { color: colors.textPrimary }]}>
             Grievance Officer{'\n'}
-            Email: grievance@finz.co.in{'\n'}
+            Email: gro@finz.club{'\n'}
             Resolution Timeline: 15 business days
           </Text>
           <Text style={[styles.grievanceText, { color: colors.textSecondary, marginTop: 12 }]}>
