@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
@@ -127,13 +127,14 @@ const LOAN_STEPS = [
   },
 ];
 
+const SUPPORT_EMAIL = 'customersupport@finz.club';
+const SUPPORT_PHONE = '080-6506 1588';
+const SUPPORT_PHONE_URI = 'tel:08065061588';
+
 const LoanAssistanceScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, getResumeInfo } = useLoan();
   const [expandedStep, setExpandedStep] = useState(null);
-  const [showRemoteHelp, setShowRemoteHelp] = useState(false);
-  const [sessionCode, setSessionCode] = useState(null);
-  const [waitingForAgent, setWaitingForAgent] = useState(false);
 
   const resumeInfo = getResumeInfo();
   const currentStep = resumeInfo ? resumeInfo.step : null;
@@ -142,50 +143,23 @@ const LoanAssistanceScreen = ({ navigation }) => {
     navigation.navigate(screen);
   };
 
-  const generateSessionCode = useCallback(() => {
-    const code = 'FZ' + Math.random().toString(36).substring(2, 8).toUpperCase();
-    setSessionCode(code);
-    return code;
-  }, []);
+  const handleEmail = () => {
+    const subject = resumeInfo
+      ? `Loan Assistance - Application ${resumeInfo.applicationId}`
+      : 'Loan Assistance Query';
+    const body = resumeInfo
+      ? `Hi,\n\nI need help with my loan application.\n\nApplication ID: ${resumeInfo.applicationId}\nCurrent Step: ${resumeInfo.statusLabel}\n\nPlease assist.\n\nThank you.`
+      : 'Hi,\n\nI need help with my loan application.\n\nPlease assist.\n\nThank you.';
 
-  const handleRequestRemoteAssistance = () => {
-    const code = generateSessionCode();
-    setWaitingForAgent(true);
-
-    // Simulate agent connection after a delay
-    setTimeout(() => {
-      setWaitingForAgent(false);
-      Alert.alert(
-        'Agent Connected',
-        `An agent is ready to assist you.\n\nSession: ${code}\nAgent: Support Team\n\nThe agent can see your current loan application step and will guide you through the process.\n\nYou will receive guidance via chat/call.`,
-        [
-          { text: 'Start Call', onPress: () => Linking.openURL('tel:1800XXXXXXX').catch(() => {}) },
-          { text: 'Continue in App', style: 'cancel' },
-        ]
-      );
-    }, 3000);
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`).catch(() => {
+      Alert.alert('Error', 'Unable to open email client. Please send an email to ' + SUPPORT_EMAIL);
+    });
   };
 
-  const handleCallAgent = () => {
-    Alert.alert(
-      'Connect with Agent',
-      'Choose how you would like to connect:',
-      [
-        {
-          text: 'Phone Call',
-          onPress: () => Linking.openURL('tel:1800XXXXXXX').catch(() => {
-            Alert.alert('Error', 'Unable to make a call from this device.');
-          }),
-        },
-        {
-          text: 'WhatsApp',
-          onPress: () => Linking.openURL('https://wa.me/9198XXXXXXXX').catch(() => {
-            Alert.alert('Error', 'WhatsApp is not installed on this device.');
-          }),
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+  const handleCall = () => {
+    Linking.openURL(SUPPORT_PHONE_URI).catch(() => {
+      Alert.alert('Unable to Call', `Please dial ${SUPPORT_PHONE} from your phone.`);
+    });
   };
 
   return (
@@ -236,112 +210,36 @@ const LoanAssistanceScreen = ({ navigation }) => {
           </Card>
         )}
 
-        {/* Remote Assistance Section */}
+        {/* Contact Us Section */}
         <Card>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>🎧 Live Agent Assistance</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>📞 Contact Us</Text>
           <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>
-            Connect with a support agent who can see your current step in the loan journey and guide you in real-time.
+            Reach out to our support team for help with your loan application.
           </Text>
 
-          {!showRemoteHelp ? (
-            <View style={styles.assistOptions}>
-              <TouchableOpacity
-                style={[styles.assistOption, { backgroundColor: `${colors.teal}12`, borderColor: `${colors.teal}30` }]}
-                onPress={() => setShowRemoteHelp(true)}
-              >
-                <Text style={styles.assistOptionIcon}>🖥️</Text>
-                <Text style={[styles.assistOptionTitle, { color: colors.teal }]}>Screen Sharing</Text>
-                <Text style={[styles.assistOptionDesc, { color: colors.textSecondary }]}>
-                  Agent sees your screen and guides you step-by-step
-                </Text>
-              </TouchableOpacity>
+          <View style={styles.assistOptions}>
+            <TouchableOpacity
+              style={[styles.assistOption, { backgroundColor: `${colors.teal}12`, borderColor: `${colors.teal}30` }]}
+              onPress={handleEmail}
+            >
+              <Text style={styles.assistOptionIcon}>📧</Text>
+              <Text style={[styles.assistOptionTitle, { color: colors.teal }]}>Email Us</Text>
+              <Text style={[styles.assistOptionDesc, { color: colors.textSecondary }]}>
+                {SUPPORT_EMAIL}
+              </Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.assistOption, { backgroundColor: `${colors.secondary}12`, borderColor: `${colors.secondary}30` }]}
-                onPress={handleCallAgent}
-              >
-                <Text style={styles.assistOptionIcon}>📞</Text>
-                <Text style={[styles.assistOptionTitle, { color: colors.secondary }]}>Voice Call</Text>
-                <Text style={[styles.assistOptionDesc, { color: colors.textSecondary }]}>
-                  Talk to an agent on call for verbal guidance
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.remoteSession}>
-              {!sessionCode ? (
-                <>
-                  <Text style={[styles.remoteInfo, { color: colors.textSecondary }]}>
-                    When you start a remote assistance session, an agent will be able to:
-                  </Text>
-                  <View style={styles.permissionList}>
-                    <Text style={[styles.permissionItem, { color: colors.textPrimary }]}>
-                      ✓ See which step you're on in the loan journey
-                    </Text>
-                    <Text style={[styles.permissionItem, { color: colors.textPrimary }]}>
-                      ✓ View your screen to identify where you're stuck
-                    </Text>
-                    <Text style={[styles.permissionItem, { color: colors.textPrimary }]}>
-                      ✓ Guide you with on-screen annotations
-                    </Text>
-                    <Text style={[styles.permissionItem, { color: colors.error }]}>
-                      ✗ They cannot enter data or make changes on your behalf
-                    </Text>
-                    <Text style={[styles.permissionItem, { color: colors.error }]}>
-                      ✗ They cannot access your passwords or OTPs
-                    </Text>
-                  </View>
-                  <Button title="Start Remote Session" onPress={handleRequestRemoteAssistance} />
-                  <TouchableOpacity style={styles.cancelLink} onPress={() => setShowRemoteHelp(false)}>
-                    <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <View style={[styles.sessionCodeBox, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
-                    <Text style={[styles.sessionCodeLabel, { color: colors.textSecondary }]}>Session Code</Text>
-                    <Text style={[styles.sessionCode, { color: colors.teal }]}>{sessionCode}</Text>
-                    {waitingForAgent && (
-                      <Text style={[styles.waitingText, { color: colors.secondary }]}>
-                        Connecting to agent...
-                      </Text>
-                    )}
-                    {!waitingForAgent && (
-                      <Text style={[styles.connectedText, { color: colors.success }]}>
-                        Session active
-                      </Text>
-                    )}
-                  </View>
-
-                  {resumeInfo && (
-                    <View style={[styles.sharedInfo, { backgroundColor: `${colors.teal}08`, borderColor: `${colors.teal}20` }]}>
-                      <Text style={[styles.sharedInfoTitle, { color: colors.textPrimary }]}>Shared with Agent:</Text>
-                      <Text style={[styles.sharedInfoItem, { color: colors.textSecondary }]}>
-                        Current Step: {LOAN_STEPS[resumeInfo.step]?.label || 'Unknown'}
-                      </Text>
-                      <Text style={[styles.sharedInfoItem, { color: colors.textSecondary }]}>
-                        Status: {resumeInfo.statusLabel}
-                      </Text>
-                      <Text style={[styles.sharedInfoItem, { color: colors.textSecondary }]}>
-                        Application: {resumeInfo.applicationId}
-                      </Text>
-                    </View>
-                  )}
-
-                  <Button
-                    title="End Session"
-                    onPress={() => {
-                      setSessionCode(null);
-                      setShowRemoteHelp(false);
-                      setWaitingForAgent(false);
-                      Alert.alert('Session Ended', 'Your remote assistance session has been terminated.');
-                    }}
-                    variant="outline"
-                  />
-                </>
-              )}
-            </View>
-          )}
+            <TouchableOpacity
+              style={[styles.assistOption, { backgroundColor: `${colors.secondary}12`, borderColor: `${colors.secondary}30` }]}
+              onPress={handleCall}
+            >
+              <Text style={styles.assistOptionIcon}>📞</Text>
+              <Text style={[styles.assistOptionTitle, { color: colors.secondary }]}>Call Us</Text>
+              <Text style={[styles.assistOptionDesc, { color: colors.textSecondary }]}>
+                {SUPPORT_PHONE}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </Card>
 
         {/* Step-by-Step Guide */}
@@ -437,7 +335,17 @@ const LoanAssistanceScreen = ({ navigation }) => {
           <Text style={[styles.stillHelpText, { color: colors.textSecondary }]}>
             Our support team is available Monday-Saturday to assist you with your loan application.
           </Text>
-          <Button title="Call Support: 1800-XXX-XXXX" onPress={() => Linking.openURL('tel:1800XXXXXXX').catch(() => {})} variant="outline" />
+          <Button title={`Call Support: ${SUPPORT_PHONE}`} onPress={handleCall} variant="outline" style={{ marginBottom: 10 }} />
+          <Button title="Email Support" onPress={handleEmail} variant="outline" style={{ marginBottom: 10 }} />
+          <TouchableOpacity onPress={() => {
+            Linking.openURL('mailto:gro@finz.club?subject=Grievance').catch(() => {
+              Alert.alert('Error', 'Unable to open email client. Please email gro@finz.club');
+            });
+          }}>
+            <Text style={[styles.grievanceLink, { color: colors.textSecondary }]}>
+              For grievances, write to: <Text style={{ color: colors.teal, fontWeight: '600' }}>gro@finz.club</Text>
+            </Text>
+          </TouchableOpacity>
         </Card>
 
         <View style={styles.bottomSpacer} />
@@ -469,20 +377,6 @@ const styles = StyleSheet.create({
   assistOptionIcon: { fontSize: 28, marginBottom: 8 },
   assistOptionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
   assistOptionDesc: { fontSize: 12, textAlign: 'center', lineHeight: 16 },
-  remoteSession: { marginTop: 12 },
-  remoteInfo: { fontSize: 13, lineHeight: 20, marginBottom: 12 },
-  permissionList: { marginBottom: 16 },
-  permissionItem: { fontSize: 13, lineHeight: 24, paddingLeft: 4 },
-  cancelLink: { alignItems: 'center', marginTop: 12, paddingVertical: 8 },
-  cancelText: { fontSize: 14 },
-  sessionCodeBox: { alignItems: 'center', padding: 20, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
-  sessionCodeLabel: { fontSize: 12, marginBottom: 4 },
-  sessionCode: { fontSize: 28, fontWeight: '900', letterSpacing: 3 },
-  waitingText: { fontSize: 13, marginTop: 8, fontWeight: '600' },
-  connectedText: { fontSize: 13, marginTop: 8, fontWeight: '600' },
-  sharedInfo: { padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 12 },
-  sharedInfoTitle: { fontSize: 13, fontWeight: '700', marginBottom: 6 },
-  sharedInfoItem: { fontSize: 12, lineHeight: 20 },
   stepHeader: { flexDirection: 'row', alignItems: 'center' },
   stepBadge: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   stepBadgeText: { fontSize: 18 },
@@ -503,6 +397,7 @@ const styles = StyleSheet.create({
   stillHelpIcon: { fontSize: 36, marginBottom: 8 },
   stillHelpTitle: { fontSize: 17, fontWeight: '700', marginBottom: 6 },
   stillHelpText: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
+  grievanceLink: { fontSize: 13, textAlign: 'center', marginTop: 4 },
   bottomSpacer: { height: 100 },
 });
 
