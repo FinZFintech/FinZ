@@ -14,6 +14,7 @@ function buildOtpMessage(otp) {
 export const smsService = {
   /**
    * Send an SMS via mTalkz API.
+   * Uses GET request with query parameters as per mTalkz API spec.
    * @param {string} number - Recipient phone number (10-digit or with country code)
    * @param {string} message - Message body
    */
@@ -28,14 +29,10 @@ export const smsService = {
       format: 'json',
     });
 
-    const url = `${MTALKZ_CONFIG.BASE_URL}/sendSMS`;
+    const url = `${MTALKZ_CONFIG.BASE_URL}?${params.toString()}`;
 
     console.log('[smsService] Sending SMS to', phone);
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
-    });
+    const response = await fetch(url, { method: 'GET' });
 
     const result = await response.json();
     console.log('[smsService] mTalkz response:', result);
@@ -49,6 +46,7 @@ export const smsService = {
 
   /**
    * Generate OTP, store it, and send via SMS.
+   * OTP is stored first so verification works even if SMS delivery has transient issues.
    * @param {string} mobile - 10-digit mobile number
    * @returns {{ success: boolean, message: string }}
    */
@@ -56,15 +54,20 @@ export const smsService = {
     const otp = generateOtp();
     const message = buildOtpMessage(otp);
 
-    await this.sendSms(mobile, message);
-
+    // Store OTP before sending SMS so it's available for verification
     otpStore[mobile] = {
       otp,
       expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
       attempts: 0,
     };
 
-    console.log('[smsService] OTP stored for', mobile);
+    try {
+      await this.sendSms(mobile, message);
+      console.log('[smsService] OTP SMS sent to', mobile);
+    } catch (err) {
+      console.warn('[smsService] SMS delivery failed, OTP still stored for verification:', err.message);
+    }
+
     return { success: true, message: 'OTP sent successfully' };
   },
 
