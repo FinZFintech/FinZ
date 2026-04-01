@@ -8,7 +8,7 @@ function generateOtp() {
 }
 
 function buildOtpMessage(otp) {
-  return MTALKZ_CONFIG.TEMPLATES.OTP.replace('{#otp}', otp);
+  return MTALKZ_CONFIG.TEMPLATES.OTP.replace('{#otp#}', otp);
 }
 
 export const smsService = {
@@ -18,19 +18,23 @@ export const smsService = {
    * @param {string} message - Message body
    */
   async sendSms(number, message) {
-    const payload = {
+    const phone = number.replace(/^\+91/, '');
+
+    const params = new URLSearchParams({
       apikey: MTALKZ_CONFIG.API_KEY,
       senderid: MTALKZ_CONFIG.SENDER_ID,
-      number: number.replace(/^\+91/, ''),
+      number: phone,
       message,
       format: 'json',
-    };
+    });
 
-    console.log('[smsService] Sending SMS to', number);
-    const response = await fetch(MTALKZ_CONFIG.BASE_URL, {
+    const url = `${MTALKZ_CONFIG.BASE_URL}/sendSMS`;
+
+    console.log('[smsService] Sending SMS to', phone);
+    const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
     });
 
     const result = await response.json();

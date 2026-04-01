@@ -92,7 +92,7 @@ export const MTALKZ_CONFIG = {
   API_KEY: 'LzICQhtamSRXXgqA',
   SENDER_ID: 'FINZ',
   TEMPLATES: {
-    OTP: '{#otp} is your One Time Password (OTP) for verification.\nThis OTP will only be valid for next 10 minutes. Please don\'t share OTP with anyone.\nThanks,\nFINZ',
+    OTP: '{#otp#} is your One Time Password (OTP) for verification.\nThis OTP will only be valid for next 10 minutes. Please don\'t share OTP with anyone.\nThanks,\nFINZ',
   },
 };
 

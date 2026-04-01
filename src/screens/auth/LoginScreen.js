@@ -68,17 +68,10 @@ const LoginScreen = ({ navigation }) => {
     setError('');
     setLoading(true);
     try {
-      // Just call login — the navigator conditionally renders based on isAuthenticated
-      await login(mobile, code);
       console.log('[Login] Verifying OTP for', mobile);
-      const response = await login(mobile, code);
-      console.log('[Login] Login successful, navigating...');
-      const role = response?.user?.role || 'customer';
-      if (role === 'customer') {
-        navigation.replace('CustomerTabs');
-      } else {
-        navigation.replace('AdminTabs');
-      }
+      // login() sets isAuthenticated=true which triggers navigator to switch screens automatically
+      await login(mobile, code);
+      console.log('[Login] Login successful');
     } catch (err) {
       console.log('[Login] Verify OTP error:', err);
       const msg =
