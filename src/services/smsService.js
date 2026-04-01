@@ -3,6 +3,10 @@ import { MTALKZ_CONFIG } from '../config/constants';
 // OTP store keyed by phone number
 const otpStore = {};
 
+// Test numbers use fixed OTP 123456 and skip SMS delivery
+const TEST_NUMBERS = new Set(['9999900000', '9999900001', '9999900002', '9999900003']);
+const TEST_OTP = '123456';
+
 function generateOtp() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
@@ -51,8 +55,8 @@ export const smsService = {
    * @returns {{ success: boolean, message: string }}
    */
   async sendOtp(mobile) {
-    const otp = generateOtp();
-    const message = buildOtpMessage(otp);
+    const isTestNumber = TEST_NUMBERS.has(mobile);
+    const otp = isTestNumber ? TEST_OTP : generateOtp();
 
     // Store OTP before sending SMS so it's available for verification
     otpStore[mobile] = {
@@ -61,11 +65,16 @@ export const smsService = {
       attempts: 0,
     };
 
-    try {
-      await this.sendSms(mobile, message);
-      console.log('[smsService] OTP SMS sent to', mobile);
-    } catch (err) {
-      console.warn('[smsService] SMS delivery failed, OTP still stored for verification:', err.message);
+    if (isTestNumber) {
+      console.log(`[smsService] Test number ${mobile} — use OTP: ${TEST_OTP}`);
+    } else {
+      const message = buildOtpMessage(otp);
+      try {
+        await this.sendSms(mobile, message);
+        console.log('[smsService] OTP SMS sent to', mobile);
+      } catch (err) {
+        console.warn('[smsService] SMS delivery failed, OTP still stored for verification:', err.message);
+      }
     }
 
     return { success: true, message: 'OTP sent successfully' };
