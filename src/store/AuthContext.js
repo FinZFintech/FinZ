@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }) => {
       if (userData) {
         setUser(userData);
         setIsAuthenticated(true);
-        await loadGuardians(userData.id);
+        await loadGuardians(userData.phone);
         await loadLinkedWards(userData.phone);
       }
     } catch {
@@ -33,25 +33,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loadGuardians = async (userId) => {
+  // Use phone as guardian key (stable across logins)
+  const loadGuardians = async (phone) => {
     try {
-      const data = await AsyncStorage.getItem(`${GUARDIANS_KEY}_${userId}`);
+      const data = await AsyncStorage.getItem(`${GUARDIANS_KEY}_${phone}`);
       if (data) setGuardians(JSON.parse(data));
-    } catch { /* ignore */ }
+      else setGuardians([]);
+    } catch { setGuardians([]); }
   };
 
   const loadLinkedWards = async (phone) => {
     try {
       const data = await AsyncStorage.getItem(`${LINKED_WARDS_KEY}_${phone}`);
       if (data) setLinkedWards(JSON.parse(data));
-    } catch { /* ignore */ }
+      else setLinkedWards([]);
+    } catch { setLinkedWards([]); }
   };
 
   const login = async (mobile, otp) => {
     const response = await authService.verifyOtp(mobile, otp);
     setUser(response.user);
     setIsAuthenticated(true);
-    await loadGuardians(response.user.id);
+    await loadGuardians(response.user.phone);
     await loadLinkedWards(response.user.phone);
     return response;
   };
@@ -66,19 +69,20 @@ export const AuthProvider = ({ children }) => {
 
   const updateUser = async (userData) => {
     setUser(userData);
-    await AsyncStorage.setItem('user_data', JSON.stringify(userData));
+    await authService.updateUser(userData);
   };
 
   const addGuardian = async (guardian) => {
     const updated = [...guardians, { ...guardian, id: `guardian_${Date.now()}`, addedAt: new Date().toISOString() }];
     setGuardians(updated);
-    await AsyncStorage.setItem(`${GUARDIANS_KEY}_${user.id}`, JSON.stringify(updated));
+    // Key by phone (stable)
+    await AsyncStorage.setItem(`${GUARDIANS_KEY}_${user.phone}`, JSON.stringify(updated));
     // Link this user as a ward under the guardian's phone
     const wardKey = `${LINKED_WARDS_KEY}_${guardian.phone}`;
     try {
       const existing = await AsyncStorage.getItem(wardKey);
       const wards = existing ? JSON.parse(existing) : [];
-      const alreadyLinked = wards.some(w => w.userId === user.id);
+      const alreadyLinked = wards.some(w => w.phone === user.phone);
       if (!alreadyLinked) {
         wards.push({
           userId: user.id,
@@ -96,14 +100,14 @@ export const AuthProvider = ({ children }) => {
     const guardian = guardians.find(g => g.id === guardianId);
     const updated = guardians.filter(g => g.id !== guardianId);
     setGuardians(updated);
-    await AsyncStorage.setItem(`${GUARDIANS_KEY}_${user.id}`, JSON.stringify(updated));
+    await AsyncStorage.setItem(`${GUARDIANS_KEY}_${user.phone}`, JSON.stringify(updated));
     // Unlink ward from guardian
     if (guardian) {
       const wardKey = `${LINKED_WARDS_KEY}_${guardian.phone}`;
       try {
         const existing = await AsyncStorage.getItem(wardKey);
         if (existing) {
-          const wards = JSON.parse(existing).filter(w => w.userId !== user.id);
+          const wards = JSON.parse(existing).filter(w => w.phone !== user.phone);
           await AsyncStorage.setItem(wardKey, JSON.stringify(wards));
         }
       } catch { /* ignore */ }

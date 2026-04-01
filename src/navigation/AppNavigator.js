@@ -49,8 +49,11 @@ import TermsAndConditionsScreen from '../screens/support/TermsAndConditionsScree
 import PrivacyPolicyScreen from '../screens/support/PrivacyPolicyScreen';
 import LoanAssistanceScreen from '../screens/support/LoanAssistanceScreen';
 
-// Admin Screens
+// Admin / Role-based Screens
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
+import SalesDashboardScreen from '../screens/admin/SalesDashboardScreen';
+import CreditDashboardScreen from '../screens/admin/CreditDashboardScreen';
+import OperationsDashboardScreen from '../screens/admin/OperationsDashboardScreen';
 import LoanQueueScreen from '../screens/admin/LoanQueueScreen';
 import RiskDashboardScreen from '../screens/admin/RiskDashboardScreen';
 import ApiHealthMonitorScreen from '../screens/admin/ApiHealthMonitorScreen';
@@ -64,6 +67,9 @@ const HomeStackNav = createStackNavigator();
 const LoansStackNav = createStackNavigator();
 const ProfileStackNav = createStackNavigator();
 const AdminHomeStackNav = createStackNavigator();
+const SalesHomeStackNav = createStackNavigator();
+const CreditHomeStackNav = createStackNavigator();
+const OpsHomeStackNav = createStackNavigator();
 
 const noHeader = { headerShown: false };
 
@@ -91,6 +97,8 @@ const sharedScreens = (Stack) => (
     <Stack.Screen name="NocRequest" component={NocRequestScreen} />
   </>
 );
+
+// ─── Customer Navigation ────────────────────────────────────────────────────
 
 const HomeStack = () => (
   <HomeStackNav.Navigator screenOptions={noHeader}>
@@ -224,6 +232,8 @@ const CustomerTabs = () => {
   );
 };
 
+// ─── Admin Navigation ───────────────────────────────────────────────────────
+
 const AdminHomeStack = () => (
   <AdminHomeStackNav.Navigator screenOptions={noHeader}>
     <AdminHomeStackNav.Screen name="AdminDashboardMain" component={AdminDashboardScreen} />
@@ -277,6 +287,152 @@ const AdminTabs = () => {
   );
 };
 
+// ─── Sales Navigation ───────────────────────────────────────────────────────
+
+const SalesHomeStack = () => (
+  <SalesHomeStackNav.Navigator screenOptions={noHeader}>
+    <SalesHomeStackNav.Screen name="SalesDashboardMain" component={SalesDashboardScreen} />
+    <SalesHomeStackNav.Screen name="LoanQueue" component={LoanQueueScreen} />
+  </SalesHomeStackNav.Navigator>
+);
+
+const SalesTabs = () => {
+  const { colors } = useTheme();
+  const tabBarStyle = {
+    height: 65,
+    paddingBottom: 8,
+    backgroundColor: colors.headerBg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  };
+
+  return (
+    <Tab.Navigator
+      screenOptions={{ headerShown: false, tabBarStyle, tabBarShowLabel: false }}
+    >
+      <Tab.Screen
+        name="SalesHome"
+        component={SalesHomeStack}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Dashboard" icon="📊" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="SalesQueue"
+        component={LoanQueueScreen}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Applications" icon="📋" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="SalesProfile"
+        component={ProfileScreen}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Profile" icon="👤" focused={focused} colors={colors} />,
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
+
+// ─── Credit Navigation ──────────────────────────────────────────────────────
+
+const CreditHomeStack = () => (
+  <CreditHomeStackNav.Navigator screenOptions={noHeader}>
+    <CreditHomeStackNav.Screen name="CreditDashboardMain" component={CreditDashboardScreen} />
+    <CreditHomeStackNav.Screen name="LoanQueue" component={LoanQueueScreen} />
+  </CreditHomeStackNav.Navigator>
+);
+
+const CreditTabs = () => {
+  const { colors } = useTheme();
+  const tabBarStyle = {
+    height: 65,
+    paddingBottom: 8,
+    backgroundColor: colors.headerBg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  };
+
+  return (
+    <Tab.Navigator
+      screenOptions={{ headerShown: false, tabBarStyle, tabBarShowLabel: false }}
+    >
+      <Tab.Screen
+        name="CreditHome"
+        component={CreditHomeStack}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Dashboard" icon="📊" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="CreditQueue"
+        component={LoanQueueScreen}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Bucket" icon="📋" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="CreditProfile"
+        component={ProfileScreen}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Profile" icon="👤" focused={focused} colors={colors} />,
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
+
+// ─── Operations Navigation ──────────────────────────────────────────────────
+
+const OpsHomeStack = () => (
+  <OpsHomeStackNav.Navigator screenOptions={noHeader}>
+    <OpsHomeStackNav.Screen name="OpsDashboardMain" component={OperationsDashboardScreen} />
+    <OpsHomeStackNav.Screen name="LoanQueue" component={LoanQueueScreen} />
+  </OpsHomeStackNav.Navigator>
+);
+
+const OpsTabs = () => {
+  const { colors } = useTheme();
+  const tabBarStyle = {
+    height: 65,
+    paddingBottom: 8,
+    backgroundColor: colors.headerBg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  };
+
+  return (
+    <Tab.Navigator
+      screenOptions={{ headerShown: false, tabBarStyle, tabBarShowLabel: false }}
+    >
+      <Tab.Screen
+        name="OpsHome"
+        component={OpsHomeStack}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Dashboard" icon="📊" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="OpsQueue"
+        component={LoanQueueScreen}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Bucket" icon="📋" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="OpsProfile"
+        component={ProfileScreen}
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon label="Profile" icon="👤" focused={focused} colors={colors} />,
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
+
+// ─── Root Navigator ─────────────────────────────────────────────────────────
+
 const AppNavigator = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
 
@@ -289,22 +445,28 @@ const AppNavigator = () => {
   }
 
   const role = user?.role || 'customer';
-  const isAdmin = role !== 'customer';
+
+  const getRoleScreen = () => {
+    switch (role) {
+      case 'admin':
+        return <RootStack.Screen name="AdminTabs" component={AdminTabs} />;
+      case 'sales':
+        return <RootStack.Screen name="SalesTabs" component={SalesTabs} />;
+      case 'credit':
+        return <RootStack.Screen name="CreditTabs" component={CreditTabs} />;
+      case 'operations':
+        return <RootStack.Screen name="OpsTabs" component={OpsTabs} />;
+      default:
+        return <RootStack.Screen name="CustomerTabs" component={CustomerTabs} />;
+    }
+  };
 
   return (
     <RootStack.Navigator screenOptions={noHeader}>
       {!isAuthenticated ? (
-        <>
-          <RootStack.Screen name="Login" component={LoginScreen} />
-        </>
-      ) : isAdmin ? (
-        <>
-          <RootStack.Screen name="AdminTabs" component={AdminTabs} />
-        </>
+        <RootStack.Screen name="Login" component={LoginScreen} />
       ) : (
-        <>
-          <RootStack.Screen name="CustomerTabs" component={CustomerTabs} />
-        </>
+        getRoleScreen()
       )}
     </RootStack.Navigator>
   );

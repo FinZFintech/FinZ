@@ -173,6 +173,7 @@ export const USER_ROLES = {
   CUSTOMER: 'customer',
   SALES: 'sales',
   CREDIT: 'credit',
+  OPERATIONS: 'operations',
   ADMIN: 'admin',
 };
 
