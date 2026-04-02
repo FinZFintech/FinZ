@@ -207,37 +207,39 @@ const OperationsDashboardScreen = ({ navigation }) => {
                 </Text>
               </View>
 
-              {app.taskStatus === 'pending' && (
-                <View style={styles.appActions}>
-                  {app.status === 'esign_done' ? (
+              <View style={styles.appActions}>
+                <Button
+                  title="View Details"
+                  onPress={() => navigation.navigate('StaffApplicationDetail', { application: app })}
+                  variant="outline"
+                  style={styles.actionBtn}
+                />
+                {app.taskStatus === 'pending' && (
+                  <>
+                    {app.status === 'esign_done' ? (
+                      <Button
+                        title="Disburse"
+                        onPress={() => openAction(app, 'disburse')}
+                        variant="success"
+                        style={styles.actionBtn}
+                      />
+                    ) : (
+                      <Button
+                        title="Complete"
+                        onPress={() => openAction(app, 'complete_task')}
+                        variant="success"
+                        style={styles.actionBtn}
+                      />
+                    )}
                     <Button
-                      title="Mark Disbursed"
-                      onPress={() => openAction(app, 'disburse')}
-                      variant="success"
+                      title="Hold"
+                      onPress={() => openAction(app, 'hold')}
+                      variant="outline"
                       style={styles.actionBtn}
                     />
-                  ) : (
-                    <Button
-                      title="Complete Task"
-                      onPress={() => openAction(app, 'complete_task')}
-                      variant="success"
-                      style={styles.actionBtn}
-                    />
-                  )}
-                  <Button
-                    title="Hold"
-                    onPress={() => openAction(app, 'hold')}
-                    variant="outline"
-                    style={styles.actionBtn}
-                  />
-                  <Button
-                    title="Call"
-                    onPress={() => {}}
-                    variant="outline"
-                    style={styles.actionBtn}
-                  />
-                </View>
-              )}
+                  </>
+                )}
+              </View>
             </Card>
           ))
         )}

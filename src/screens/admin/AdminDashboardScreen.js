@@ -289,6 +289,7 @@ const AdminDashboardScreen = ({ navigation }) => {
 
             {/* Admin actions — all actions available */}
             <View style={styles.appActions}>
+              <Button title="View Details" onPress={() => navigation.navigate('StaffApplicationDetail', { application: app })} variant="outline" style={styles.actionBtn} />
               {app.status !== 'disbursed' && app.status !== 'credit_check_failed' && app.status !== 'not_eligible' && (
                 <>
                   <Button title="Approve" onPress={() => openAction(app, 'approve')} variant="success" style={styles.actionBtn} />

@@ -234,13 +234,13 @@ const SalesDashboardScreen = ({ navigation }) => {
 
               <View style={styles.appActions}>
                 <Button
-                  title="Assist"
-                  onPress={() => handleAssist(app)}
+                  title="View Details"
+                  onPress={() => navigation.navigate('StaffApplicationDetail', { application: app })}
                   style={styles.actionBtn}
                 />
                 <Button
-                  title="Call"
-                  onPress={() => {}}
+                  title="Assist"
+                  onPress={() => handleAssist(app)}
                   variant="outline"
                   style={styles.actionBtn}
                 />

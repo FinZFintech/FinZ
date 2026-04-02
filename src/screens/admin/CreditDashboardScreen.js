@@ -230,7 +230,7 @@ const CreditDashboardScreen = ({ navigation }) => {
                   />
                   <Button
                     title="Details"
-                    onPress={() => {}}
+                    onPress={() => navigation.navigate('StaffApplicationDetail', { application: app })}
                     variant="outline"
                     style={styles.actionBtn}
                   />

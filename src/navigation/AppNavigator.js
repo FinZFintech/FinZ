@@ -58,6 +58,7 @@ import LoanQueueScreen from '../screens/admin/LoanQueueScreen';
 import RiskDashboardScreen from '../screens/admin/RiskDashboardScreen';
 import ApiHealthMonitorScreen from '../screens/admin/ApiHealthMonitorScreen';
 import AuditTrailViewerScreen from '../screens/admin/AuditTrailViewerScreen';
+import StaffApplicationDetailScreen from '../screens/admin/StaffApplicationDetailScreen';
 
 const RootStack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -241,6 +242,7 @@ const AdminHomeStack = () => (
     <AdminHomeStackNav.Screen name="RiskDashboard" component={RiskDashboardScreen} />
     <AdminHomeStackNav.Screen name="ApiHealthMonitor" component={ApiHealthMonitorScreen} />
     <AdminHomeStackNav.Screen name="AuditTrailViewer" component={AuditTrailViewerScreen} />
+    <AdminHomeStackNav.Screen name="StaffApplicationDetail" component={StaffApplicationDetailScreen} />
   </AdminHomeStackNav.Navigator>
 );
 
@@ -293,6 +295,7 @@ const SalesHomeStack = () => (
   <SalesHomeStackNav.Navigator screenOptions={noHeader}>
     <SalesHomeStackNav.Screen name="SalesDashboardMain" component={SalesDashboardScreen} />
     <SalesHomeStackNav.Screen name="LoanQueue" component={LoanQueueScreen} />
+    <SalesHomeStackNav.Screen name="StaffApplicationDetail" component={StaffApplicationDetailScreen} />
   </SalesHomeStackNav.Navigator>
 );
 
@@ -341,6 +344,7 @@ const CreditHomeStack = () => (
   <CreditHomeStackNav.Navigator screenOptions={noHeader}>
     <CreditHomeStackNav.Screen name="CreditDashboardMain" component={CreditDashboardScreen} />
     <CreditHomeStackNav.Screen name="LoanQueue" component={LoanQueueScreen} />
+    <CreditHomeStackNav.Screen name="StaffApplicationDetail" component={StaffApplicationDetailScreen} />
   </CreditHomeStackNav.Navigator>
 );
 
@@ -389,6 +393,7 @@ const OpsHomeStack = () => (
   <OpsHomeStackNav.Navigator screenOptions={noHeader}>
     <OpsHomeStackNav.Screen name="OpsDashboardMain" component={OperationsDashboardScreen} />
     <OpsHomeStackNav.Screen name="LoanQueue" component={LoanQueueScreen} />
+    <OpsHomeStackNav.Screen name="StaffApplicationDetail" component={StaffApplicationDetailScreen} />
   </OpsHomeStackNav.Navigator>
 );
 
