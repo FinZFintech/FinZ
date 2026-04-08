@@ -75,6 +75,19 @@ function generateRequestId() {
 }
 
 /**
+ * The CKYC gateway stores `user_id` and `loan_id` as INTEGER columns even
+ * though the API doc types them as string. Sending `user_8577007777` causes
+ * the backend to crash with `Truncated incorrect INTEGER value`. Strip
+ * everything except digits and clamp the length so it fits in BIGINT.
+ */
+function sanitizeNumericId(value) {
+  if (value === undefined || value === null) return '';
+  const digits = String(value).replace(/\D+/g, '');
+  // Clamp to 18 digits to stay within MySQL BIGINT range.
+  return digits.slice(-18);
+}
+
+/**
  * Normalize a CKYC API response. Throws if `success` is false.
  */
 function unwrap(data) {
@@ -114,11 +127,11 @@ export const ckycService = {
       IdentityNumber: pan,
       ApplicantName: name,
       type: 'search',
-      userId: String(userId || ''),
-      loanId: String(loanId || ''),
+      userId: sanitizeNumericId(userId),
+      loanId: sanitizeNumericId(loanId),
     };
 
-    console.log('[ckycService] searchCkyc →', pan);
+    console.log('[ckycService] searchCkyc →', pan, 'userId =', body.userId, 'loanId =', body.loanId);
 
     const { data } = await ckycApi.post(endpoint, body);
     unwrap(data);
@@ -164,8 +177,8 @@ export const ckycService = {
       IdentityType: CKYC_CONFIG.IDENTITY_TYPE_PAN,
       IdentityNumber: pan,
       ApplicantName: name,
-      loanId: String(loanId || ''),
-      userId: String(userId || ''),
+      loanId: sanitizeNumericId(loanId),
+      userId: sanitizeNumericId(userId),
       authType: CKYC_CONFIG.AUTH_TYPE_MOBILE,
       referenceNo,
       DOB: mobile,
