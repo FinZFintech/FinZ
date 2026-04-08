@@ -62,6 +62,24 @@ export const SIGNZY_CONFIG = {
   },
 };
 
+// CKYC API Configuration (FinZ CKYC gateway)
+// Token is appended to every request as a query parameter: ?token=<Token>
+export const CKYC_CONFIG = {
+  // Toggle between UAT and live by swapping BASE_URL.
+  BASE_URL: 'https://ckycdev.finz.finance/api',
+  TOKEN: '', // TODO: Set CKYC API token (provided by FinZ CKYC ops)
+  ENDPOINTS: {
+    SEARCH: '/searchRequest',      // POST (CKYC search)
+    DOWNLOAD: '/downloadRequest',  // POST (send OTP / download)
+    VALIDATE_OTP: '/validateOTP',  // POST (resend / validate OTP)
+  },
+  // authType: 03 = mobile OTP, 01 = DOB
+  AUTH_TYPE_MOBILE: '03',
+  AUTH_TYPE_DOB: '01',
+  // IdentityType: C = CKYC via PAN, E = CKYC via other
+  IDENTITY_TYPE_PAN: 'C',
+};
+
 // Signzy v2 Patron-based auth (Geo Fencing, Digital Integrity)
 export const SIGNZY_V2_CONFIG = {
   BASE_URL: 'https://api-preproduction.signzy.app/api/v2/patrons',
