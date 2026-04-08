@@ -37,8 +37,11 @@ const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
  * Uses Image.getSize on mount to discover the natural dimensions of
  * the embedded base64 / URL image, then sets aspectRatio so the
  * <Image> stretches to the available width without distortion.
+ *
+ * Tapping the image triggers `onPress` (used by the parent to open a
+ * fullscreen zoom viewer).
  */
-const AspectImage = ({ source, label, colors }) => {
+const AspectImage = ({ source, label, colors, onPress }) => {
   const [aspectRatio, setAspectRatio] = useState(3 / 4); // sensible default for portraits
   const [error, setError] = useState(false);
 
@@ -68,17 +71,98 @@ const AspectImage = ({ source, label, colors }) => {
           {label}
         </Text>
       ) : null}
-      <Image
-        source={source}
-        style={{
-          width: '100%',
-          aspectRatio,
-          borderRadius: 12,
-          backgroundColor: colors.background,
-        }}
-        resizeMode="contain"
-      />
+      <TouchableOpacity activeOpacity={0.85} onPress={onPress} disabled={!onPress}>
+        <Image
+          source={source}
+          style={{
+            width: '100%',
+            aspectRatio,
+            borderRadius: 12,
+            backgroundColor: colors.background,
+          }}
+          resizeMode="contain"
+        />
+      </TouchableOpacity>
     </View>
+  );
+};
+
+/**
+ * Fullscreen zoom viewer for a single image. Pinch-to-zoom is provided
+ * by wrapping the image in a horizontally-scrolling container that
+ * doubles as a panning surface, then letting the user toggle a 2x scale
+ * by tapping. Keeps things simple without pulling in a gesture library.
+ */
+const ImageZoomModal = ({ visible, uri, label, onClose, colors }) => {
+  const [aspectRatio, setAspectRatio] = useState(3 / 4);
+  const [zoomed, setZoomed] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !uri) return;
+    let cancelled = false;
+    Image.getSize(
+      uri,
+      (w, h) => {
+        if (!cancelled && w > 0 && h > 0) setAspectRatio(w / h);
+      },
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, uri]);
+
+  useEffect(() => {
+    if (!visible) setZoomed(false);
+  }, [visible]);
+
+  if (!uri) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingTop: 48,
+            paddingHorizontal: 20,
+            paddingBottom: 12,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{label || 'Document'}</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={{ color: '#fff', fontSize: 24 }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}
+          maximumZoomScale={4}
+          minimumZoomScale={1}
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
+          bouncesZoom
+          horizontal={false}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => setZoomed((z) => !z)}>
+            <Image
+              source={{ uri }}
+              style={{
+                width: zoomed ? '200%' : '100%',
+                aspectRatio,
+                maxWidth: zoomed ? undefined : 600,
+              }}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </ScrollView>
+        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center', paddingBottom: 24 }}>
+          {zoomed ? 'Tap to zoom out · pinch to zoom further' : 'Tap to zoom · pinch to zoom further'}
+        </Text>
+      </View>
+    </Modal>
   );
 };
 
@@ -142,6 +226,9 @@ const KycVerificationScreen = ({ navigation }) => {
   const [ckycError, setCkycError] = useState('');
   const [ckycResendSecs, setCkycResendSecs] = useState(0);
   const ckycResendTimerRef = useRef(null);
+
+  // Image zoom modal state
+  const [zoomImage, setZoomImage] = useState(null); // { uri, label } | null
 
   // Address correction flow (details incorrect)
   const [addressCorrectionStep, setAddressCorrectionStep] = useState(false);
@@ -271,6 +358,51 @@ const KycVerificationScreen = ({ navigation }) => {
     return { uri: `data:image/jpeg;base64,${photo}` };
   };
 
+  // ─── KYC failure capture ────────────────────────────────────────────────
+  /**
+   * Record a KYC failure (any method) to component state and the loan
+   * application audit trail. Captures everything ops would need to
+   * understand what went wrong: method, stage, human-readable reason,
+   * gateway error code/status, and the raw error body.
+   *
+   * @param {Object} params
+   * @param {string} params.method  KYC method (KYC_METHODS.* or 'pre_kyc')
+   * @param {string} params.stage   Sub-step ('initiate', 'send_otp', 'resend_otp',
+   *                                'verify_otp', 'poll', 'pincode_check',
+   *                                'name_match', 'upload', etc.)
+   * @param {Error|Object} params.error  Error object or any value with .message
+   * @param {string} [params.reasonOverride]  Explicit reason to use instead of
+   *                                          error.message (e.g. "Pincode blacklisted")
+   */
+  const recordKycFailure = ({ method, stage, error, reasonOverride }) => {
+    const err = error || {};
+    const reason =
+      reasonOverride ||
+      err.message ||
+      err.error ||
+      'Unknown error';
+    const entry = {
+      method,
+      stage,
+      reason,
+      statusCode: err.statusCode ?? err?.response?.status ?? null,
+      errorCode:
+        err.code ||
+        err.ckycError?.code ||
+        err.signzyError?.code ||
+        null,
+      raw:
+        err.ckycError ||
+        err.signzyError ||
+        err.response?.data ||
+        (err.message ? { message: err.message } : null),
+      at: new Date().toISOString(),
+    };
+    console.log('[KycVerificationScreen] recordKycFailure:', JSON.stringify(entry));
+    setKycErrorMsg(reason);
+    dispatch({ type: 'ADD_KYC_FAILURE', payload: entry });
+  };
+
   // ─── CKYC Flow ──────────────────────────────────────────────────────────
   //
   // Real CKYC integration (FinZ CKYC gateway):
@@ -325,6 +457,12 @@ const KycVerificationScreen = ({ navigation }) => {
       startCkycResendTimer();
     } catch (err) {
       console.log('[KycVerificationScreen] CKYC initiate failed:', err.message);
+      const stage = err.noRecord
+        ? 'search_no_record'
+        : err.ckycTokenMissing || err.ckycConfigIssue
+          ? 'config_error'
+          : 'initiate';
+      recordKycFailure({ method: KYC_METHODS.CKYC, stage, error: err });
       if (err.ckycTokenMissing || err.ckycConfigIssue) {
         setCkycError(err.message);
         Alert.alert('CKYC Configuration Issue', err.message);
@@ -364,6 +502,7 @@ const KycVerificationScreen = ({ navigation }) => {
       Alert.alert('OTP Sent', result.message || 'OTP has been resent to your registered mobile.');
     } catch (err) {
       console.log('[KycVerificationScreen] CKYC resend failed:', err.message);
+      recordKycFailure({ method: KYC_METHODS.CKYC, stage: 'resend_otp', error: err });
       setCkycError(err.message || 'Failed to resend OTP.');
       Alert.alert('Resend Failed', err.message || 'Failed to resend OTP. Please try again.');
     } finally {
@@ -408,6 +547,7 @@ const KycVerificationScreen = ({ navigation }) => {
       showDetailsReview(enriched, KYC_METHODS.CKYC);
     } catch (err) {
       console.log('[KycVerificationScreen] CKYC verify failed:', err.message);
+      recordKycFailure({ method: KYC_METHODS.CKYC, stage: 'verify_otp', error: err });
       setCkycError(err.message || 'CKYC verification failed.');
       Alert.alert(
         'OTP Verification Failed',
@@ -440,9 +580,33 @@ const KycVerificationScreen = ({ navigation }) => {
 
       const result = await kycService.uploadAadhaarXml(formData);
       if (!result || !result.verified) {
+        recordKycFailure({
+          method: KYC_METHODS.AADHAAR_XML,
+          stage: 'upload',
+          error: { message: 'Aadhaar XML verification failed. Invalid file or share code.' },
+        });
         Alert.alert('Error', 'Aadhaar XML verification failed. Please check the file and share code.');
         return;
       }
+      // Unified images array so the staff view can show every document
+      // pulled from the Aadhaar XML — currently only the photograph,
+      // but stays forward-compatible if more are added.
+      const xmlImages = [];
+      if (result.photo) {
+        const isDataUri =
+          typeof result.photo === 'string' &&
+          (result.photo.startsWith('data:') || result.photo.startsWith('http'));
+        xmlImages.push({
+          sequence: '1',
+          code: '03',
+          label: 'Photograph',
+          type: 'jpg',
+          mime: 'image/jpeg',
+          uri: isDataUri ? result.photo : `data:image/jpeg;base64,${result.photo}`,
+          data: result.photo,
+        });
+      }
+
       // Build KYC data from XML result
       const kycData = {
         name: result.name,
@@ -453,10 +617,17 @@ const KycVerificationScreen = ({ navigation }) => {
         photo: result.photo || '',
         pincode: result.pincode || '',
         splitAddress: result.splitAddress || null,
+        images: xmlImages,
+        rawResponse: result,
+        validatedAt: new Date().toISOString(),
       };
       showDetailsReview(kycData, KYC_METHODS.AADHAAR_XML);
-    } catch {
-      Alert.alert('Error', 'Failed to process Aadhaar XML. Please try again or use a different method.');
+    } catch (err) {
+      recordKycFailure({ method: KYC_METHODS.AADHAAR_XML, stage: 'upload', error: err });
+      Alert.alert(
+        'Error',
+        err?.message || 'Failed to process Aadhaar XML. Please try again or use a different method.',
+      );
     } finally {
       setLoading(false);
     }
@@ -515,6 +686,7 @@ const KycVerificationScreen = ({ navigation }) => {
     } catch (err) {
       setLoading(false);
       const msg = err?.message || 'Failed to initiate DigiLocker. Please try again.';
+      recordKycFailure({ method: KYC_METHODS.DIGILOCKER, stage: 'initiate', error: err });
       Alert.alert('DigiLocker Error', msg);
     }
   };
@@ -538,6 +710,50 @@ const KycVerificationScreen = ({ navigation }) => {
 
         const pincode = eAadhaar.splitAddress?.pincode || '';
 
+        // Build a unified `images` array so the staff view can show every
+        // document DigiLocker returned (photograph, eAadhaar JPEG, eAadhaar
+        // PDF) — same shape as the CKYC images list.
+        const buildDataUri = (mime, b64) => {
+          if (!b64) return '';
+          if (typeof b64 !== 'string') return '';
+          if (b64.startsWith('http') || b64.startsWith('data:')) return b64;
+          return `data:${mime};base64,${b64}`;
+        };
+        const dlImages = [];
+        if (eAadhaar.photo) {
+          dlImages.push({
+            sequence: '1',
+            code: '03',
+            label: 'Photograph',
+            type: 'jpg',
+            mime: 'image/jpeg',
+            uri: buildDataUri('image/jpeg', eAadhaar.photo),
+            data: eAadhaar.photo,
+          });
+        }
+        if (eAadhaar.aadhaarJpeg && eAadhaar.aadhaarJpeg !== eAadhaar.photo) {
+          dlImages.push({
+            sequence: '2',
+            code: '02',
+            label: 'eAadhaar (Image)',
+            type: 'jpg',
+            mime: 'image/jpeg',
+            uri: buildDataUri('image/jpeg', eAadhaar.aadhaarJpeg),
+            data: eAadhaar.aadhaarJpeg,
+          });
+        }
+        if (eAadhaar.aadhaarPdf) {
+          dlImages.push({
+            sequence: '3',
+            code: '02',
+            label: 'eAadhaar (PDF)',
+            type: 'pdf',
+            mime: 'application/pdf',
+            uri: buildDataUri('application/pdf', eAadhaar.aadhaarPdf),
+            data: eAadhaar.aadhaarPdf,
+          });
+        }
+
         const kycData = {
           name: eAadhaar.name,
           address: eAadhaar.address,
@@ -550,6 +766,9 @@ const KycVerificationScreen = ({ navigation }) => {
           aadhaarPdf: eAadhaar.aadhaarPdf,
           signatureValid: eAadhaar.signatureValid,
           splitAddress: eAadhaar.splitAddress,
+          images: dlImages,
+          rawResponse: eAadhaar,
+          validatedAt: new Date().toISOString(),
         };
 
         showDetailsReview(kycData, KYC_METHODS.DIGILOCKER);
@@ -571,6 +790,12 @@ const KycVerificationScreen = ({ navigation }) => {
           setDigilockerPolling(false);
           setDigilockerWaiting(false);
           setLoading(false);
+          recordKycFailure({
+            method: KYC_METHODS.DIGILOCKER,
+            stage: 'poll',
+            error: err,
+            reasonOverride: 'DigiLocker session has expired',
+          });
           Alert.alert('Session Expired', 'DigiLocker session has expired. Please try again.');
           setDigilockerRequestId(null);
           return;
@@ -581,6 +806,12 @@ const KycVerificationScreen = ({ navigation }) => {
           setDigilockerPolling(false);
           setDigilockerWaiting(false);
           setLoading(false);
+          recordKycFailure({
+            method: KYC_METHODS.DIGILOCKER,
+            stage: 'poll',
+            error: err,
+            reasonOverride: 'DigiLocker consent not granted by user',
+          });
           Alert.alert(
             'Consent Required',
             'DigiLocker consent was not granted. Please try again or choose CKYC.',
@@ -594,6 +825,12 @@ const KycVerificationScreen = ({ navigation }) => {
           setDigilockerPolling(false);
           setDigilockerWaiting(false);
           setLoading(false);
+          recordKycFailure({
+            method: KYC_METHODS.DIGILOCKER,
+            stage: 'poll',
+            error: err,
+            reasonOverride: `DigiLocker polling timed out after ${MAX_POLL_ATTEMPTS} attempts`,
+          });
           Alert.alert('Timed Out', 'DigiLocker verification took too long. Please try again.');
           setDigilockerRequestId(null);
           return;
@@ -692,10 +929,22 @@ const KycVerificationScreen = ({ navigation }) => {
         setPincodeBlacklisted(true);
         setKycFailed(true);
         setDetailsReviewStep(false);
+        recordKycFailure({
+          method,
+          stage: 'pincode_check',
+          error: { message: `Pincode ${kycData.pincode} is blacklisted` },
+          reasonOverride: `Pincode ${kycData.pincode} is in the blacklist (non-serviceable area)`,
+        });
         return;
       }
-    } catch {
-      // Pincode check failed — allow to proceed (non-blocking)
+    } catch (err) {
+      // Pincode check failed — allow to proceed (non-blocking) but record it
+      recordKycFailure({
+        method,
+        stage: 'pincode_check',
+        error: err,
+        reasonOverride: `Pincode check non-blocking failure: ${err?.message || 'unknown'}`,
+      });
     }
 
     try {
@@ -705,6 +954,14 @@ const KycVerificationScreen = ({ navigation }) => {
         borrowerName: state.borrowerDetails?.name,
       });
       if (nameMatchResult.score < 70) {
+        recordKycFailure({
+          method,
+          stage: 'name_match',
+          error: {
+            message: `Name mismatch (score ${nameMatchResult.score}%)`,
+          },
+          reasonOverride: `Name match score ${nameMatchResult.score}% < 70% threshold (PAN: "${state.panDetails?.name}", KYC: "${kycData.name}", Borrower: "${state.borrowerDetails?.name}")`,
+        });
         dispatch({ type: 'SET_KYC_DATA', payload: { ...kycData, method, nameMatchFailed: true } });
         dispatch({ type: 'SET_KYC_METHOD', payload: method });
         Alert.alert(
@@ -715,8 +972,14 @@ const KycVerificationScreen = ({ navigation }) => {
         setDetailsReviewStep(false);
         return;
       }
-    } catch {
-      // Name match check failed — allow to proceed (non-blocking)
+    } catch (err) {
+      // Name match check failed — allow to proceed (non-blocking) but record it
+      recordKycFailure({
+        method,
+        stage: 'name_match',
+        error: err,
+        reasonOverride: `Name match non-blocking failure: ${err?.message || 'unknown'}`,
+      });
     }
 
     dispatch({ type: 'SET_KYC_DATA', payload: { ...kycData, method } });
@@ -775,12 +1038,16 @@ const KycVerificationScreen = ({ navigation }) => {
     if (images.length > 0) {
       return (
         <View style={{ marginBottom: 16 }}>
+          <Text style={{ fontSize: 11, color: colors.textSecondary, textAlign: 'center', marginBottom: 8 }}>
+            Tap any image to zoom
+          </Text>
           {images.map((img, idx) => (
             <AspectImage
               key={img.sequence || idx}
               source={{ uri: img.uri }}
               label={img.label || `Document ${idx + 1}`}
               colors={colors}
+              onPress={() => setZoomImage({ uri: img.uri, label: img.label || `Document ${idx + 1}` })}
             />
           ))}
         </View>
@@ -791,9 +1058,13 @@ const KycVerificationScreen = ({ navigation }) => {
     const source = getPhotoSource(fetchedKycData.photo);
     if (!source) return null;
     return (
-      <View style={styles.photoWrap}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        style={styles.photoWrap}
+        onPress={() => setZoomImage({ uri: source.uri, label: 'Photograph' })}
+      >
         <Image source={source} style={styles.photo} resizeMode="cover" />
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -1115,12 +1386,6 @@ const KycVerificationScreen = ({ navigation }) => {
                 {fetchedKycData.fatherName ? (
                   <InfoRow label="Father's Name" value={fetchedKycData.fatherName} />
                 ) : null}
-                {fetchedKycData.motherName ? (
-                  <InfoRow label="Mother's Name" value={fetchedKycData.motherName} />
-                ) : null}
-                {fetchedKycData.spouseName ? (
-                  <InfoRow label="Spouse's Name" value={fetchedKycData.spouseName} />
-                ) : null}
                 {fetchedKycData.uid && (
                   <InfoRow label="Aadhaar" value={maskUid(fetchedKycData.uid)} />
                 )}
@@ -1132,16 +1397,96 @@ const KycVerificationScreen = ({ navigation }) => {
                 )}
               </View>
 
-              {/* Permanent Address (from Aadhaar) */}
+              {/* Contact details from KYC */}
+              {(fetchedKycData.email || fetchedKycData.mobileNumber || fetchedKycData.officePhone || fetchedKycData.residentialPhone) && (
+                <>
+                  <Text style={[styles.subTitle, { color: colors.textPrimary }]}>Contact Details</Text>
+                  <View style={[styles.detailsBlock, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    {fetchedKycData.mobileNumber ? (
+                      <InfoRow
+                        label="Mobile"
+                        value={
+                          fetchedKycData.mobileCountryCode
+                            ? `+${fetchedKycData.mobileCountryCode} ${fetchedKycData.mobileNumber}`
+                            : fetchedKycData.mobileNumber
+                        }
+                      />
+                    ) : null}
+                    {fetchedKycData.email ? (
+                      <InfoRow label="Email" value={fetchedKycData.email} />
+                    ) : null}
+                    {fetchedKycData.residentialPhone ? (
+                      <InfoRow label="Residential Phone" value={fetchedKycData.residentialPhone} />
+                    ) : null}
+                    {fetchedKycData.officePhone ? (
+                      <InfoRow label="Office Phone" value={fetchedKycData.officePhone} />
+                    ) : null}
+                  </View>
+                </>
+              )}
+
+              {/* Identity Documents from KYC */}
+              {Array.isArray(fetchedKycData.documents) && fetchedKycData.documents.length > 0 && (
+                <>
+                  <Text style={[styles.subTitle, { color: colors.textPrimary }]}>Identity Documents</Text>
+                  <View style={[styles.detailsBlock, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    {fetchedKycData.documents.map((doc, idx) => (
+                      <InfoRow
+                        key={doc.sequence || idx}
+                        label={doc.label}
+                        value={doc.number}
+                      />
+                    ))}
+                  </View>
+                </>
+              )}
+
+              {/* Permanent Address */}
               <Text style={[styles.subTitle, { color: colors.textPrimary }]}>Permanent Address</Text>
               <View style={[styles.detailsBlock, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <Text style={[styles.addressText, { color: colors.textSecondary }]}>
-                  {fetchedKycData.address || 'Not available'}
+                  {fetchedKycData.permanentAddress?.addressLine || fetchedKycData.address || 'Not available'}
                 </Text>
-                {fetchedKycData.pincode ? (
-                  <InfoRow label="Pincode" value={fetchedKycData.pincode} />
+                {(fetchedKycData.permanentAddress?.city || fetchedKycData.city) ? (
+                  <InfoRow
+                    label="City"
+                    value={fetchedKycData.permanentAddress?.city || fetchedKycData.city}
+                  />
+                ) : null}
+                {(fetchedKycData.permanentAddress?.state || fetchedKycData.state) ? (
+                  <InfoRow
+                    label="State"
+                    value={fetchedKycData.permanentAddress?.state || fetchedKycData.state}
+                  />
+                ) : null}
+                {(fetchedKycData.permanentAddress?.pincode || fetchedKycData.pincode) ? (
+                  <InfoRow
+                    label="Pincode"
+                    value={fetchedKycData.permanentAddress?.pincode || fetchedKycData.pincode}
+                  />
                 ) : null}
               </View>
+
+              {/* Correspondence Address (CKYC) — only when distinct from permanent */}
+              {fetchedKycData.correspondenceAddress?.addressLine && !fetchedKycData.sameAddress && (
+                <>
+                  <Text style={[styles.subTitle, { color: colors.textPrimary }]}>Correspondence Address</Text>
+                  <View style={[styles.detailsBlock, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    <Text style={[styles.addressText, { color: colors.textSecondary }]}>
+                      {fetchedKycData.correspondenceAddress.addressLine}
+                    </Text>
+                    {fetchedKycData.correspondenceAddress.city ? (
+                      <InfoRow label="City" value={fetchedKycData.correspondenceAddress.city} />
+                    ) : null}
+                    {fetchedKycData.correspondenceAddress.state ? (
+                      <InfoRow label="State" value={fetchedKycData.correspondenceAddress.state} />
+                    ) : null}
+                    {fetchedKycData.correspondenceAddress.pincode ? (
+                      <InfoRow label="Pincode" value={fetchedKycData.correspondenceAddress.pincode} />
+                    ) : null}
+                  </View>
+                </>
+              )}
             </Card>
 
             {/* Communication Address */}
@@ -1556,6 +1901,13 @@ const KycVerificationScreen = ({ navigation }) => {
         </View>
       </Modal>
       <FloatingAssistButton />
+      <ImageZoomModal
+        visible={!!zoomImage}
+        uri={zoomImage?.uri}
+        label={zoomImage?.label}
+        onClose={() => setZoomImage(null)}
+        colors={colors}
+      />
     </View>
   );
 };

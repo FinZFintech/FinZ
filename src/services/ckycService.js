@@ -490,35 +490,127 @@ export const ckycService = {
     const gender = genderRaw === 'M' ? 'Male' : genderRaw === 'F' ? 'Female' : genderRaw;
     const panFromCkyc = safeStr(pd.PAN) || record.pan || '';
 
-    // ── Address (use permanent address by default) ──
-    const permLines = [pd.PERM_LINE1, pd.PERM_LINE2, pd.PERM_LINE3]
-      .map(safeStr)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const corresLines = [pd.CORRES_LINE1, pd.CORRES_LINE2, pd.CORRES_LINE3]
-      .map(safeStr)
-      .map((s) => s.trim())
-      .filter(Boolean);
+    // ── Address (Permanent + Correspondence, structured + flat) ──
+    // CKYC stores both addresses separately. PERM_CORRES_SAMEFLAG = 'Y'
+    // means the correspondence address is identical to the permanent
+    // address. We expose both in structured form so the UI can render
+    // them side-by-side, plus a flat `address` string for the legacy
+    // single-address consumers.
+    const buildAddress = (prefix) => {
+      const lines = [pd[`${prefix}_LINE1`], pd[`${prefix}_LINE2`], pd[`${prefix}_LINE3`]]
+        .map(safeStr)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const cityV = safeStr(pd[`${prefix}_CITY`]);
+      const districtV = safeStr(pd[`${prefix}_DIST`]);
+      const stateV = safeStr(pd[`${prefix}_STATE`]);
+      const countryV = safeStr(pd[`${prefix}_COUNTRY`]);
+      const pinV = safeStr(pd[`${prefix}_PIN`]);
+      const poaV = safeStr(pd[`${prefix}_POA`]);
+      if (!lines.length && !cityV && !pinV) return null;
+      return {
+        line1: lines[0] || '',
+        line2: lines[1] || '',
+        line3: lines[2] || '',
+        addressLine: lines.join(', '),
+        city: cityV,
+        district: districtV,
+        state: stateV,
+        country: countryV,
+        pincode: pinV,
+        proofOfAddressCode: poaV, // CKYC POA type code (e.g. '01' = Passport)
+      };
+    };
 
+    const permanentAddress = buildAddress('PERM');
+    const correspondenceAddress = buildAddress('CORRES');
+    const sameAddress = safeStr(pd.PERM_CORRES_SAMEFLAG).toUpperCase() === 'Y';
+
+    // Flat address fields default to the permanent address (or
+    // correspondence as a fallback) so the rest of the app keeps working.
     const addressLine =
-      permLines.join(', ') ||
-      corresLines.join(', ') ||
+      permanentAddress?.addressLine ||
+      correspondenceAddress?.addressLine ||
       record.address ||
       '';
-    const city = safeStr(pd.PERM_CITY) || safeStr(pd.PERM_DIST) || safeStr(pd.CORRES_CITY) || '';
-    const district = safeStr(pd.PERM_DIST) || safeStr(pd.CORRES_DIST) || '';
-    const stateName = safeStr(pd.PERM_STATE) || safeStr(pd.CORRES_STATE) || '';
-    const country = safeStr(pd.PERM_COUNTRY) || safeStr(pd.CORRES_COUNTRY) || '';
-    const pincode = safeStr(pd.PERM_PIN) || safeStr(pd.CORRES_PIN) || '';
+    const city = permanentAddress?.city || correspondenceAddress?.city || '';
+    const district = permanentAddress?.district || correspondenceAddress?.district || '';
+    const stateName = permanentAddress?.state || correspondenceAddress?.state || '';
+    const country = permanentAddress?.country || correspondenceAddress?.country || '';
+    const pincode = permanentAddress?.pincode || correspondenceAddress?.pincode || '';
 
-    // ── UID / Aadhaar (from IDENTITY_DETAILS, masked, IDENT_TYPE 'E') ──
+    // ── Documents (IDENTITY_DETAILS) ──
+    // CKYC identity type codes:
+    //   A = Passport, B = Voter ID, C = PAN, D = Driving License,
+    //   E = Aadhaar (UID), F = NREGA Job Card, G = Other,
+    //   H = Aadhaar (with verification), J = eShram
+    // IDVER_STATUS: 01 = Verified, 02 = Pending, 03 = Rejected.
+    const IDENT_TYPE_LABELS = {
+      A: 'Passport',
+      B: 'Voter ID',
+      C: 'PAN',
+      D: 'Driving License',
+      E: 'Aadhaar',
+      F: 'NREGA Job Card',
+      G: 'Other',
+      H: 'Aadhaar (eKYC)',
+      J: 'eShram',
+    };
+    const IDVER_STATUS_LABELS = {
+      '01': 'Verified',
+      '02': 'Pending',
+      '03': 'Rejected',
+    };
+
     const identityList =
       record.IDENTITY_DETAILS?.IDENTITY ||
       record.identityDetails?.identity ||
       [];
     const identArr = Array.isArray(identityList) ? identityList : [];
-    const aadhaarRow = identArr.find((i) => i?.IDENT_TYPE === 'E') || null;
-    const uid = safeStr(aadhaarRow?.IDENT_NUM) || safeStr(pd.AADHAAR) || record.uid || '';
+
+    const documents = identArr
+      .map((row, idx) => {
+        const num = safeStr(row?.IDENT_NUM);
+        if (!num) return null;
+        const type = safeStr(row?.IDENT_TYPE).toUpperCase();
+        const verStatus = safeStr(row?.IDVER_STATUS);
+        return {
+          sequence: safeStr(row?.SEQUENCE_NO) || String(idx + 1),
+          type,
+          label: IDENT_TYPE_LABELS[type] || `Document (${type})`,
+          number: num,
+          verificationStatusCode: verStatus,
+          verificationStatus: IDVER_STATUS_LABELS[verStatus] || verStatus,
+          dateOfIssue: safeStr(row?.DATE_OF_ISSUE) || '',
+          dateOfExpiry: safeStr(row?.DATE_OF_EXPIRY) || '',
+          placeOfIssue: safeStr(row?.PLACE_OF_ISSUE) || '',
+        };
+      })
+      .filter(Boolean);
+
+    // ── UID (masked Aadhaar from documents list, prefer 'E' then 'H') ──
+    const aadhaarDoc =
+      documents.find((d) => d.type === 'E') ||
+      documents.find((d) => d.type === 'H') ||
+      null;
+    const uid = aadhaarDoc?.number || safeStr(pd.AADHAAR) || record.uid || '';
+
+    // ── Contact details ──
+    const mobileCountryCode = safeStr(pd.MOB_CODE);
+    const mobileNumber = safeStr(pd.MOB_NUM);
+    const email = safeStr(pd.EMAIL);
+    const residentialPhone = (() => {
+      const std = safeStr(pd.RESI_STD_CODE);
+      const num = safeStr(pd.RESI_TEL_NUM);
+      if (!num) return '';
+      return std ? `${std}-${num}` : num;
+    })();
+    const officePhone = (() => {
+      const std = safeStr(pd.OFF_STD_CODE);
+      const num = safeStr(pd.OFF_TEL_NUM);
+      if (!num) return '';
+      return std ? `${std}-${num}` : num;
+    })();
 
     // ── Images (base64 in IMAGE_DETAILS.IMAGE[*].IMAGE_DATA) ──
     // CKYC standard image codes:
@@ -616,13 +708,27 @@ export const ckycService = {
       uid,
       photo,
       images,
+      // Identity documents extracted from IDENTITY_DETAILS — every PoI
+      // CERSAI has on file, with type, number, and verification status.
+      documents,
+      // Flat address (legacy single-address consumers) defaults to permanent.
       address: addressLine,
       city,
       district,
       state: stateName,
       country,
       pincode,
-      phone: mobile,
+      // Both addresses in structured form so the UI can show them both.
+      permanentAddress,
+      correspondenceAddress,
+      sameAddress,
+      // Contact details
+      phone: mobileNumber || mobile,
+      mobileNumber,
+      mobileCountryCode,
+      email,
+      residentialPhone,
+      officePhone,
       // The details-review screen reads splitAddress in this nested shape:
       //   sa.state[0]?.[0] || sa.state[0]
       // so wrap state in a nested array and city in a flat array.
