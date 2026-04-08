@@ -207,10 +207,27 @@ export const kycService = {
         JSON.stringify(searchResult.raw),
       );
       const rawMsg = (searchResult.message || '').toLowerCase();
-      // The gateway sometimes returns "searching done" even when no record
-      // exists — treat all empty-reference outcomes as "no record".
+
+      // When the gateway token is missing/invalid, it silently answers
+      // `{success:true, ckyc_refer_no:"", message:"searching done"}` so
+      // real records look like "no record" to the app. Detect that exact
+      // fingerprint and surface a clear "token/config" error instead.
+      const looksLikeAuthSilentFail =
+        searchResult.raw &&
+        searchResult.raw.success === true &&
+        rawMsg.includes('searching done') &&
+        !searchResult.ckycReferNo;
+
+      if (looksLikeAuthSilentFail) {
+        const err = new Error(
+          'CKYC gateway rejected the request silently. Please verify the CKYC token in src/config/constants.js (CKYC_CONFIG.TOKEN) and that the PAN/name match the CERSAI record exactly.',
+        );
+        err.ckycConfigIssue = true;
+        throw err;
+      }
+
       const err = new Error(
-        rawMsg.includes('no record') || rawMsg.includes('searching done')
+        rawMsg.includes('no record')
           ? 'No CKYC record found for this PAN. Please use DigiLocker instead.'
           : searchResult.message || 'CKYC search did not return a reference number. Please use DigiLocker instead.',
       );

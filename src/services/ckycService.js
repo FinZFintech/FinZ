@@ -49,13 +49,23 @@ ckycApi.interceptors.response.use(
 
 /**
  * Append `?token=<TOKEN>` plus any extra query flags to an endpoint.
+ * Throws if the token is missing — the gateway silently returns
+ * `{success:true, ckyc_refer_no:""}` for unauthenticated requests,
+ * so this failure mode must be caught loudly.
  */
 function withToken(endpoint, extraParams = {}) {
+  if (!CKYC_CONFIG.TOKEN) {
+    const err = new Error(
+      'CKYC token is not configured. Set CKYC_CONFIG.TOKEN in src/config/constants.js with the token provided by FinZ CKYC ops.',
+    );
+    err.ckycTokenMissing = true;
+    throw err;
+  }
   const params = new URLSearchParams();
   Object.entries(extraParams).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== '') params.append(k, String(v));
   });
-  if (CKYC_CONFIG.TOKEN) params.append('token', CKYC_CONFIG.TOKEN);
+  params.append('token', CKYC_CONFIG.TOKEN);
   const qs = params.toString();
   return qs ? `${endpoint}?${qs}` : endpoint;
 }
