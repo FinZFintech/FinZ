@@ -429,49 +429,138 @@ export const ckycService = {
       throw err;
     }
 
-    // Success path — response contains the CKYC record. The gateway may return
-    // either a flattened record or a nested `data`/`kycData` object; normalize
-    // it into the shape the app expects for details review.
-    const record = data?.data || data?.kycData || data?.result || data || {};
+    // Success path — the validated record lives at
+    //   data.data.donwload_json   (note CERSAI's typo: 'donwload' not 'download')
+    // and contains PERSONAL_DETAILS, IDENTITY_DETAILS, IMAGE_DETAILS, etc.
+    // Walk through every plausible container so we tolerate future fixes
+    // and any flatter shapes the gateway might return.
+    const record =
+      data?.data?.donwload_json ||
+      data?.data?.download_json ||
+      data?.donwload_json ||
+      data?.download_json ||
+      data?.data ||
+      data?.kycData ||
+      data?.result ||
+      data ||
+      {};
 
-    const personalDetails = record.PERSONAL_DETAILS || record.personalDetails || {};
-    const addrDetails = record.PERMANENT_ADDRESS || record.permanentAddress || record.address || {};
+    const pd = record.PERSONAL_DETAILS || record.personalDetails || {};
 
+    // ── Name ──
+    // Build the cleanest available name. CERSAI sometimes returns
+    // FULLNAME with double spaces and prefers PREFIX/FNAME/MNAME/LNAME
+    // as separate fields; the *_NAME fields can also be empty arrays.
+    const safeStr = (v) => (typeof v === 'string' ? v : '');
+    const partsToString = (parts) =>
+      parts
+        .map(safeStr)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const builtName = partsToString([pd.PREFIX, pd.FNAME, pd.MNAME, pd.LNAME]);
     const name =
+      partsToString([safeStr(pd.FULLNAME) || safeStr(pd.FULL_NAME) || safeStr(pd.fullName) || safeStr(pd.NAME)]) ||
+      builtName ||
       record.name ||
-      personalDetails.FULL_NAME ||
-      personalDetails.fullName ||
-      personalDetails.NAME ||
       '';
-    const dob = record.dob || personalDetails.DATE_OF_BIRTH || personalDetails.dob || '';
-    const gender = record.gender || personalDetails.GENDER || personalDetails.gender || '';
-    const uid = record.uid || record.aadhaar || personalDetails.AADHAAR || '';
-    const photo = record.photo || record.PHOTO || '';
+
+    // ── DOB / Gender / PAN ──
+    const dob = safeStr(pd.DOB) || safeStr(pd.DATE_OF_BIRTH) || safeStr(pd.dob) || record.dob || '';
+    const genderRaw = safeStr(pd.GENDER) || safeStr(pd.gender) || record.gender || '';
+    const gender = genderRaw === 'M' ? 'Male' : genderRaw === 'F' ? 'Female' : genderRaw;
+    const panFromCkyc = safeStr(pd.PAN) || record.pan || '';
+
+    // ── Address (use permanent address by default) ──
+    const permLines = [pd.PERM_LINE1, pd.PERM_LINE2, pd.PERM_LINE3]
+      .map(safeStr)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const corresLines = [pd.CORRES_LINE1, pd.CORRES_LINE2, pd.CORRES_LINE3]
+      .map(safeStr)
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     const addressLine =
+      permLines.join(', ') ||
+      corresLines.join(', ') ||
       record.address ||
-      addrDetails.LINE1 ||
-      addrDetails.address ||
-      [addrDetails.LINE1, addrDetails.LINE2, addrDetails.LINE3].filter(Boolean).join(', ');
-    const city = addrDetails.CITY || addrDetails.DISTRICT || addrDetails.city || '';
-    const stateName = addrDetails.STATE || addrDetails.state || '';
-    const pincode = record.pincode || addrDetails.PIN_CODE || addrDetails.pincode || '';
+      '';
+    const city = safeStr(pd.PERM_CITY) || safeStr(pd.PERM_DIST) || safeStr(pd.CORRES_CITY) || '';
+    const district = safeStr(pd.PERM_DIST) || safeStr(pd.CORRES_DIST) || '';
+    const stateName = safeStr(pd.PERM_STATE) || safeStr(pd.CORRES_STATE) || '';
+    const country = safeStr(pd.PERM_COUNTRY) || safeStr(pd.CORRES_COUNTRY) || '';
+    const pincode = safeStr(pd.PERM_PIN) || safeStr(pd.CORRES_PIN) || '';
+
+    // ── UID / Aadhaar (from IDENTITY_DETAILS, masked, IDENT_TYPE 'E') ──
+    const identityList =
+      record.IDENTITY_DETAILS?.IDENTITY ||
+      record.identityDetails?.identity ||
+      [];
+    const identArr = Array.isArray(identityList) ? identityList : [];
+    const aadhaarRow = identArr.find((i) => i?.IDENT_TYPE === 'E') || null;
+    const uid = safeStr(aadhaarRow?.IDENT_NUM) || safeStr(pd.AADHAAR) || record.uid || '';
+
+    // ── Photo (base64 in IMAGE_DETAILS.IMAGE[*].IMAGE_DATA) ──
+    // IMAGE_CODE '03' is photograph; otherwise take the first JPG/JPEG entry.
+    const imageList =
+      record.IMAGE_DETAILS?.IMAGE ||
+      record.imageDetails?.image ||
+      [];
+    const imageArr = Array.isArray(imageList) ? imageList : [];
+    const photoRow =
+      imageArr.find((img) => safeStr(img?.IMAGE_CODE) === '03') ||
+      imageArr.find((img) => /^jpe?g$/i.test(safeStr(img?.IMAGE_TYPE))) ||
+      imageArr[0] ||
+      null;
+    const photo = safeStr(photoRow?.IMAGE_DATA) || safeStr(record.PHOTO) || safeStr(record.photo) || '';
+
+    // ── CKYC Number ──
+    const ckycNumber =
+      safeStr(pd.CKYC_NO) ||
+      safeStr(pd.CKYC_NUMBER) ||
+      safeStr(record.ckyc_number) ||
+      safeStr(record.CKYC_NUMBER) ||
+      safeStr(record.ckycNumber) ||
+      '';
+
+    console.log(
+      '[ckycService] validateCkycOtp normalized: name =',
+      name,
+      ', dob =',
+      dob,
+      ', pincode =',
+      pincode,
+      ', photo =',
+      photo ? `${photo.length} bytes` : 'missing',
+    );
 
     return {
       verified: true,
-      ckycNumber: record.ckyc_number || record.CKYC_NUMBER || record.ckycNumber || '',
+      ckycNumber,
+      pan: panFromCkyc,
       name,
       dob,
       gender,
       uid,
       photo,
       address: addressLine,
+      city,
+      district,
+      state: stateName,
+      country,
       pincode,
       phone: mobile,
+      // The details-review screen reads splitAddress in this nested shape:
+      //   sa.state[0]?.[0] || sa.state[0]
+      // so wrap state in a nested array and city in a flat array.
       splitAddress: {
         addressLine,
         city: city ? [city] : [],
-        state: stateName ? [stateName] : [],
+        state: stateName ? [[stateName]] : [],
         pincode,
       },
       raw: record,
