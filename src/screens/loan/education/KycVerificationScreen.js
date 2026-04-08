@@ -11,6 +11,7 @@ import {
   Image,
   Modal,
   Platform,
+  Dimensions,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
@@ -88,14 +89,23 @@ const AspectImage = ({ source, label, colors, onPress }) => {
 };
 
 /**
- * Fullscreen zoom viewer for a single image. Pinch-to-zoom is provided
- * by wrapping the image in a horizontally-scrolling container that
- * doubles as a panning surface, then letting the user toggle a 2x scale
- * by tapping. Keeps things simple without pulling in a gesture library.
+ * Fullscreen zoom viewer for a single image. Computes pixel dimensions
+ * from Dimensions.get('window') so the image renders reliably on RN
+ * web (where percentage widths inside an alignItems:'center' container
+ * collapse to zero) as well as native. Tap toggles a 2x scale and the
+ * scrollview's maximumZoomScale gives true pinch-to-zoom on touch.
  */
-const ImageZoomModal = ({ visible, uri, label, onClose, colors }) => {
+const ImageZoomModal = ({ visible, uri, label, onClose }) => {
   const [aspectRatio, setAspectRatio] = useState(3 / 4);
   const [zoomed, setZoomed] = useState(false);
+  const [dims, setDims] = useState(() => Dimensions.get('window'));
+
+  useEffect(() => {
+    const sub = Dimensions.addEventListener('change', ({ window }) => setDims(window));
+    return () => {
+      if (sub?.remove) sub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!visible || !uri) return;
@@ -118,6 +128,20 @@ const ImageZoomModal = ({ visible, uri, label, onClose, colors }) => {
 
   if (!uri) return null;
 
+  // Fit the image inside the available area while preserving aspect ratio.
+  const HEADER_H = 80;
+  const FOOTER_H = 60;
+  const PAD = 16;
+  const maxW = Math.max(100, dims.width - PAD * 2);
+  const maxH = Math.max(100, dims.height - HEADER_H - FOOTER_H - PAD * 2);
+  let imgW = maxW;
+  let imgH = imgW / aspectRatio;
+  if (imgH > maxH) {
+    imgH = maxH;
+    imgW = imgH * aspectRatio;
+  }
+  const scale = zoomed ? 2 : 1;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' }}>
@@ -126,40 +150,53 @@ const ImageZoomModal = ({ visible, uri, label, onClose, colors }) => {
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
-            paddingTop: 48,
+            height: HEADER_H,
+            paddingTop: 32,
             paddingHorizontal: 20,
-            paddingBottom: 12,
           }}
         >
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{label || 'Document'}</Text>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
+            {label || 'Document'}
+          </Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={{ color: '#fff', fontSize: 24 }}>✕</Text>
           </TouchableOpacity>
         </View>
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: PAD,
+          }}
           maximumZoomScale={4}
           minimumZoomScale={1}
           showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
           bouncesZoom
-          horizontal={false}
         >
           <TouchableOpacity activeOpacity={1} onPress={() => setZoomed((z) => !z)}>
             <Image
               source={{ uri }}
               style={{
-                width: zoomed ? '200%' : '100%',
-                aspectRatio,
-                maxWidth: zoomed ? undefined : 600,
+                width: imgW * scale,
+                height: imgH * scale,
               }}
               resizeMode="contain"
             />
           </TouchableOpacity>
         </ScrollView>
-        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center', paddingBottom: 24 }}>
-          {zoomed ? 'Tap to zoom out · pinch to zoom further' : 'Tap to zoom · pinch to zoom further'}
+        <Text
+          style={{
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: 12,
+            textAlign: 'center',
+            height: FOOTER_H,
+            lineHeight: FOOTER_H,
+          }}
+        >
+          {zoomed ? 'Tap image to zoom out · pinch to zoom further' : 'Tap image to zoom 2x · pinch to zoom further'}
         </Text>
       </View>
     </Modal>
@@ -1383,9 +1420,10 @@ const KycVerificationScreen = ({ navigation }) => {
               {/* Personal Details */}
               <View style={[styles.detailsBlock, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <InfoRow label="Full Name" value={fetchedKycData.name} />
-                {fetchedKycData.fatherName ? (
-                  <InfoRow label="Father's Name" value={fetchedKycData.fatherName} />
-                ) : null}
+                <InfoRow
+                  label="Father's Name"
+                  value={fetchedKycData.fatherName || 'Not available in CKYC record'}
+                />
                 {fetchedKycData.uid && (
                   <InfoRow label="Aadhaar" value={maskUid(fetchedKycData.uid)} />
                 )}
