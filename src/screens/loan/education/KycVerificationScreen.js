@@ -275,7 +275,10 @@ const KycVerificationScreen = ({ navigation }) => {
       startCkycResendTimer();
     } catch (err) {
       console.log('[KycVerificationScreen] CKYC initiate failed:', err.message);
-      if (err.noRecord) {
+      if (err.ckycTokenMissing || err.ckycConfigIssue) {
+        setCkycError(err.message);
+        Alert.alert('CKYC Configuration Issue', err.message);
+      } else if (err.noRecord) {
         setCkycError(err.message);
         Alert.alert(
           'CKYC Record Not Found',
