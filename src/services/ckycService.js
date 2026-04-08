@@ -100,6 +100,46 @@ function unwrap(data) {
   return data;
 }
 
+/**
+ * Recursively walk the CKYC response looking for a reference number. The
+ * gateway wraps `ckyc_refer_no` under different keys depending on the
+ * endpoint version (`ckyc_refer_no`, `ckycReferNo`, `ckycRefNo`,
+ * `reference_no`, `referenceNumber`, nested under `data` / `result` / `response`).
+ */
+function findCkycRefNo(obj, depth = 0) {
+  if (!obj || typeof obj !== 'object' || depth > 5) return '';
+
+  const keys = [
+    'ckyc_refer_no',
+    'ckycReferNo',
+    'ckycRefNo',
+    'ckyc_refno',
+    'ckycRefno',
+    'ckyc_reference_no',
+    'ckycReferenceNo',
+    'reference_no',
+    'referenceNo',
+    'referenceNumber',
+    'refNo',
+    'refNumber',
+  ];
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === 'number' && v) return String(v);
+  }
+
+  // Recurse into likely containers.
+  for (const child of ['data', 'result', 'response', 'payload', 'ckyc', 'record']) {
+    if (obj[child] && typeof obj[child] === 'object') {
+      const found = findCkycRefNo(obj[child], depth + 1);
+      if (found) return found;
+    }
+  }
+
+  return '';
+}
+
 export const ckycService = {
   /**
    * Step 1 — Search CKYC repository for an applicant.
@@ -134,11 +174,21 @@ export const ckycService = {
     console.log('[ckycService] searchCkyc →', pan, 'userId =', body.userId, 'loanId =', body.loanId);
 
     const { data } = await ckycApi.post(endpoint, body);
+
+    // The gateway wraps `ckyc_refer_no` under different keys in different
+    // deployments. Log the full payload and search every plausible path so
+    // the OTP step can proceed regardless of shape.
+    console.log('[ckycService] searchCkyc raw response:', JSON.stringify(data));
     unwrap(data);
 
+    const refNo = findCkycRefNo(data);
+    if (!refNo) {
+      console.log('[ckycService] searchCkyc: ckyc_refer_no not found in response');
+    }
+
     return {
-      ckycReferNo: data.ckyc_refer_no || data.ckycReferNo || '',
-      message: data.message || '',
+      ckycReferNo: refNo,
+      message: data?.message || data?.msg || '',
       raw: data,
     };
   },

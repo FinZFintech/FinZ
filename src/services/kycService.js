@@ -202,8 +202,17 @@ export const kycService = {
     });
 
     if (!searchResult.ckycReferNo) {
+      console.log(
+        '[kycService] initiateCkyc: no ckyc_refer_no in search response. Raw =',
+        JSON.stringify(searchResult.raw),
+      );
+      const rawMsg = (searchResult.message || '').toLowerCase();
+      // The gateway sometimes returns "searching done" even when no record
+      // exists — treat all empty-reference outcomes as "no record".
       const err = new Error(
-        searchResult.message || 'No CKYC record found for this PAN. Please use DigiLocker instead.',
+        rawMsg.includes('no record') || rawMsg.includes('searching done')
+          ? 'No CKYC record found for this PAN. Please use DigiLocker instead.'
+          : searchResult.message || 'CKYC search did not return a reference number. Please use DigiLocker instead.',
       );
       err.noRecord = true;
       throw err;
