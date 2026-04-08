@@ -225,6 +225,10 @@ const initialState = {
   creditScore: null,
   kycMethod: null,
   kycData: null,
+  // Append-only audit trail of every KYC failure (any method) so ops can
+  // see what was tried, why it failed, and what the gateway returned.
+  // Each entry: { method, stage, reason, statusCode?, errorCode?, raw?, at }
+  kycFailures: [],
   addressCorrection: null,   // { address, city, state, pincode, proofUri, proofName, status: 'pending'|'approved'|'rejected' }
   selfieData: null,
   bankDetails: null,
@@ -285,6 +289,15 @@ const loanReducer = (state, action) => {
       break;
     case 'SET_KYC_DATA':
       next = { ...state, kycData: action.payload };
+      break;
+    case 'ADD_KYC_FAILURE':
+      next = {
+        ...state,
+        kycFailures: [...(state.kycFailures || []), action.payload],
+      };
+      break;
+    case 'CLEAR_KYC_FAILURES':
+      next = { ...state, kycFailures: [] };
       break;
     case 'SET_ADDRESS_CORRECTION':
       next = { ...state, addressCorrection: action.payload };

@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
-  TextInput, Alert, RefreshControl, Linking,
+  TextInput, Alert, RefreshControl, Linking, Image,
 } from 'react-native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
@@ -15,6 +15,132 @@ import { smsService } from '../../services/smsService';
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 const TABS = ['Details', 'Documents', 'Comments', 'Communication'];
+
+/**
+ * Renders a single image in its native aspect ratio. Uses Image.getSize
+ * on mount so base64 / URL images don't get squashed into a fixed box.
+ * Tap to fire `onPress` (used for zoom).
+ */
+const AspectImage = ({ uri, label, colors, onPress }) => {
+  const [aspectRatio, setAspectRatio] = useState(3 / 4);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!uri) return;
+    let cancelled = false;
+    Image.getSize(
+      uri,
+      (w, h) => {
+        if (!cancelled && w > 0 && h > 0) setAspectRatio(w / h);
+      },
+      () => {
+        if (!cancelled) setError(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [uri]);
+
+  if (!uri || error) return null;
+
+  return (
+    <View style={{ marginBottom: 16 }}>
+      {label ? (
+        <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 6, textAlign: 'center' }}>
+          {label}
+        </Text>
+      ) : null}
+      <TouchableOpacity activeOpacity={0.85} onPress={onPress} disabled={!onPress}>
+        <Image
+          source={{ uri }}
+          style={{
+            width: '100%',
+            aspectRatio,
+            borderRadius: 12,
+            backgroundColor: colors.background,
+          }}
+          resizeMode="contain"
+        />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+/**
+ * Fullscreen zoom viewer for a single document image.
+ */
+const ImageZoomModal = ({ visible, uri, label, onClose }) => {
+  const [aspectRatio, setAspectRatio] = useState(3 / 4);
+  const [zoomed, setZoomed] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !uri) return;
+    let cancelled = false;
+    Image.getSize(
+      uri,
+      (w, h) => {
+        if (!cancelled && w > 0 && h > 0) setAspectRatio(w / h);
+      },
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, uri]);
+
+  useEffect(() => {
+    if (!visible) setZoomed(false);
+  }, [visible]);
+
+  if (!uri) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingTop: 48,
+            paddingHorizontal: 20,
+            paddingBottom: 12,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{label || 'Document'}</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={{ color: '#fff', fontSize: 24 }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}
+          maximumZoomScale={4}
+          minimumZoomScale={1}
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
+          bouncesZoom
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => setZoomed((z) => !z)}>
+            <Image
+              source={{ uri }}
+              style={{
+                width: zoomed ? '200%' : '100%',
+                aspectRatio,
+                maxWidth: zoomed ? undefined : 600,
+              }}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </ScrollView>
+        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center', paddingBottom: 24 }}>
+          {zoomed ? 'Tap to zoom out · pinch to zoom further' : 'Tap to zoom · pinch to zoom further'}
+        </Text>
+      </View>
+    </Modal>
+  );
+};
 
 // ─── Mock full application data builder ──────────────────────────────────────
 function getFullApplication(app) {
@@ -89,6 +215,9 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
   const [application, setApplication] = useState(() => getFullApplication(appData));
   const [activeTab, setActiveTab] = useState('Details');
   const [refreshing, setRefreshing] = useState(false);
+
+  // KYC image zoom modal state
+  const [zoomImage, setZoomImage] = useState(null); // { uri, label } | null
 
   // Comment state
   const [newComment, setNewComment] = useState('');
@@ -284,7 +413,94 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         <InfoRow label="KYC Method" value={application.kycMethod || 'Not Started'} />
         <InfoRow label="KYC Status" value={application.kycStatus} highlight={application.kycStatus === 'Verified'} />
         <InfoRow label="Aadhaar (Last 4)" value={'XXXX ' + application.aadhaarLast4} />
+
+        {/* CKYC identifiers */}
+        {application.kycData?.ckycNumber ? (
+          <InfoRow label="CKYC Number" value={application.kycData.ckycNumber} />
+        ) : null}
+        {application.kycData?.ckycReferenceNo ? (
+          <InfoRow label="CKYC Reference No." value={application.kycData.ckycReferenceNo} />
+        ) : null}
+        {application.kycData?.validatedAt ? (
+          <InfoRow label="Validated At" value={formatDate(application.kycData.validatedAt)} />
+        ) : null}
+
+        {/* Extracted KYC personal details (when available) */}
+        {application.kycData?.name ? (
+          <InfoRow label="KYC Name" value={application.kycData.name} />
+        ) : null}
+        {application.kycData?.fatherName ? (
+          <InfoRow label="Father's Name" value={application.kycData.fatherName} />
+        ) : null}
+        {application.kycData?.motherName ? (
+          <InfoRow label="Mother's Name" value={application.kycData.motherName} />
+        ) : null}
+        {application.kycData?.spouseName ? (
+          <InfoRow label="Spouse's Name" value={application.kycData.spouseName} />
+        ) : null}
+        {application.kycData?.dob ? (
+          <InfoRow label="Date of Birth" value={application.kycData.dob} />
+        ) : null}
+        {application.kycData?.gender ? (
+          <InfoRow label="Gender" value={application.kycData.gender} />
+        ) : null}
+        {application.kycData?.address ? (
+          <InfoRow label="Address" value={application.kycData.address} />
+        ) : null}
+        {application.kycData?.pincode ? (
+          <InfoRow label="Pincode" value={application.kycData.pincode} />
+        ) : null}
       </Card>
+
+      {/* KYC Documents — every image returned by the chosen KYC method */}
+      {Array.isArray(application.kycData?.images) && application.kycData.images.length > 0 && (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            KYC Documents ({application.kycData.images.length})
+          </Text>
+          <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 12 }}>
+            All images returned by {application.kycData?.method || application.kycMethod || 'the KYC source'}. Tap to zoom.
+          </Text>
+          {application.kycData.images.map((img, idx) => (
+            <AspectImage
+              key={img.sequence || idx}
+              uri={img.uri}
+              label={img.label || `Document ${idx + 1}`}
+              colors={colors}
+              onPress={() => setZoomImage({ uri: img.uri, label: img.label || `Document ${idx + 1}` })}
+            />
+          ))}
+        </Card>
+      )}
+
+      {/* KYC Failure History — every failed attempt across every method */}
+      {Array.isArray(application.kycFailures) && application.kycFailures.length > 0 && (
+        <Card accent={colors.warning}>
+          <Text style={[styles.sectionTitle, { color: colors.warning }]}>
+            KYC Failure History ({application.kycFailures.length})
+          </Text>
+          {application.kycFailures.map((failure, idx) => (
+            <View
+              key={idx}
+              style={{
+                paddingVertical: 8,
+                borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+                borderTopColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>
+                {(failure.method || 'unknown').toUpperCase()} · {failure.stage || 'unknown stage'}
+              </Text>
+              <Text style={{ color: colors.textSecondary, marginTop: 2 }}>{failure.reason}</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }}>
+                {failure.statusCode ? `HTTP ${failure.statusCode} · ` : ''}
+                {failure.errorCode ? `${failure.errorCode} · ` : ''}
+                {failure.at ? formatDate(failure.at) : ''}
+              </Text>
+            </View>
+          ))}
+        </Card>
+      )}
 
       {/* Bank Details */}
       <Card>
@@ -639,6 +855,13 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
+
+      <ImageZoomModal
+        visible={!!zoomImage}
+        uri={zoomImage?.uri}
+        label={zoomImage?.label}
+        onClose={() => setZoomImage(null)}
+      />
     </View>
   );
 };
