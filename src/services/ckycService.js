@@ -155,29 +155,42 @@ export const ckycService = {
     if (!pan) throw new Error('PAN is required for CKYC search.');
     if (!name) throw new Error('Applicant name is required for CKYC search.');
 
+    // The gateway's docs advertise `download=no&updateRecord=no&uploadS3=no`
+    // as defaults, but those cause a dry-run that returns an empty
+    // ckyc_refer_no even for existing records. Flipping `updateRecord=yes`
+    // makes the gateway actually persist the search and emit the reference.
     const endpoint = withToken(CKYC_CONFIG.ENDPOINTS.SEARCH, {
       download: 'no',
-      updateRecord: 'no',
+      updateRecord: 'yes',
       uploadS3: 'no',
     });
+
+    // Normalize the applicant name — CKYC records are stored in uppercase
+    // on the CERSAI side, and the gateway's matcher is whitespace-sensitive.
+    const normalizedName = String(name).trim().replace(/\s+/g, ' ').toUpperCase();
+    const normalizedPan = String(pan).trim().toUpperCase();
 
     const body = {
       responseType: 'json',
       IdentityType: CKYC_CONFIG.IDENTITY_TYPE_PAN,
-      IdentityNumber: pan,
-      ApplicantName: name,
+      IdentityNumber: normalizedPan,
+      ApplicantName: normalizedName,
       type: 'search',
       userId: sanitizeNumericId(userId),
       loanId: sanitizeNumericId(loanId),
     };
 
-    console.log('[ckycService] searchCkyc →', pan, 'userId =', body.userId, 'loanId =', body.loanId);
+    console.log(
+      '[ckycService] searchCkyc → endpoint =',
+      endpoint,
+      ', body =',
+      JSON.stringify(body),
+    );
 
     const { data } = await ckycApi.post(endpoint, body);
 
-    // The gateway wraps `ckyc_refer_no` under different keys in different
-    // deployments. Log the full payload and search every plausible path so
-    // the OTP step can proceed regardless of shape.
+    // Log the full payload and search every plausible path so the OTP
+    // step can proceed regardless of shape.
     console.log('[ckycService] searchCkyc raw response:', JSON.stringify(data));
     unwrap(data);
 
@@ -222,11 +235,14 @@ export const ckycService = {
     const endpoint = withToken(CKYC_CONFIG.ENDPOINTS.DOWNLOAD, { download: 'yes' });
     const reqId = requestId || generateRequestId();
 
+    const normalizedName = String(name || '').trim().replace(/\s+/g, ' ').toUpperCase();
+    const normalizedPan = String(pan).trim().toUpperCase();
+
     const body = {
       responseType: 'json',
       IdentityType: CKYC_CONFIG.IDENTITY_TYPE_PAN,
-      IdentityNumber: pan,
-      ApplicantName: name,
+      IdentityNumber: normalizedPan,
+      ApplicantName: normalizedName,
       loanId: sanitizeNumericId(loanId),
       userId: sanitizeNumericId(userId),
       authType: CKYC_CONFIG.AUTH_TYPE_MOBILE,
@@ -235,7 +251,12 @@ export const ckycService = {
       requestId: reqId,
     };
 
-    console.log('[ckycService] sendCkycOtp → requestId =', reqId);
+    console.log(
+      '[ckycService] sendCkycOtp → requestId =',
+      reqId,
+      ', referenceNo =',
+      referenceNo,
+    );
 
     try {
       const { data } = await ckycApi.post(endpoint, body);
