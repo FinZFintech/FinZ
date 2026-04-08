@@ -32,6 +32,56 @@ const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 45; // ~3 minutes
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
+/**
+ * Renders a single CKYC document image in its native aspect ratio.
+ * Uses Image.getSize on mount to discover the natural dimensions of
+ * the embedded base64 / URL image, then sets aspectRatio so the
+ * <Image> stretches to the available width without distortion.
+ */
+const AspectImage = ({ source, label, colors }) => {
+  const [aspectRatio, setAspectRatio] = useState(3 / 4); // sensible default for portraits
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!source?.uri) return;
+    let cancelled = false;
+    Image.getSize(
+      source.uri,
+      (w, h) => {
+        if (!cancelled && w > 0 && h > 0) setAspectRatio(w / h);
+      },
+      () => {
+        if (!cancelled) setError(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [source?.uri]);
+
+  if (!source?.uri || error) return null;
+
+  return (
+    <View style={{ marginBottom: 16 }}>
+      {label ? (
+        <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 6, textAlign: 'center' }}>
+          {label}
+        </Text>
+      ) : null}
+      <Image
+        source={source}
+        style={{
+          width: '100%',
+          aspectRatio,
+          borderRadius: 12,
+          backgroundColor: colors.background,
+        }}
+        resizeMode="contain"
+      />
+    </View>
+  );
+};
+
 const KycVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { user, updateUser } = useAuth();
@@ -341,12 +391,21 @@ const KycVerificationScreen = ({ navigation }) => {
         otp: code,
         phone,
         requestId: ckycRequestId,
+        referenceNo: ckycReferNo,
       });
       if (ckycResendTimerRef.current) {
         clearInterval(ckycResendTimerRef.current);
         ckycResendTimerRef.current = null;
       }
-      showDetailsReview(result, KYC_METHODS.CKYC);
+      // Make sure the search reference and request id are persisted on
+      // the saved KYC record even if the gateway didn't echo them back
+      // in the validate response.
+      const enriched = {
+        ...result,
+        ckycReferenceNo: result.ckycReferenceNo || ckycReferNo,
+        ckycRequestId,
+      };
+      showDetailsReview(enriched, KYC_METHODS.CKYC);
     } catch (err) {
       console.log('[KycVerificationScreen] CKYC verify failed:', err.message);
       setCkycError(err.message || 'CKYC verification failed.');
@@ -701,10 +760,36 @@ const KycVerificationScreen = ({ navigation }) => {
   };
 
   // ─── Render helpers ─────────────────────────────────────────────────────
+  /**
+   * Render every image returned by the KYC source (CKYC currently
+   * exposes a structured `images` array; DigiLocker / Aadhaar XML
+   * still expose a single `photo` field). Each image is shown in
+   * its natural aspect ratio so the user can verify it without
+   * distortion.
+   */
   const renderPhoto = () => {
-    const source = getPhotoSource(fetchedKycData?.photo);
-    if (!source) return null;
+    if (!fetchedKycData) return null;
 
+    const images = Array.isArray(fetchedKycData.images) ? fetchedKycData.images : [];
+
+    if (images.length > 0) {
+      return (
+        <View style={{ marginBottom: 16 }}>
+          {images.map((img, idx) => (
+            <AspectImage
+              key={img.sequence || idx}
+              source={{ uri: img.uri }}
+              label={img.label || `Document ${idx + 1}`}
+              colors={colors}
+            />
+          ))}
+        </View>
+      );
+    }
+
+    // Fallback to the legacy single-photo field for DigiLocker / Aadhaar XML.
+    const source = getPhotoSource(fetchedKycData.photo);
+    if (!source) return null;
     return (
       <View style={styles.photoWrap}>
         <Image source={source} style={styles.photo} resizeMode="cover" />
@@ -1027,6 +1112,15 @@ const KycVerificationScreen = ({ navigation }) => {
               {/* Personal Details */}
               <View style={[styles.detailsBlock, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <InfoRow label="Full Name" value={fetchedKycData.name} />
+                {fetchedKycData.fatherName ? (
+                  <InfoRow label="Father's Name" value={fetchedKycData.fatherName} />
+                ) : null}
+                {fetchedKycData.motherName ? (
+                  <InfoRow label="Mother's Name" value={fetchedKycData.motherName} />
+                ) : null}
+                {fetchedKycData.spouseName ? (
+                  <InfoRow label="Spouse's Name" value={fetchedKycData.spouseName} />
+                ) : null}
                 {fetchedKycData.uid && (
                   <InfoRow label="Aadhaar" value={maskUid(fetchedKycData.uid)} />
                 )}

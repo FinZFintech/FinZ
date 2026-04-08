@@ -383,7 +383,7 @@ export const ckycService = {
    * @param {string} params.requestId  Same requestId used in sendCkycOtp
    * @returns {Promise<Object>} Normalized CKYC record or raw response
    */
-  async validateCkycOtp({ pan, otp, mobile, requestId }) {
+  async validateCkycOtp({ pan, otp, mobile, requestId, referenceNo }) {
     if (!pan) throw new Error('PAN is required.');
     if (!otp) throw new Error('OTP is required.');
     if (!mobile) throw new Error('Registered mobile number is required.');
@@ -468,6 +468,22 @@ export const ckycService = {
       record.name ||
       '';
 
+    // ── Father / Mother / Spouse names ──
+    const fatherName =
+      partsToString([safeStr(pd.FATHER_FULLNAME)]) ||
+      partsToString([pd.FATHER_PREFIX, pd.FATHER_FNAME, pd.FATHER_MNAME, pd.FATHER_LNAME]) ||
+      record.fatherName ||
+      '';
+    const motherName =
+      partsToString([safeStr(pd.MOTHER_FULLNAME)]) ||
+      partsToString([pd.MOTHER_PREFIX, pd.MOTHER_FNAME, pd.MOTHER_MNAME, pd.MOTHER_LNAME]) ||
+      record.motherName ||
+      '';
+    const spouseName =
+      partsToString([safeStr(pd.SPOUSE_FULLNAME)]) ||
+      partsToString([pd.SPOUSE_PREFIX, pd.SPOUSE_FNAME, pd.SPOUSE_MNAME, pd.SPOUSE_LNAME]) ||
+      '';
+
     // ── DOB / Gender / PAN ──
     const dob = safeStr(pd.DOB) || safeStr(pd.DATE_OF_BIRTH) || safeStr(pd.dob) || record.dob || '';
     const genderRaw = safeStr(pd.GENDER) || safeStr(pd.gender) || record.gender || '';
@@ -504,27 +520,75 @@ export const ckycService = {
     const aadhaarRow = identArr.find((i) => i?.IDENT_TYPE === 'E') || null;
     const uid = safeStr(aadhaarRow?.IDENT_NUM) || safeStr(pd.AADHAAR) || record.uid || '';
 
-    // ── Photo (base64 in IMAGE_DETAILS.IMAGE[*].IMAGE_DATA) ──
-    // IMAGE_CODE '03' is photograph; otherwise take the first JPG/JPEG entry.
+    // ── Images (base64 in IMAGE_DETAILS.IMAGE[*].IMAGE_DATA) ──
+    // CKYC standard image codes:
+    //   01 = Address Proof, 02 = Identity Proof, 03 = Photograph,
+    //   04 = Signature, 05 = Form
+    // IMAGE_CODE '03' is the photograph used as the headline image.
+    const IMAGE_CODE_LABELS = {
+      '01': 'Address Proof',
+      '02': 'Identity Proof',
+      '03': 'Photograph',
+      '04': 'Signature',
+      '05': 'Form',
+    };
+
     const imageList =
       record.IMAGE_DETAILS?.IMAGE ||
       record.imageDetails?.image ||
       [];
     const imageArr = Array.isArray(imageList) ? imageList : [];
-    const photoRow =
-      imageArr.find((img) => safeStr(img?.IMAGE_CODE) === '03') ||
-      imageArr.find((img) => /^jpe?g$/i.test(safeStr(img?.IMAGE_TYPE))) ||
-      imageArr[0] ||
-      null;
-    const photo = safeStr(photoRow?.IMAGE_DATA) || safeStr(record.PHOTO) || safeStr(record.photo) || '';
 
-    // ── CKYC Number ──
+    const images = imageArr
+      .map((img, idx) => {
+        const dataB64 = safeStr(img?.IMAGE_DATA);
+        if (!dataB64) return null;
+        const typeRaw = safeStr(img?.IMAGE_TYPE).toLowerCase();
+        const mime = /^jpe?g$/.test(typeRaw)
+          ? 'image/jpeg'
+          : typeRaw === 'png'
+            ? 'image/png'
+            : typeRaw === 'pdf'
+              ? 'application/pdf'
+              : 'image/jpeg';
+        const code = safeStr(img?.IMAGE_CODE);
+        return {
+          sequence: safeStr(img?.SEQUENCE_NO) || String(idx + 1),
+          code,
+          label: IMAGE_CODE_LABELS[code] || `Document ${idx + 1}`,
+          type: typeRaw || 'jpg',
+          mime,
+          uri: `data:${mime};base64,${dataB64}`,
+          data: dataB64,
+        };
+      })
+      .filter(Boolean);
+
+    const photoRow =
+      images.find((img) => img.code === '03') ||
+      images.find((img) => /jpe?g/.test(img.mime)) ||
+      images[0] ||
+      null;
+    const photo = photoRow?.data || safeStr(record.PHOTO) || safeStr(record.photo) || '';
+
+    // ── CKYC Number / Reference Number ──
+    // CKYC_NO is the 14-digit CKYC identifier assigned by CERSAI.
+    // CKYC_REFERENCE_ID is the per-search transaction reference (e.g.
+    // "INODYQ09239473"). The caller can also pass `referenceNo` from
+    // the original search step — it takes precedence so we keep the
+    // search and validate references in sync even if CERSAI returns
+    // different shapes between calls.
     const ckycNumber =
       safeStr(pd.CKYC_NO) ||
       safeStr(pd.CKYC_NUMBER) ||
       safeStr(record.ckyc_number) ||
       safeStr(record.CKYC_NUMBER) ||
       safeStr(record.ckycNumber) ||
+      '';
+    const ckycReferenceNo =
+      safeStr(referenceNo) ||
+      safeStr(pd.CKYC_REFERENCE_ID) ||
+      findCkycRefNo(data) ||
       '';
 
     console.log(
@@ -541,12 +605,17 @@ export const ckycService = {
     return {
       verified: true,
       ckycNumber,
+      ckycReferenceNo,
       pan: panFromCkyc,
       name,
+      fatherName,
+      motherName,
+      spouseName,
       dob,
       gender,
       uid,
       photo,
+      images,
       address: addressLine,
       city,
       district,
@@ -563,7 +632,12 @@ export const ckycService = {
         state: stateName ? [[stateName]] : [],
         pincode,
       },
+      // `record` is the unwrapped donwload_json container; `rawResponse`
+      // is the complete JSON the gateway returned (success flag, message,
+      // wrapper objects, etc.) so the application can audit / replay it.
       raw: record,
+      rawResponse: data,
+      validatedAt: new Date().toISOString(),
     };
   },
 };
