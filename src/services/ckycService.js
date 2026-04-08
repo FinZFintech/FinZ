@@ -112,10 +112,31 @@ function unwrap(data) {
 
 /**
  * Recursively walk the CKYC response looking for a reference number. The
- * gateway wraps `ckyc_refer_no` under different keys depending on the
- * endpoint version (`ckyc_refer_no`, `ckycReferNo`, `ckycRefNo`,
- * `reference_no`, `referenceNumber`, nested under `data` / `result` / `response`).
+ * gateway wraps `ckyc_refer_no` under different keys and shapes depending
+ * on the endpoint version and whether the record is cached — it may be
+ * a string, a number, an array, or an object with numeric keys like
+ * `{"0":"INODYQ09239473"}`.
  */
+function extractRefString(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'number') return v ? String(v) : '';
+  if (Array.isArray(v)) {
+    for (const item of v) {
+      const r = extractRefString(item);
+      if (r) return r;
+    }
+    return '';
+  }
+  if (typeof v === 'object') {
+    for (const key of Object.keys(v)) {
+      const r = extractRefString(v[key]);
+      if (r) return r;
+    }
+  }
+  return '';
+}
+
 function findCkycRefNo(obj, depth = 0) {
   if (!obj || typeof obj !== 'object' || depth > 5) return '';
 
@@ -127,6 +148,7 @@ function findCkycRefNo(obj, depth = 0) {
     'ckycRefno',
     'ckyc_reference_no',
     'ckycReferenceNo',
+    'CKYC_REFERENCE_ID',
     'reference_no',
     'referenceNo',
     'referenceNumber',
@@ -134,13 +156,12 @@ function findCkycRefNo(obj, depth = 0) {
     'refNumber',
   ];
   for (const k of keys) {
-    const v = obj[k];
-    if (typeof v === 'string' && v.trim()) return v.trim();
-    if (typeof v === 'number' && v) return String(v);
+    const r = extractRefString(obj[k]);
+    if (r) return r;
   }
 
   // Recurse into likely containers.
-  for (const child of ['data', 'result', 'response', 'payload', 'ckyc', 'record']) {
+  for (const child of ['data', 'result', 'response', 'payload', 'ckyc', 'record', 'SearchResponsePID']) {
     if (obj[child] && typeof obj[child] === 'object') {
       const found = findCkycRefNo(obj[child], depth + 1);
       if (found) return found;
@@ -268,13 +289,17 @@ export const ckycService = {
       referenceNo,
     );
 
+    // The CKYC gateway returns the OTP-sent message in two different shapes
+    // depending on mood:
+    //   - HTTP 200: { success:false, error:"OTP has been sent..." }
+    //   - HTTP 500: { success:false, error:"OTP has been sent..." }  (!)
+    // Treat either one as a happy path.
+    const isOtpSentMsg = (msg) => /otp.*(sent|delivered)/i.test(msg || '');
+
     try {
       const { data } = await ckycApi.post(endpoint, body);
-      // NOTE: The CKYC gateway returns `{ success: false, error: "OTP has been sent..." }`
-      // on the happy path, so we do NOT blindly unwrap. Instead we detect OTP-sent
-      // messages and treat them as success.
       const message = data?.error || data?.message || '';
-      const isOtpSent = /otp.*sent/i.test(message);
+      const isOtpSent = isOtpSentMsg(message);
       if (data?.success === false && !isOtpSent) {
         const err = new Error(message || 'Failed to send CKYC OTP.');
         err.ckycError = data;
@@ -282,6 +307,15 @@ export const ckycService = {
       }
       return { message, requestId: reqId, raw: data };
     } catch (err) {
+      const rawMsg =
+        err.ckycError?.error ||
+        err.ckycError?.message ||
+        err.message ||
+        '';
+      if (isOtpSentMsg(rawMsg)) {
+        console.log('[ckycService] sendCkycOtp: OTP-sent happy path (status =', err.statusCode, ')');
+        return { message: rawMsg, requestId: reqId, raw: err.ckycError || {} };
+      }
       console.log('[ckycService] sendCkycOtp error:', err.message);
       throw err;
     }
@@ -313,15 +347,30 @@ export const ckycService = {
 
     console.log('[ckycService] resendCkycOtp → requestId =', requestId);
 
-    const { data } = await ckycApi.post(endpoint, body);
-    const message = data?.error || data?.message || '';
-    const isOtpSent = /otp.*sent|resend.*successfully/i.test(message);
-    if (data?.success === false && !isOtpSent) {
-      const err = new Error(message || 'Failed to resend CKYC OTP.');
-      err.ckycError = data;
+    const isResendSentMsg = (msg) => /otp.*(sent|delivered)|resend.*successfully/i.test(msg || '');
+
+    try {
+      const { data } = await ckycApi.post(endpoint, body);
+      const message = data?.error || data?.message || '';
+      if (data?.success === false && !isResendSentMsg(message)) {
+        const err = new Error(message || 'Failed to resend CKYC OTP.');
+        err.ckycError = data;
+        throw err;
+      }
+      return { message, raw: data };
+    } catch (err) {
+      const rawMsg =
+        err.ckycError?.error ||
+        err.ckycError?.message ||
+        err.message ||
+        '';
+      if (isResendSentMsg(rawMsg)) {
+        console.log('[ckycService] resendCkycOtp: OTP-sent happy path (status =', err.statusCode, ')');
+        return { message: rawMsg, raw: err.ckycError || {} };
+      }
+      console.log('[ckycService] resendCkycOtp error:', err.message);
       throw err;
     }
-    return { message, raw: data };
   },
 
   /**
@@ -352,7 +401,26 @@ export const ckycService = {
 
     console.log('[ckycService] validateCkycOtp → requestId =', requestId);
 
-    const { data } = await ckycApi.post(endpoint, body);
+    let data;
+    try {
+      const resp = await ckycApi.post(endpoint, body);
+      data = resp.data;
+    } catch (err) {
+      // The gateway sometimes returns the validated record under HTTP 500.
+      // If the body looks like a real CKYC record, treat it as success.
+      const body = err.ckycError;
+      if (body && (body.data || body.kycData || body.result || body.SearchResponsePID)) {
+        console.log('[ckycService] validateCkycOtp: record returned via HTTP', err.statusCode);
+        data = body;
+      } else {
+        const msg = body?.error || body?.message || err.message || 'OTP validation failed.';
+        const e = new Error(msg);
+        e.ckycError = body;
+        throw e;
+      }
+    }
+
+    console.log('[ckycService] validateCkycOtp raw response:', JSON.stringify(data));
 
     // Failure path — gateway returns { success:false, error:"..." }
     if (data?.success === false) {
