@@ -6,9 +6,16 @@
  *
  * API Reference: Digitap VKYC v2 Integration Guide
  * Base URL: https://svc.digitap.ai
+ *
+ * On web the request goes through the Vercel rewrite at /proxy/digitap/*
+ * to bypass CORS; on native we hit svc.digitap.ai directly. See
+ * vercel.json and src/config/constants.js for the proxy setup.
  */
 
-const DIGITAP_BASE_URL = 'https://svc.digitap.ai';
+import { Platform } from 'react-native';
+
+const DIGITAP_BASE_URL =
+  Platform.OS === 'web' ? '/proxy/digitap' : 'https://svc.digitap.ai';
 const DIGITAP_CLIENT_ID = '42138379';
 const DIGITAP_SECRET = 'QUJYjIquWQWXU6Ut9V7tIEOpSrx28mIT';
 const DIGITAP_AUTH = 'Basic ' + btoa(`${DIGITAP_CLIENT_ID}:${DIGITAP_SECRET}`);

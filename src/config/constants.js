@@ -1,12 +1,31 @@
+import { Platform } from 'react-native';
+
 export const APP_NAME = 'FinZ';
 export const APP_VERSION = '1.0.0';
 
 // MOCK_MODE: When true, all API calls will use mock data (no backend needed)
 export const MOCK_MODE = false;
 
+// ─── External API base URLs ─────────────────────────────────────────────────
+//
+// Browsers enforce CORS on every cross-origin XHR/fetch, and most of the
+// upstream gateways we call (Signzy, CKYC, mTalkz, Digitap) do NOT send
+// Access-Control-Allow-Origin headers, so direct calls from the web build
+// get blocked at the preflight stage. To work around this without standing
+// up a separate backend, the Vercel deployment exposes same-origin proxy
+// paths (`/proxy/<service>/...`) that forward to the upstream server-side.
+// See `vercel.json` for the rewrites.
+//
+// On native (iOS / Android) there is no CORS, so we keep using the direct
+// upstream URLs to avoid an unnecessary network hop.
+
+const IS_WEB = Platform.OS === 'web';
+
+const apiBase = (proxyPath, directUrl) => (IS_WEB ? proxyPath : directUrl);
+
 // Signzy API Configuration - configurable keys for all Signzy v3 APIs
 export const SIGNZY_CONFIG = {
-  BASE_URL: 'https://api-preproduction.signzy.app/api/v3',
+  BASE_URL: apiBase('/proxy/signzy-v3', 'https://api-preproduction.signzy.app/api/v3'),
   AUTH_TOKEN: 'vqoNYa3hklTfQJBzUoEr1i1qahc6MtuR',
   CLIENT_ID: 'support@finz.finance',
   ENDPOINTS: {
@@ -66,7 +85,7 @@ export const SIGNZY_CONFIG = {
 // Token is appended to every request as a query parameter: ?token=<Token>
 export const CKYC_CONFIG = {
   // Live endpoint. UAT: https://ckycdev.finz.finance/api
-  BASE_URL: 'https://ckyc.finz.finance/api',
+  BASE_URL: apiBase('/proxy/ckyc', 'https://ckyc.finz.finance/api'),
   TOKEN: 'SiyHPws4mi43ka0P01',
   ENDPOINTS: {
     SEARCH: '/searchRequest',      // POST (CKYC search)
@@ -82,7 +101,7 @@ export const CKYC_CONFIG = {
 
 // Signzy v2 Patron-based auth (Geo Fencing, Digital Integrity)
 export const SIGNZY_V2_CONFIG = {
-  BASE_URL: 'https://api-preproduction.signzy.app/api/v2/patrons',
+  BASE_URL: apiBase('/proxy/signzy-v2', 'https://api-preproduction.signzy.app/api/v2/patrons'),
   USERNAME: 'support@finz.finance',
   PASSWORD: 'vqoNYa3hklTfQJBzUoEr1i1qahc6MtuR',
   ENDPOINTS: {
@@ -94,7 +113,7 @@ export const SIGNZY_V2_CONFIG = {
 
 // Signzy US OTP API Configuration
 export const SIGNZY_OTP_CONFIG = {
-  BASE_URL: 'https://api-preproduction.signzy.us/api/v3',
+  BASE_URL: apiBase('/proxy/signzy-otp', 'https://api-preproduction.signzy.us/api/v3'),
   AUTH_TOKEN: 'vqoNYa3hklTfQJBzUoEr1i1qahc6MtuR',
   CLIENT_ID: '64c1115454eb66846d026abf',
   ENDPOINTS: {
@@ -106,7 +125,7 @@ export const SIGNZY_OTP_CONFIG = {
 };
 
 export const MTALKZ_CONFIG = {
-  BASE_URL: 'https://msgn.mtalkz.com/api',
+  BASE_URL: apiBase('/proxy/mtalkz', 'https://msgn.mtalkz.com/api'),
   API_KEY: 'LzICQhtamSRXXgqA',
   SENDER_ID: 'FINZ',
   TEMPLATES: {
