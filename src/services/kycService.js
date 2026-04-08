@@ -1,4 +1,5 @@
 import { signzyService } from './signzyService';
+import { ckycService } from './ckycService';
 
 export const kycService = {
   // ─── REAL APIs (Signzy) ──────────────────────────────────────────────────
@@ -167,43 +168,97 @@ export const kycService = {
     return { passed: true, reason: '' };
   },
 
-  // CKYC
+  // ─── CKYC (FinZ CKYC Gateway) ──────────────────────────────────────────
+  //
+  // Real flow:
+  //   1. initiateCkyc()   — search CKYC repo, then trigger OTP download.
+  //                         Returns { ckycReferNo, requestId } that must be
+  //                         held by the caller across subsequent calls.
+  //   2. resendCkycOtp()  — resend OTP (enabled 90s after first request).
+  //   3. verifyCkycOtp()  — validate OTP and return the normalized CKYC
+  //                         record shaped like DigiLocker / Aadhaar XML so
+  //                         the details-review UI works unchanged.
+
+  /**
+   * Step 1: search the CKYC repository and trigger an OTP to the
+   * applicant's registered mobile number.
+   *
+   * @param {Object} data
+   * @param {string} data.pan      PAN number
+   * @param {string} data.name     Applicant name
+   * @param {string} data.phone    Registered mobile number
+   * @param {string} [data.userId] LMS user id (optional)
+   * @param {string} [data.loanId] LMS application / loan id (optional)
+   * @returns {Promise<{ ckycReferNo: string, requestId: string, message: string }>}
+   */
   async initiateCkyc(data) {
-    console.log('[kycService] Mock initiateCkyc');
-    await new Promise((r) => setTimeout(r, 800));
+    console.log('[kycService] initiateCkyc → calling ckycService.searchCkyc');
+
+    const searchResult = await ckycService.searchCkyc({
+      pan: data.pan,
+      name: data.name,
+      userId: data.userId,
+      loanId: data.loanId,
+    });
+
+    if (!searchResult.ckycReferNo) {
+      const err = new Error(
+        searchResult.message || 'No CKYC record found for this PAN. Please use DigiLocker instead.',
+      );
+      err.noRecord = true;
+      throw err;
+    }
+
+    console.log('[kycService] initiateCkyc → ckyc_refer_no =', searchResult.ckycReferNo);
+
+    const otpResult = await ckycService.sendCkycOtp({
+      pan: data.pan,
+      name: data.name,
+      referenceNo: searchResult.ckycReferNo,
+      mobile: data.phone,
+      userId: data.userId,
+      loanId: data.loanId,
+    });
+
     return {
-      ckycNumber: 'CKYC' + Date.now(),
-      name: data.name || 'RAHUL SHARMA',
-      dob: '1995-01-15',
-      address: '123 Main Street, Mumbai, Maharashtra 400001',
-      phone: data.phone || '9876543210',
-      pan: data.pan || '',
-      status: 'verified',
+      ckycReferNo: searchResult.ckycReferNo,
+      requestId: otpResult.requestId,
+      message: otpResult.message,
     };
   },
 
+  /**
+   * Resend the CKYC OTP. Must be called with the same `requestId`
+   * returned from `initiateCkyc`. Enabled only 90s after the first
+   * send.
+   */
+  async resendCkycOtp(data) {
+    console.log('[kycService] resendCkycOtp → calling ckycService.resendCkycOtp');
+    return ckycService.resendCkycOtp({
+      pan: data.pan,
+      mobile: data.phone,
+      requestId: data.requestId,
+    });
+  },
+
+  /**
+   * Step 2: validate the OTP and download the full CKYC record.
+   *
+   * Returns a KYC object shaped like DigiLocker / Aadhaar XML so that
+   * the existing details-review screen works without changes.
+   */
   async verifyCkycOtp(data) {
-    console.log('[kycService] Mock verifyCkycOtp');
-    await new Promise((r) => setTimeout(r, 500));
-    // Return full KYC data (same shape as DigiLocker) so details review works
-    return {
-      verified: true,
-      ckycNumber: 'CKYC' + Date.now(),
-      name: 'RAHUL SHARMA',
-      dob: '1995-01-15',
-      gender: 'M',
-      uid: 'XXXX-XXXX-1234',
-      address: '123, Andheri West, Mumbai, Maharashtra 400053',
-      pincode: '400053',
-      phone: '9876543210',
-      photo: '', // No photo in CKYC
-      splitAddress: {
-        addressLine: '123, Andheri West',
-        city: ['Mumbai'],
-        state: ['Maharashtra'],
-        pincode: '400053',
-      },
-    };
+    console.log('[kycService] verifyCkycOtp → calling ckycService.validateCkycOtp');
+
+    const result = await ckycService.validateCkycOtp({
+      pan: data.pan,
+      otp: data.otp,
+      mobile: data.phone,
+      requestId: data.requestId,
+    });
+
+    console.log('[kycService] verifyCkycOtp result: name =', result.name, ', pincode =', result.pincode);
+    return result;
   },
 
   // Aadhaar XML

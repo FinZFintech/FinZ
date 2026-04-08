@@ -85,6 +85,14 @@ const KycVerificationScreen = ({ navigation }) => {
   // CKYC incorrect → show inline DigiLocker prompt (Alert.alert unreliable on web)
   const [ckycIncorrectPrompt, setCkycIncorrectPrompt] = useState(false);
 
+  // CKYC session state — reference no + request id are held across
+  // initiate → (resend) → verify to preserve the gateway session.
+  const [ckycReferNo, setCkycReferNo] = useState(null);
+  const [ckycRequestId, setCkycRequestId] = useState(null);
+  const [ckycError, setCkycError] = useState('');
+  const [ckycResendSecs, setCkycResendSecs] = useState(0);
+  const ckycResendTimerRef = useRef(null);
+
   // Address correction flow (details incorrect)
   const [addressCorrectionStep, setAddressCorrectionStep] = useState(false);
   const [correctedAddress, setCorrectedAddress] = useState({ addressLine: '', city: '', state: '', pincode: '' });
@@ -136,14 +144,42 @@ const KycVerificationScreen = ({ navigation }) => {
     setKycErrorMsg('');
     setFetchedKycData(null);
     setDetailsReviewStep(false);
+    setCkycReferNo(null);
+    setCkycRequestId(null);
+    setCkycError('');
+    setCkycResendSecs(0);
+    if (ckycResendTimerRef.current) {
+      clearInterval(ckycResendTimerRef.current);
+      ckycResendTimerRef.current = null;
+    }
   };
 
   useEffect(() => {
     return () => {
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
       if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
+      if (ckycResendTimerRef.current) clearInterval(ckycResendTimerRef.current);
     };
   }, []);
+
+  /**
+   * Start the 90-second resend countdown for CKYC OTP.
+   * The CKYC gateway only enables resend 90s after the initial send.
+   */
+  const startCkycResendTimer = () => {
+    if (ckycResendTimerRef.current) clearInterval(ckycResendTimerRef.current);
+    setCkycResendSecs(90);
+    ckycResendTimerRef.current = setInterval(() => {
+      setCkycResendSecs((prev) => {
+        if (prev <= 1) {
+          clearInterval(ckycResendTimerRef.current);
+          ckycResendTimerRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   // When app returns to foreground while waiting for DigiLocker, start polling
   useEffect(() => {
@@ -185,18 +221,98 @@ const KycVerificationScreen = ({ navigation }) => {
     return { uri: `data:image/jpeg;base64,${photo}` };
   };
 
-  // ─── CKYC Flow — simulated for now ──────────────────────────────────────
+  // ─── CKYC Flow ──────────────────────────────────────────────────────────
+  //
+  // Real CKYC integration (FinZ CKYC gateway):
+  //   1. initiateCkyc  → search CKYC repo + send OTP to registered mobile
+  //   2. resendCkycOtp → only enabled 90s after initiate
+  //   3. verifyCkycOtp → validate OTP and pull normalized CKYC record
+
+  const resetCkycState = () => {
+    setOtpSent(false);
+    setOtp('');
+    setCkycReferNo(null);
+    setCkycRequestId(null);
+    setCkycError('');
+    setCkycResendSecs(0);
+    if (ckycResendTimerRef.current) {
+      clearInterval(ckycResendTimerRef.current);
+      ckycResendTimerRef.current = null;
+    }
+  };
+
   const handleInitiateCkyc = async () => {
+    const pan = state.panDetails?.panNumber;
+    const phone = state.borrowerDetails?.phone;
+    const name = state.borrowerDetails?.name || state.panDetails?.name;
+
+    if (!pan) {
+      Alert.alert('Missing PAN', 'PAN details are required before running CKYC.');
+      return;
+    }
+    if (!phone) {
+      Alert.alert('Missing Mobile', 'Registered mobile number is required for CKYC OTP.');
+      return;
+    }
+    if (!name) {
+      Alert.alert('Missing Name', 'Applicant name is required for CKYC search.');
+      return;
+    }
+
     setLoading(true);
+    setCkycError('');
     try {
-      await kycService.initiateCkyc({
-        pan: state.panDetails?.panNumber,
-        phone: state.borrowerDetails?.phone,
-        name: state.borrowerDetails?.name,
+      const result = await kycService.initiateCkyc({
+        pan,
+        phone,
+        name,
+        userId: user?.id || user?.phone || '',
+        loanId: state.applicationId || '',
       });
+      setCkycReferNo(result.ckycReferNo);
+      setCkycRequestId(result.requestId);
       setOtpSent(true);
-    } catch {
-      Alert.alert('Error', 'Failed to initiate CKYC. Please try again or use DigiLocker.');
+      startCkycResendTimer();
+    } catch (err) {
+      console.log('[KycVerificationScreen] CKYC initiate failed:', err.message);
+      if (err.noRecord) {
+        setCkycError(err.message);
+        Alert.alert(
+          'CKYC Record Not Found',
+          err.message || 'No CKYC record found for this PAN. Please use DigiLocker instead.',
+        );
+      } else {
+        setCkycError(err.message || 'Failed to initiate CKYC.');
+        Alert.alert(
+          'CKYC Error',
+          err.message || 'Failed to initiate CKYC. Please try again or use DigiLocker.',
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendCkycOtp = async () => {
+    if (ckycResendSecs > 0) return;
+    const pan = state.panDetails?.panNumber;
+    const phone = state.borrowerDetails?.phone;
+    if (!pan || !phone || !ckycRequestId) return;
+
+    setLoading(true);
+    setCkycError('');
+    try {
+      const result = await kycService.resendCkycOtp({
+        pan,
+        phone,
+        requestId: ckycRequestId,
+      });
+      startCkycResendTimer();
+      Alert.alert('OTP Sent', result.message || 'OTP has been resent to your registered mobile.');
+    } catch (err) {
+      console.log('[KycVerificationScreen] CKYC resend failed:', err.message);
+      setCkycError(err.message || 'Failed to resend OTP.');
+      Alert.alert('Resend Failed', err.message || 'Failed to resend OTP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -205,15 +321,36 @@ const KycVerificationScreen = ({ navigation }) => {
   const handleVerifyCkycOtp = async (otpValue) => {
     const code = otpValue || otp;
     if (code.length !== 6) return;
+
+    const pan = state.panDetails?.panNumber;
+    const phone = state.borrowerDetails?.phone;
+    if (!pan || !phone || !ckycRequestId) {
+      Alert.alert('Session Expired', 'Please restart the CKYC flow.');
+      resetCkycState();
+      return;
+    }
+
     setLoading(true);
+    setCkycError('');
     try {
       const result = await kycService.verifyCkycOtp({
-        pan: state.panDetails?.panNumber,
+        pan,
         otp: code,
+        phone,
+        requestId: ckycRequestId,
       });
+      if (ckycResendTimerRef.current) {
+        clearInterval(ckycResendTimerRef.current);
+        ckycResendTimerRef.current = null;
+      }
       showDetailsReview(result, KYC_METHODS.CKYC);
-    } catch {
-      Alert.alert('Error', 'CKYC verification failed. Please try again or use DigiLocker.');
+    } catch (err) {
+      console.log('[KycVerificationScreen] CKYC verify failed:', err.message);
+      setCkycError(err.message || 'CKYC verification failed.');
+      Alert.alert(
+        'OTP Verification Failed',
+        err.message || 'CKYC verification failed. Please try again or use DigiLocker.',
+      );
     } finally {
       setLoading(false);
     }
@@ -670,7 +807,7 @@ const KycVerificationScreen = ({ navigation }) => {
           <Card>
             <View style={styles.methodHeaderRow}>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>CKYC Verification</Text>
-              <TouchableOpacity onPress={() => { setCurrentMethod(null); setOtpSent(false); setOtp(''); }}>
+              <TouchableOpacity onPress={() => { setCurrentMethod(null); resetCkycState(); }}>
                 <Text style={[styles.changeMethod, { color: colors.teal }]}>Change</Text>
               </TouchableOpacity>
             </View>
@@ -678,6 +815,12 @@ const KycVerificationScreen = ({ navigation }) => {
               We will verify your identity via Central KYC Registry.
               An OTP will be sent to your registered mobile.
             </Text>
+
+            {!!ckycError && (
+              <View style={[styles.otpBanner, { backgroundColor: errorBg, marginBottom: 12 }]}>
+                <Text style={[styles.otpBannerText, { color: colors.error }]}>{ckycError}</Text>
+              </View>
+            )}
 
             {!otpSent ? (
               <Button title="Initiate CKYC" onPress={handleInitiateCkyc} loading={loading} />
@@ -702,8 +845,15 @@ const KycVerificationScreen = ({ navigation }) => {
                   style={styles.btn}
                 />
                 <Button
+                  title={ckycResendSecs > 0 ? `Resend OTP in ${ckycResendSecs}s` : 'Resend OTP'}
+                  onPress={handleResendCkycOtp}
+                  variant="outline"
+                  disabled={ckycResendSecs > 0 || loading}
+                  style={styles.btn}
+                />
+                <Button
                   title="Try DigiLocker Instead"
-                  onPress={() => { setCurrentMethod(KYC_METHODS.DIGILOCKER); setOtpSent(false); setOtp(''); }}
+                  onPress={() => { setCurrentMethod(KYC_METHODS.DIGILOCKER); resetCkycState(); }}
                   variant="outline"
                   style={styles.btn}
                 />
