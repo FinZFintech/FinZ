@@ -383,7 +383,7 @@ export const ckycService = {
    * @param {string} params.requestId  Same requestId used in sendCkycOtp
    * @returns {Promise<Object>} Normalized CKYC record or raw response
    */
-  async validateCkycOtp({ pan, otp, mobile, requestId }) {
+  async validateCkycOtp({ pan, otp, mobile, requestId, referenceNo }) {
     if (!pan) throw new Error('PAN is required.');
     if (!otp) throw new Error('OTP is required.');
     if (!mobile) throw new Error('Registered mobile number is required.');
@@ -571,13 +571,24 @@ export const ckycService = {
       null;
     const photo = photoRow?.data || safeStr(record.PHOTO) || safeStr(record.photo) || '';
 
-    // ── CKYC Number ──
+    // ── CKYC Number / Reference Number ──
+    // CKYC_NO is the 14-digit CKYC identifier assigned by CERSAI.
+    // CKYC_REFERENCE_ID is the per-search transaction reference (e.g.
+    // "INODYQ09239473"). The caller can also pass `referenceNo` from
+    // the original search step — it takes precedence so we keep the
+    // search and validate references in sync even if CERSAI returns
+    // different shapes between calls.
     const ckycNumber =
       safeStr(pd.CKYC_NO) ||
       safeStr(pd.CKYC_NUMBER) ||
       safeStr(record.ckyc_number) ||
       safeStr(record.CKYC_NUMBER) ||
       safeStr(record.ckycNumber) ||
+      '';
+    const ckycReferenceNo =
+      safeStr(referenceNo) ||
+      safeStr(pd.CKYC_REFERENCE_ID) ||
+      findCkycRefNo(data) ||
       '';
 
     console.log(
@@ -594,6 +605,7 @@ export const ckycService = {
     return {
       verified: true,
       ckycNumber,
+      ckycReferenceNo,
       pan: panFromCkyc,
       name,
       fatherName,
@@ -620,7 +632,12 @@ export const ckycService = {
         state: stateName ? [[stateName]] : [],
         pincode,
       },
+      // `record` is the unwrapped donwload_json container; `rawResponse`
+      // is the complete JSON the gateway returned (success flag, message,
+      // wrapper objects, etc.) so the application can audit / replay it.
       raw: record,
+      rawResponse: data,
+      validatedAt: new Date().toISOString(),
     };
   },
 };

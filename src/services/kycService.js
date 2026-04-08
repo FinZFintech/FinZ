@@ -281,9 +281,19 @@ export const kycService = {
       otp: data.otp,
       mobile: data.phone,
       requestId: data.requestId,
+      referenceNo: data.referenceNo,
     });
 
-    console.log('[kycService] verifyCkycOtp result: name =', result.name, ', pincode =', result.pincode);
+    console.log(
+      '[kycService] verifyCkycOtp result: name =',
+      result.name,
+      ', pincode =',
+      result.pincode,
+      ', ckycNumber =',
+      result.ckycNumber,
+      ', ckycReferenceNo =',
+      result.ckycReferenceNo,
+    );
     return result;
   },
 

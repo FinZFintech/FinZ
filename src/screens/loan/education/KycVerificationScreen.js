@@ -391,12 +391,21 @@ const KycVerificationScreen = ({ navigation }) => {
         otp: code,
         phone,
         requestId: ckycRequestId,
+        referenceNo: ckycReferNo,
       });
       if (ckycResendTimerRef.current) {
         clearInterval(ckycResendTimerRef.current);
         ckycResendTimerRef.current = null;
       }
-      showDetailsReview(result, KYC_METHODS.CKYC);
+      // Make sure the search reference and request id are persisted on
+      // the saved KYC record even if the gateway didn't echo them back
+      // in the validate response.
+      const enriched = {
+        ...result,
+        ckycReferenceNo: result.ckycReferenceNo || ckycReferNo,
+        ckycRequestId,
+      };
+      showDetailsReview(enriched, KYC_METHODS.CKYC);
     } catch (err) {
       console.log('[KycVerificationScreen] CKYC verify failed:', err.message);
       setCkycError(err.message || 'CKYC verification failed.');
