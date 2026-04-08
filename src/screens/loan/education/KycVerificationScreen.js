@@ -1397,16 +1397,96 @@ const KycVerificationScreen = ({ navigation }) => {
                 )}
               </View>
 
-              {/* Permanent Address (from Aadhaar) */}
+              {/* Contact details from KYC */}
+              {(fetchedKycData.email || fetchedKycData.mobileNumber || fetchedKycData.officePhone || fetchedKycData.residentialPhone) && (
+                <>
+                  <Text style={[styles.subTitle, { color: colors.textPrimary }]}>Contact Details</Text>
+                  <View style={[styles.detailsBlock, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    {fetchedKycData.mobileNumber ? (
+                      <InfoRow
+                        label="Mobile"
+                        value={
+                          fetchedKycData.mobileCountryCode
+                            ? `+${fetchedKycData.mobileCountryCode} ${fetchedKycData.mobileNumber}`
+                            : fetchedKycData.mobileNumber
+                        }
+                      />
+                    ) : null}
+                    {fetchedKycData.email ? (
+                      <InfoRow label="Email" value={fetchedKycData.email} />
+                    ) : null}
+                    {fetchedKycData.residentialPhone ? (
+                      <InfoRow label="Residential Phone" value={fetchedKycData.residentialPhone} />
+                    ) : null}
+                    {fetchedKycData.officePhone ? (
+                      <InfoRow label="Office Phone" value={fetchedKycData.officePhone} />
+                    ) : null}
+                  </View>
+                </>
+              )}
+
+              {/* Identity Documents from KYC */}
+              {Array.isArray(fetchedKycData.documents) && fetchedKycData.documents.length > 0 && (
+                <>
+                  <Text style={[styles.subTitle, { color: colors.textPrimary }]}>Identity Documents</Text>
+                  <View style={[styles.detailsBlock, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    {fetchedKycData.documents.map((doc, idx) => (
+                      <InfoRow
+                        key={doc.sequence || idx}
+                        label={doc.label}
+                        value={doc.number}
+                      />
+                    ))}
+                  </View>
+                </>
+              )}
+
+              {/* Permanent Address */}
               <Text style={[styles.subTitle, { color: colors.textPrimary }]}>Permanent Address</Text>
               <View style={[styles.detailsBlock, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <Text style={[styles.addressText, { color: colors.textSecondary }]}>
-                  {fetchedKycData.address || 'Not available'}
+                  {fetchedKycData.permanentAddress?.addressLine || fetchedKycData.address || 'Not available'}
                 </Text>
-                {fetchedKycData.pincode ? (
-                  <InfoRow label="Pincode" value={fetchedKycData.pincode} />
+                {(fetchedKycData.permanentAddress?.city || fetchedKycData.city) ? (
+                  <InfoRow
+                    label="City"
+                    value={fetchedKycData.permanentAddress?.city || fetchedKycData.city}
+                  />
+                ) : null}
+                {(fetchedKycData.permanentAddress?.state || fetchedKycData.state) ? (
+                  <InfoRow
+                    label="State"
+                    value={fetchedKycData.permanentAddress?.state || fetchedKycData.state}
+                  />
+                ) : null}
+                {(fetchedKycData.permanentAddress?.pincode || fetchedKycData.pincode) ? (
+                  <InfoRow
+                    label="Pincode"
+                    value={fetchedKycData.permanentAddress?.pincode || fetchedKycData.pincode}
+                  />
                 ) : null}
               </View>
+
+              {/* Correspondence Address (CKYC) — only when distinct from permanent */}
+              {fetchedKycData.correspondenceAddress?.addressLine && !fetchedKycData.sameAddress && (
+                <>
+                  <Text style={[styles.subTitle, { color: colors.textPrimary }]}>Correspondence Address</Text>
+                  <View style={[styles.detailsBlock, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    <Text style={[styles.addressText, { color: colors.textSecondary }]}>
+                      {fetchedKycData.correspondenceAddress.addressLine}
+                    </Text>
+                    {fetchedKycData.correspondenceAddress.city ? (
+                      <InfoRow label="City" value={fetchedKycData.correspondenceAddress.city} />
+                    ) : null}
+                    {fetchedKycData.correspondenceAddress.state ? (
+                      <InfoRow label="State" value={fetchedKycData.correspondenceAddress.state} />
+                    ) : null}
+                    {fetchedKycData.correspondenceAddress.pincode ? (
+                      <InfoRow label="Pincode" value={fetchedKycData.correspondenceAddress.pincode} />
+                    ) : null}
+                  </View>
+                </>
+              )}
             </Card>
 
             {/* Communication Address */}

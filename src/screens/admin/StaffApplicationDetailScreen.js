@@ -444,13 +444,113 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         {application.kycData?.gender ? (
           <InfoRow label="Gender" value={application.kycData.gender} />
         ) : null}
-        {application.kycData?.address ? (
-          <InfoRow label="Address" value={application.kycData.address} />
-        ) : null}
-        {application.kycData?.pincode ? (
-          <InfoRow label="Pincode" value={application.kycData.pincode} />
-        ) : null}
       </Card>
+
+      {/* KYC Contact Details */}
+      {(application.kycData?.email ||
+        application.kycData?.mobileNumber ||
+        application.kycData?.officePhone ||
+        application.kycData?.residentialPhone) && (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>KYC Contact Details</Text>
+          {application.kycData?.mobileNumber ? (
+            <InfoRow
+              label="Mobile"
+              value={
+                application.kycData.mobileCountryCode
+                  ? `+${application.kycData.mobileCountryCode} ${application.kycData.mobileNumber}`
+                  : application.kycData.mobileNumber
+              }
+            />
+          ) : null}
+          {application.kycData?.email ? (
+            <InfoRow label="Email" value={application.kycData.email} />
+          ) : null}
+          {application.kycData?.residentialPhone ? (
+            <InfoRow label="Residential Phone" value={application.kycData.residentialPhone} />
+          ) : null}
+          {application.kycData?.officePhone ? (
+            <InfoRow label="Office Phone" value={application.kycData.officePhone} />
+          ) : null}
+        </Card>
+      )}
+
+      {/* KYC Identity Documents */}
+      {Array.isArray(application.kycData?.documents) && application.kycData.documents.length > 0 && (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            KYC Identity Documents ({application.kycData.documents.length})
+          </Text>
+          {application.kycData.documents.map((doc, idx) => (
+            <View
+              key={doc.sequence || idx}
+              style={{
+                paddingVertical: 8,
+                borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+                borderTopColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>{doc.label}</Text>
+              <Text style={{ color: colors.textSecondary, marginTop: 2 }}>{doc.number}</Text>
+              {doc.verificationStatus ? (
+                <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }}>
+                  Status: {doc.verificationStatus}
+                  {doc.dateOfIssue ? ` · Issued ${doc.dateOfIssue}` : ''}
+                  {doc.dateOfExpiry ? ` · Expires ${doc.dateOfExpiry}` : ''}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </Card>
+      )}
+
+      {/* KYC Permanent Address */}
+      {(application.kycData?.permanentAddress?.addressLine || application.kycData?.address) && (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Permanent Address</Text>
+          <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>
+            {application.kycData?.permanentAddress?.addressLine || application.kycData?.address}
+          </Text>
+          {(application.kycData?.permanentAddress?.city || application.kycData?.city) ? (
+            <InfoRow
+              label="City"
+              value={application.kycData?.permanentAddress?.city || application.kycData?.city}
+            />
+          ) : null}
+          {(application.kycData?.permanentAddress?.state || application.kycData?.state) ? (
+            <InfoRow
+              label="State"
+              value={application.kycData?.permanentAddress?.state || application.kycData?.state}
+            />
+          ) : null}
+          {(application.kycData?.permanentAddress?.pincode || application.kycData?.pincode) ? (
+            <InfoRow
+              label="Pincode"
+              value={application.kycData?.permanentAddress?.pincode || application.kycData?.pincode}
+            />
+          ) : null}
+        </Card>
+      )}
+
+      {/* KYC Correspondence Address — when distinct from permanent */}
+      {application.kycData?.correspondenceAddress?.addressLine &&
+        !application.kycData?.sameAddress && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Correspondence Address</Text>
+            <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>
+              {application.kycData.correspondenceAddress.addressLine}
+            </Text>
+            {application.kycData.correspondenceAddress.city ? (
+              <InfoRow label="City" value={application.kycData.correspondenceAddress.city} />
+            ) : null}
+            {application.kycData.correspondenceAddress.state ? (
+              <InfoRow label="State" value={application.kycData.correspondenceAddress.state} />
+            ) : null}
+            {application.kycData.correspondenceAddress.pincode ? (
+              <InfoRow label="Pincode" value={application.kycData.correspondenceAddress.pincode} />
+            ) : null}
+          </Card>
+        )}
 
       {/* KYC Documents — every image returned by the chosen KYC method */}
       {Array.isArray(application.kycData?.images) && application.kycData.images.length > 0 && (
