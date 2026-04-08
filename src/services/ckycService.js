@@ -468,6 +468,22 @@ export const ckycService = {
       record.name ||
       '';
 
+    // ── Father / Mother / Spouse names ──
+    const fatherName =
+      partsToString([safeStr(pd.FATHER_FULLNAME)]) ||
+      partsToString([pd.FATHER_PREFIX, pd.FATHER_FNAME, pd.FATHER_MNAME, pd.FATHER_LNAME]) ||
+      record.fatherName ||
+      '';
+    const motherName =
+      partsToString([safeStr(pd.MOTHER_FULLNAME)]) ||
+      partsToString([pd.MOTHER_PREFIX, pd.MOTHER_FNAME, pd.MOTHER_MNAME, pd.MOTHER_LNAME]) ||
+      record.motherName ||
+      '';
+    const spouseName =
+      partsToString([safeStr(pd.SPOUSE_FULLNAME)]) ||
+      partsToString([pd.SPOUSE_PREFIX, pd.SPOUSE_FNAME, pd.SPOUSE_MNAME, pd.SPOUSE_LNAME]) ||
+      '';
+
     // ── DOB / Gender / PAN ──
     const dob = safeStr(pd.DOB) || safeStr(pd.DATE_OF_BIRTH) || safeStr(pd.dob) || record.dob || '';
     const genderRaw = safeStr(pd.GENDER) || safeStr(pd.gender) || record.gender || '';
@@ -504,19 +520,56 @@ export const ckycService = {
     const aadhaarRow = identArr.find((i) => i?.IDENT_TYPE === 'E') || null;
     const uid = safeStr(aadhaarRow?.IDENT_NUM) || safeStr(pd.AADHAAR) || record.uid || '';
 
-    // ── Photo (base64 in IMAGE_DETAILS.IMAGE[*].IMAGE_DATA) ──
-    // IMAGE_CODE '03' is photograph; otherwise take the first JPG/JPEG entry.
+    // ── Images (base64 in IMAGE_DETAILS.IMAGE[*].IMAGE_DATA) ──
+    // CKYC standard image codes:
+    //   01 = Address Proof, 02 = Identity Proof, 03 = Photograph,
+    //   04 = Signature, 05 = Form
+    // IMAGE_CODE '03' is the photograph used as the headline image.
+    const IMAGE_CODE_LABELS = {
+      '01': 'Address Proof',
+      '02': 'Identity Proof',
+      '03': 'Photograph',
+      '04': 'Signature',
+      '05': 'Form',
+    };
+
     const imageList =
       record.IMAGE_DETAILS?.IMAGE ||
       record.imageDetails?.image ||
       [];
     const imageArr = Array.isArray(imageList) ? imageList : [];
+
+    const images = imageArr
+      .map((img, idx) => {
+        const dataB64 = safeStr(img?.IMAGE_DATA);
+        if (!dataB64) return null;
+        const typeRaw = safeStr(img?.IMAGE_TYPE).toLowerCase();
+        const mime = /^jpe?g$/.test(typeRaw)
+          ? 'image/jpeg'
+          : typeRaw === 'png'
+            ? 'image/png'
+            : typeRaw === 'pdf'
+              ? 'application/pdf'
+              : 'image/jpeg';
+        const code = safeStr(img?.IMAGE_CODE);
+        return {
+          sequence: safeStr(img?.SEQUENCE_NO) || String(idx + 1),
+          code,
+          label: IMAGE_CODE_LABELS[code] || `Document ${idx + 1}`,
+          type: typeRaw || 'jpg',
+          mime,
+          uri: `data:${mime};base64,${dataB64}`,
+          data: dataB64,
+        };
+      })
+      .filter(Boolean);
+
     const photoRow =
-      imageArr.find((img) => safeStr(img?.IMAGE_CODE) === '03') ||
-      imageArr.find((img) => /^jpe?g$/i.test(safeStr(img?.IMAGE_TYPE))) ||
-      imageArr[0] ||
+      images.find((img) => img.code === '03') ||
+      images.find((img) => /jpe?g/.test(img.mime)) ||
+      images[0] ||
       null;
-    const photo = safeStr(photoRow?.IMAGE_DATA) || safeStr(record.PHOTO) || safeStr(record.photo) || '';
+    const photo = photoRow?.data || safeStr(record.PHOTO) || safeStr(record.photo) || '';
 
     // ── CKYC Number ──
     const ckycNumber =
@@ -543,10 +596,14 @@ export const ckycService = {
       ckycNumber,
       pan: panFromCkyc,
       name,
+      fatherName,
+      motherName,
+      spouseName,
       dob,
       gender,
       uid,
       photo,
+      images,
       address: addressLine,
       city,
       district,
