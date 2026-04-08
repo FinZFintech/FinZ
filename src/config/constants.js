@@ -65,9 +65,9 @@ export const SIGNZY_CONFIG = {
 // CKYC API Configuration (FinZ CKYC gateway)
 // Token is appended to every request as a query parameter: ?token=<Token>
 export const CKYC_CONFIG = {
-  // Toggle between UAT and live by swapping BASE_URL.
-  BASE_URL: 'https://ckycdev.finz.finance/api',
-  TOKEN: '', // TODO: Set CKYC API token (provided by FinZ CKYC ops)
+  // Live endpoint. UAT: https://ckycdev.finz.finance/api
+  BASE_URL: 'https://ckyc.finz.finance/api',
+  TOKEN: 'SiyHPws4mi43ka0P01',
   ENDPOINTS: {
     SEARCH: '/searchRequest',      // POST (CKYC search)
     DOWNLOAD: '/downloadRequest',  // POST (send OTP / download)
