@@ -588,6 +588,27 @@ export const ckycService = {
       })
       .filter(Boolean);
 
+    // CERSAI exposes PAN as a top-level PERSONAL_DETAILS.PAN field rather
+    // than as an IDENTITY_DETAILS row, so it never makes it into the
+    // documents list. Inject it as a synthetic doc (type 'C' = PAN) so the
+    // UI shows the full identity footprint in one place. Skip if it's
+    // already present (in case the gateway upgrades the response shape
+    // later) or if PAN is missing.
+    const panFromPd = safeStr(pd.PAN);
+    if (panFromPd && !documents.some((d) => d.type === 'C' || d.number === panFromPd)) {
+      documents.unshift({
+        sequence: '0',
+        type: 'C',
+        label: IDENT_TYPE_LABELS.C,
+        number: panFromPd,
+        verificationStatusCode: '01',
+        verificationStatus: 'Verified',
+        dateOfIssue: '',
+        dateOfExpiry: '',
+        placeOfIssue: '',
+      });
+    }
+
     // ── UID (masked Aadhaar from documents list, prefer 'E' then 'H') ──
     const aadhaarDoc =
       documents.find((d) => d.type === 'E') ||
