@@ -123,5 +123,5 @@ export const getStatusLabel = (status) => {
     closed: 'Closed',
     manual_review: 'Under Review',
   };
-  return labels[status] || status;
+  return labels[status] || status || 'Unknown';
 };
