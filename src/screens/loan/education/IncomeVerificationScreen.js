@@ -69,6 +69,14 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const [selectedBank, setSelectedBank] = useState(null);
   const [aaInitiated, setAaInitiated] = useState(false);
 
+  // ITR verification state (salaried income verification via ITR portal)
+  const [itrStep, setItrStep] = useState(null); // null | 'init' | 'otp' | 'pulling' | 'done' | 'error'
+  const [itrSessionId, setItrSessionId] = useState(null);
+  const [itrOtp, setItrOtp] = useState('');
+  const [itrPassword, setItrPassword] = useState('');
+  const [itrError, setItrError] = useState('');
+  const [itrLoading, setItrLoading] = useState(false);
+
   // Validation errors
   const [errors, setErrors] = useState({});
 
@@ -303,6 +311,114 @@ const IncomeVerificationScreen = ({ navigation }) => {
           },
         },
       });
+    }
+  };
+
+  // ─── ITR Verification Flow (salaried) ──────────────────────────────────
+  //
+  // 4-step: itrForgetPassword → user OTP → itrAuthoriseNewPassword
+  //         → itrPull + form26ASPull (chained)
+
+  const generateItrPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const special = '_$#@!';
+    let pw = '';
+    for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+    pw += special[Math.floor(Math.random() * special.length)];
+    pw += String(Math.floor(Math.random() * 100));
+    return pw;
+  };
+
+  const handleItrInitiate = async () => {
+    const pan = state.panDetails?.panNumber || '';
+    if (!pan) {
+      setItrError('PAN is required for ITR verification.');
+      return;
+    }
+    setItrLoading(true);
+    setItrError('');
+    setItrStep('init');
+    try {
+      const newPw = generateItrPassword();
+      setItrPassword(newPw);
+      const result = await signzyService.itrForgetPassword(pan, newPw);
+      if (!result.success && !result.otpStatus) {
+        throw new Error(result.message || 'Failed to send ITR OTP.');
+      }
+      setItrSessionId(result.sessionId);
+      setItrStep('otp');
+    } catch (err) {
+      console.log('[IncomeVerification] ITR initiate failed:', err?.message);
+      setItrError(err?.message || 'Failed to initiate ITR verification.');
+      setItrStep('error');
+    } finally {
+      setItrLoading(false);
+    }
+  };
+
+  const handleItrOtpSubmit = async () => {
+    if (itrOtp.length !== 6) return;
+    setItrLoading(true);
+    setItrError('');
+    try {
+      const authResult = await signzyService.itrAuthoriseNewPassword(itrSessionId, itrOtp);
+      if (!authResult.success && !authResult.passwordResetStatus) {
+        throw new Error(authResult.message || 'ITR OTP verification failed.');
+      }
+      const activeSessionId = authResult.sessionId || itrSessionId;
+      setItrSessionId(activeSessionId);
+      setItrStep('pulling');
+
+      // Chain ITR Pull + 26AS Pull concurrently.
+      const pan = state.panDetails?.panNumber || '';
+      const [itrResult, form26Result] = await Promise.allSettled([
+        signzyService.itrPull({ username: pan, sessionId: activeSessionId }),
+        signzyService.form26ASPull({ username: pan, sessionId: activeSessionId, range: 3 }),
+      ]);
+
+      if (itrResult.status === 'fulfilled') {
+        dispatch({
+          type: 'SET_SIGNZY_VERIFICATION',
+          payload: { key: 'itrPull', status: 'success', result: itrResult.value },
+        });
+        console.log('[IncomeVerification] ITR pull ok →', itrResult.value.years?.length || 0, 'years');
+      } else {
+        console.log('[IncomeVerification] ITR pull failed:', itrResult.reason?.message);
+        dispatch({
+          type: 'SET_SIGNZY_VERIFICATION',
+          payload: {
+            key: 'itrPull',
+            status: 'failure',
+            error: { message: itrResult.reason?.message || 'ITR pull failed' },
+          },
+        });
+      }
+
+      if (form26Result.status === 'fulfilled') {
+        dispatch({
+          type: 'SET_SIGNZY_VERIFICATION',
+          payload: { key: 'form26AS', status: 'success', result: form26Result.value },
+        });
+        console.log('[IncomeVerification] 26AS pull ok →', form26Result.value.byYear?.length || 0, 'years');
+      } else {
+        console.log('[IncomeVerification] 26AS pull failed:', form26Result.reason?.message);
+        dispatch({
+          type: 'SET_SIGNZY_VERIFICATION',
+          payload: {
+            key: 'form26AS',
+            status: 'failure',
+            error: { message: form26Result.reason?.message || 'Form 26AS pull failed' },
+          },
+        });
+      }
+
+      setItrStep('done');
+    } catch (err) {
+      console.log('[IncomeVerification] ITR auth/pull failed:', err?.message);
+      setItrError(err?.message || 'ITR verification failed.');
+      setItrStep('error');
+    } finally {
+      setItrLoading(false);
     }
   };
 
@@ -907,6 +1023,80 @@ const IncomeVerificationScreen = ({ navigation }) => {
               variant="outline"
               style={styles.btn}
             />
+          </Card>
+        )}
+
+        {/* ITR Verification (salaried) */}
+        {(occupationCategory || '').startsWith('salaried_') && incomeResult && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>ITR Verification</Text>
+            <Text style={{ color: colors.textSecondary, marginBottom: 12, fontSize: 13 }}>
+              Verify your income via Income Tax Return portal. An OTP will be sent to your ITR-registered mobile.
+            </Text>
+
+            {!!itrError && (
+              <View style={{ backgroundColor: errorBg, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ color: colors.error, fontSize: 13 }}>{itrError}</Text>
+              </View>
+            )}
+
+            {/* Step 1: Initiate */}
+            {(!itrStep || itrStep === 'error') && (
+              <Button
+                title="Verify via ITR Portal"
+                onPress={handleItrInitiate}
+                loading={itrLoading}
+              />
+            )}
+
+            {/* Step 2: OTP entry */}
+            {itrStep === 'otp' && (
+              <>
+                <View style={{ backgroundColor: tealBg, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                  <Text style={{ color: colors.teal, fontSize: 13 }}>
+                    OTP sent to your ITR portal registered mobile number.
+                  </Text>
+                </View>
+                <Input
+                  label="Enter OTP"
+                  value={itrOtp}
+                  onChangeText={(t) => setItrOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
+                  placeholder="6-digit OTP"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+                <Button
+                  title="Submit OTP & Pull ITR"
+                  onPress={handleItrOtpSubmit}
+                  loading={itrLoading}
+                  disabled={itrOtp.length !== 6}
+                  style={{ marginTop: 12 }}
+                />
+              </>
+            )}
+
+            {/* Step 3: Pulling */}
+            {itrStep === 'pulling' && (
+              <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+                <Text style={{ color: colors.teal, fontWeight: '600', marginBottom: 4 }}>
+                  Pulling ITR & Form 26AS data...
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                  This may take up to 30 seconds. Please wait.
+                </Text>
+              </View>
+            )}
+
+            {/* Step 4: Done */}
+            {itrStep === 'done' && (
+              <View style={{ backgroundColor: tealBg, padding: 12, borderRadius: 8 }}>
+                <Text style={{ color: colors.teal, fontWeight: '600' }}>ITR data pulled successfully!</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+                  Your filed ITRs and Form 26AS TDS data have been saved with this application.
+                  The credit team will review them.
+                </Text>
+              </View>
+            )}
           </Card>
         )}
 

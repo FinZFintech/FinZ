@@ -25,6 +25,8 @@ const SIGNZY_VERIFICATION_LABELS = {
   phonePrefill: 'Phone Prefill',
   fraudShieldLite: 'FraudShield Lite',
   gstIncome: 'GST Income (PAN → GSTIN)',
+  itrPull: 'Income Tax Returns',
+  form26AS: 'Form 26AS (TDS)',
 };
 
 /**
@@ -871,7 +873,9 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
               {isSuccess && key === 'phonePrefill' && renderPhonePrefill(entry.result)}
               {isSuccess && key === 'fraudShieldLite' && renderFraudShield(entry.result)}
               {isSuccess && key === 'gstIncome' && renderGstIncome(entry.result)}
-              {isSuccess && !['employmentBasic', 'phonePrefill', 'fraudShieldLite', 'gstIncome'].includes(key) && (
+              {isSuccess && key === 'itrPull' && renderItrPull(entry.result)}
+              {isSuccess && key === 'form26AS' && renderForm26AS(entry.result)}
+              {isSuccess && !['employmentBasic', 'phonePrefill', 'fraudShieldLite', 'gstIncome', 'itrPull', 'form26AS'].includes(key) && (
                 <Text style={{ color: colors.textSecondary }}>
                   {JSON.stringify(entry.result, null, 2)}
                 </Text>
@@ -1401,6 +1405,125 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
             ))}
           </>
         ) : null}
+      </>
+    );
+  };
+
+  /**
+   * Structured render of ITR Pull result — one card per assessment year
+   * with headline income figures, ITR type, filing date, and a link to
+   * the PDF.
+   */
+  const renderItrPull = (result) => {
+    if (!result) return null;
+    const years = result.itrByYear || [];
+    if (years.length === 0) {
+      return <Text style={{ color: colors.textSecondary }}>No ITR data returned.</Text>;
+    }
+
+    const Row = ({ label, value }) => {
+      if (!value && value !== 0) return null;
+      return <InfoRow label={label} value={String(value)} />;
+    };
+
+    return (
+      <>
+        {years.map((yr, idx) => (
+          <View
+            key={yr.assessmentYear || idx}
+            style={{
+              paddingVertical: 10,
+              borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+              borderTopColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 15, marginBottom: 6 }}>
+              AY {yr.assessmentYear} — {yr.itrType || 'Unknown'}
+            </Text>
+            <Row label="Gross Total Income" value={yr.grossTotalIncome != null ? formatCurrency(yr.grossTotalIncome) : null} />
+            <Row label="Total Income" value={yr.totalIncome != null ? formatCurrency(yr.totalIncome) : null} />
+            <Row label="Tax Payable" value={yr.totalTaxPayable != null ? formatCurrency(yr.totalTaxPayable) : null} />
+            <Row label="Salary Income" value={yr.salaryIncome != null ? formatCurrency(yr.salaryIncome) : null} />
+            <Row label="House Property" value={yr.housePropertyIncome != null ? formatCurrency(yr.housePropertyIncome) : null} />
+            <Row label="Other Sources" value={yr.otherSourceIncome != null ? formatCurrency(yr.otherSourceIncome) : null} />
+            <Row label="Filing Date" value={yr.filingDate} />
+            <Row label="Section" value={yr.filingSection} />
+            {yr.pdfUrl ? (
+              <TouchableOpacity
+                onPress={() => Linking.openURL(yr.pdfUrl).catch(() => {})}
+                style={{ marginTop: 6 }}
+              >
+                <Text style={{ color: colors.teal, fontSize: 13 }}>View ITR PDF →</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ))}
+      </>
+    );
+  };
+
+  /**
+   * Structured render of Form 26AS TDS data.
+   */
+  const renderForm26AS = (result) => {
+    if (!result) return null;
+    const years = result.byYear || [];
+    if (years.length === 0) {
+      return <Text style={{ color: colors.textSecondary }}>No Form 26AS data returned.</Text>;
+    }
+
+    return (
+      <>
+        {years.map((yr, idx) => (
+          <View
+            key={yr.assessmentYear || idx}
+            style={{
+              paddingVertical: 10,
+              borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+              borderTopColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 15, marginBottom: 6 }}>
+              AY {yr.assessmentYear}
+            </Text>
+            <InfoRow label="Total Paid" value={formatCurrency(yr.totalAmountPaid)} />
+            <InfoRow label="Total Tax Deducted" value={formatCurrency(yr.totalTaxDeducted)} />
+            <InfoRow label="Total TDS Deposited" value={formatCurrency(yr.totalTdsDeposited)} />
+            {yr.deductors.length > 0 ? (
+              <InfoRow label="Deductors" value={yr.deductors.join(', ')} />
+            ) : null}
+
+            {yr.tdsEntries.length > 0 ? (
+              <>
+                <Text style={{ fontSize: 12, fontWeight: '600', marginTop: 8, marginBottom: 4, color: colors.textSecondary }}>
+                  TDS Entries ({yr.tdsEntries.length})
+                </Text>
+                {yr.tdsEntries.slice(0, 10).map((entry, eidx) => (
+                  <View
+                    key={eidx}
+                    style={{
+                      paddingVertical: 4,
+                      borderTopWidth: eidx === 0 ? 0 : StyleSheet.hairlineWidth,
+                      borderTopColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ color: colors.textPrimary, fontSize: 12 }}>
+                      {entry.nameOfDeductor} · §{entry.section} · {entry.transactionDate || ''}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+                      Paid: {formatCurrency(parseFloat(entry.amountPaid) || 0)} · TDS: {formatCurrency(parseFloat(entry.taxDeducted) || 0)}
+                    </Text>
+                  </View>
+                ))}
+                {yr.tdsEntries.length > 10 ? (
+                  <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }}>
+                    ... and {yr.tdsEntries.length - 10} more entries
+                  </Text>
+                ) : null}
+              </>
+            ) : null}
+          </View>
+        ))}
       </>
     );
   };

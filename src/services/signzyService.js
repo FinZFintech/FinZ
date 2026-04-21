@@ -996,6 +996,160 @@ export const signzyService = {
     };
   },
 
+  // ─── ITR (Income Tax Return) ─────────────────────────────────────────────
+
+  /**
+   * Step 1 — ITR Forget Password. Triggers an OTP to the user's
+   * registered mobile and returns a sessionId for the password-reset
+   * flow. The userName is normally the PAN.
+   */
+  async itrForgetPassword(userName, newPassword) {
+    console.log('[signzyService] itrForgetPassword → userName =', userName);
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.ITR_FORGET_PASSWORD, {
+      userName,
+      newPassword,
+    });
+    return {
+      sessionId: data.sessionId || '',
+      otpStatus: data.otpStatus ?? false,
+      statusCode: data.statusCode ?? 200,
+      message: data.message || '',
+      success: data.success ?? false,
+      rawResponse: data,
+    };
+  },
+
+  /**
+   * Step 2 — ITR Authorise New Password. Submits the OTP the user
+   * received, completing the password-reset flow and producing a
+   * session that can be used for ITR Pull / 26AS Pull.
+   */
+  async itrAuthoriseNewPassword(sessionId, otp) {
+    console.log('[signzyService] itrAuthoriseNewPassword → sessionId =', sessionId);
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.ITR_AUTHORISE_NEW_PASSWORD, {
+      sessionId,
+      otp,
+    });
+    return {
+      sessionId: data.sessionId || sessionId,
+      passwordResetStatus: data.passwordResetStatus ?? false,
+      statusCode: data.statusCode ?? 200,
+      message: data.message || '',
+      success: data.success ?? false,
+      rawResponse: data,
+    };
+  },
+
+  /**
+   * Step 3 — ITR Pull. Retrieves the last 3 years of filed ITRs
+   * including the JSON breakdown and PDF links. Pass either password
+   * or sessionId (from Step 2).
+   */
+  async itrPull({ username, password, sessionId }) {
+    console.log('[signzyService] itrPull → username =', username);
+    const body = { username };
+    if (sessionId) body.sessionId = sessionId;
+    if (password) body.password = password;
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.ITR_PULL, body);
+    const r = data?.result || {};
+
+    // Flatten the year-keyed object into an array for easier rendering.
+    const years = Object.keys(r)
+      .filter((k) => /^\d{4}-\d{2}$/.test(k))
+      .sort()
+      .reverse();
+
+    const itrByYear = years.map((year) => {
+      const entry = r[year] || {};
+      const itrObj = entry.json?.ITR || {};
+      const itrType = Object.keys(itrObj).find((k) => /^ITR\d$/.test(k)) || '';
+      const itrData = itrType ? itrObj[itrType] : {};
+
+      // Extract key income figures from the ITR JSON (varies by ITR type).
+      const incDed = itrData.ITR1_IncomeDeductions || {};
+      const taxComp = itrData.ITR1_TaxComputation || itrData['PartB-TI'] || itrData.PartB_TTI || {};
+      const personalInfo = itrData.PersonalInfo || itrData.PartA_GEN1 || {};
+      const filingStatus = itrData.FilingStatus || {};
+
+      return {
+        assessmentYear: year,
+        itrType,
+        pdfUrl: entry.form || '',
+        // Headline income numbers (ITR1 uses different keys than ITR3/4)
+        grossTotalIncome:
+          taxComp.GrossTotIncome ||
+          taxComp.TotalIncome ||
+          incDed.GrossTotIncome ||
+          null,
+        totalIncome:
+          taxComp.TotalIncome ||
+          taxComp.NetTaxLiability ||
+          incDed.TotalIncome ||
+          null,
+        totalTaxPayable: taxComp.TotalTaxPayable || taxComp.NetTaxLiability || null,
+        salaryIncome: incDed.IncomeFromSal || incDed.Salary || null,
+        housePropertyIncome: incDed.IncomeFromHP || null,
+        otherSourceIncome: incDed.IncomeOthSrc || null,
+        filingDate: filingStatus.ReturnFiledDate || filingStatus.filingDate || '',
+        filingSection: filingStatus.ReturnFileSec || '',
+        name:
+          personalInfo?.AssesseeName?.SurNameOrOrgName ||
+          personalInfo?.AssesseeName?.FirstName ||
+          '',
+        rawJson: itrData,
+      };
+    });
+
+    return {
+      username: data.username || username,
+      years,
+      itrByYear,
+      rawResponse: data,
+    };
+  },
+
+  /**
+   * Step 4 — Form 26AS Pull. Pulls TDS / TCS data for up to the
+   * last 7 years. Uses the same session from Step 2.
+   */
+  async form26ASPull({ username, password, sessionId, range = 3 }) {
+    console.log('[signzyService] form26ASPull → username =', username, ', range =', range);
+    const body = { username, range };
+    if (sessionId) body.sessionId = sessionId;
+    if (password) body.password = password;
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.FORM_26AS_PULL, body);
+    const resultArr = Array.isArray(data?.result) ? data.result : [];
+
+    const byYear = resultArr.map((yearEntry) => {
+      const tds = Array.isArray(yearEntry.tdsData) ? yearEntry.tdsData : [];
+      const totalPaid = tds.reduce((s, r) => s + (parseFloat(r.totalAmountPaid) || 0), 0);
+      const totalDeducted = tds.reduce((s, r) => s + (parseFloat(r.totalTaxDeducted) || 0), 0);
+      const totalDeposited = tds.reduce((s, r) => s + (parseFloat(r.totalTdsDeposited) || 0), 0);
+
+      // Unique deductors (employers / payers) in this AY.
+      const deductors = [...new Set(tds.map((r) => r.nameOfDeductor).filter(Boolean))];
+
+      return {
+        assessmentYear: yearEntry.assessmentYear || '',
+        tdsEntries: tds,
+        deductors,
+        totalAmountPaid: totalPaid,
+        totalTaxDeducted: totalDeducted,
+        totalTdsDeposited: totalDeposited,
+      };
+    });
+
+    return {
+      username: data.username || username,
+      sessionId: data.sessionId || sessionId || '',
+      range,
+      byYear,
+      rawResponse: data,
+    };
+  },
+
   // ─── Address ────────────────────────────────────────────────────────────
 
   async geocodeAddress(address, latitude, longitude) {
