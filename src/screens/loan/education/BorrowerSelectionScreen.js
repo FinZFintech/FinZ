@@ -57,6 +57,14 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const [emailVerifying, setEmailVerifying] = useState(false);
   const [emailVerification, setEmailVerification] = useState(null);
 
+  // Phone-prefill state — data pulled from Signzy after phone OTP verification
+  const [prefillLoading, setPrefillLoading] = useState(false);
+  const [prefillDone, setPrefillDone] = useState(false);
+  const [prefillSource, setPrefillSource] = useState({}); // { name, email, dob, pan, address }
+  const [borrowerDob, setBorrowerDob] = useState('');
+  const [borrowerPan, setBorrowerPan] = useState('');
+  const [borrowerAddress, setBorrowerAddress] = useState('');
+
   const DEFAULT_LOAN_PRODUCTS = [
     {
       id: 'default_emi',
@@ -114,7 +122,14 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     setBorrowerType('self');
     setBorrowerName(student?.studentName || user?.name || '');
     setBorrowerPhone(student?.phone || user?.phone || '');
-    setBorrowerEmail(student?.email || user?.email || '');
+    setBorrowerEmail('');
+    setBorrowerDob('');
+    setBorrowerPan('');
+    setBorrowerAddress('');
+    setPhoneVerified(false);
+    setPrefillDone(false);
+    setPrefillSource({});
+    setEmailVerification(null);
   };
 
   const handleParentBorrower = () => {
@@ -122,6 +137,13 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     setBorrowerName(student?.fatherName || '');
     setBorrowerPhone('');
     setBorrowerEmail('');
+    setBorrowerDob('');
+    setBorrowerPan('');
+    setBorrowerAddress('');
+    setPhoneVerified(false);
+    setPrefillDone(false);
+    setPrefillSource({});
+    setEmailVerification(null);
   };
 
   const handleVerifyPhone = async () => {
@@ -161,6 +183,9 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       setPhoneVerified(true);
       setShowOtp(false);
       setOtpError('');
+
+      // Trigger phone-prefill to auto-fill borrower details
+      runPhonePrefillAfterOtp();
     } catch (err) {
       const msg = err.message || '';
       setOtp('');
@@ -175,6 +200,121 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       } else {
         setOtpError('Incorrect OTP. Please check and re-enter.');
       }
+    }
+  };
+
+  /**
+   * After phone OTP is verified, run Signzy phone-prefill to auto-fill
+   * name, email, DOB, PAN, and primary address. Also auto-verifies
+   * the prefilled email so the user doesn't have to tap "Verify Email"
+   * manually. Fields are only prefilled when the form field is currently
+   * empty — so values the user already typed are never overwritten.
+   */
+  const runPhonePrefillAfterOtp = async () => {
+    // Need at least a first name for the API — use what's already in
+    // the form, or the student's name, or the logged-in user's name.
+    const currentName = borrowerName || student?.studentName || user?.name || '';
+    const parts = currentName.trim().split(/\s+/);
+    const firstName = parts[0] || '';
+    if (!firstName) {
+      console.log('[BorrowerSelection] Skipping prefill — no first name available');
+      return;
+    }
+
+    setPrefillLoading(true);
+    try {
+      const result = await signzyService.phonePrefill(
+        borrowerPhone,
+        firstName,
+        parts.length > 1 ? parts[parts.length - 1] : '',
+        '', // PAN unknown at this point
+      );
+
+      // Store in signzyVerifications for staff view
+      dispatch({
+        type: 'SET_SIGNZY_VERIFICATION',
+        payload: { key: 'phonePrefill', status: 'success', result },
+      });
+
+      const sources = {};
+
+      // Prefill name if empty
+      const prefillName = result.name?.fullName?.trim() || '';
+      if (prefillName && !borrowerName.trim()) {
+        setBorrowerName(prefillName);
+        sources.name = true;
+      }
+
+      // Prefill email if empty
+      const prefillEmail = result.primaryEmail || '';
+      if (prefillEmail && !borrowerEmail.trim()) {
+        setBorrowerEmail(prefillEmail);
+        sources.email = true;
+        // Auto-verify the prefilled email
+        autoVerifyEmail(prefillEmail);
+      }
+
+      // Prefill DOB
+      const prefillDob = result.dob || '';
+      if (prefillDob && !borrowerDob) {
+        setBorrowerDob(prefillDob);
+        sources.dob = true;
+      }
+
+      // Prefill PAN
+      const prefillPan = result.pan || '';
+      if (prefillPan && !borrowerPan) {
+        setBorrowerPan(prefillPan);
+        sources.pan = true;
+      }
+
+      // Prefill primary address
+      const pa = result.primaryAddress;
+      if (pa?.address && !borrowerAddress.trim()) {
+        const addrStr = [pa.address, pa.state, pa.postal].filter(Boolean).join(', ');
+        setBorrowerAddress(addrStr);
+        sources.address = true;
+      }
+
+      setPrefillSource(sources);
+      setPrefillDone(true);
+      console.log('[BorrowerSelection] Prefill applied:', Object.keys(sources).join(', ') || 'nothing new');
+    } catch (err) {
+      console.log('[BorrowerSelection] Phone prefill failed:', err?.message);
+      // Non-blocking — user can fill fields manually
+      dispatch({
+        type: 'SET_SIGNZY_VERIFICATION',
+        payload: {
+          key: 'phonePrefill',
+          status: 'failure',
+          error: { message: err?.message || 'Phone prefill failed' },
+        },
+      });
+    } finally {
+      setPrefillLoading(false);
+    }
+  };
+
+  /**
+   * Auto-verify an email address without user interaction.
+   * Called when email is prefilled from phone-prefill so the user
+   * doesn't have to manually tap "Verify Email".
+   */
+  const autoVerifyEmail = async (email) => {
+    if (!email || !validateEmail(email)) return;
+    setEmailVerifying(true);
+    try {
+      const result = await signzyService.verifyEmail(email);
+      setEmailVerification(result);
+      if (result.isRisky) {
+        console.log('[BorrowerSelection] Auto-verified email is risky:', email, result.status);
+      } else {
+        console.log('[BorrowerSelection] Auto-verified email ok:', email);
+      }
+    } catch {
+      console.log('[BorrowerSelection] Email auto-verify failed for:', email);
+    } finally {
+      setEmailVerifying(false);
     }
   };
 
@@ -264,8 +404,12 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         name: borrowerName,
         phone: borrowerPhone,
         email: borrowerEmail,
+        dob: borrowerDob,
+        pan: borrowerPan,
+        address: borrowerAddress,
         phoneVerified,
         emailVerification: emailVerification || null,
+        prefillSource,
       },
     });
     dispatch({ type: 'SET_PRODUCT', payload: selectedProduct });
@@ -315,17 +459,12 @@ const BorrowerSelectionScreen = ({ navigation }) => {
           </View>
         </Card>
 
-        {/* Borrower Details */}
+        {/* Step 1: Mobile verification */}
         {borrowerType && (
           <Card>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Borrower Details</Text>
-            <Input
-              label="Borrower Name"
-              value={borrowerName}
-              onChangeText={setBorrowerName}
-              placeholder="Enter full name as per PAN"
-              autoCapitalize="words"
-            />
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+              Verify Mobile Number
+            </Text>
             <Input
               label="Mobile Number"
               value={borrowerPhone}
@@ -335,6 +474,8 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 setOtpSendCount(0);
                 setResendCooldown(0);
                 setOtpError('');
+                setPrefillDone(false);
+                setPrefillSource({});
                 if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
               }}
               placeholder="Enter 10-digit mobile number"
@@ -391,8 +532,55 @@ const BorrowerSelectionScreen = ({ navigation }) => {
             {phoneVerified && (
               <Text style={styles.verifiedText}>✓ Phone Verified</Text>
             )}
+          </Card>
+        )}
+
+        {/* Prefill loading indicator */}
+        {phoneVerified && prefillLoading && (
+          <Card>
+            <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+              <Text style={{ color: colors.teal, fontWeight: '600' }}>Fetching your details...</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+                We are pulling your records from verified sources to pre-fill the form.
+              </Text>
+            </View>
+          </Card>
+        )}
+
+        {/* Step 2: Borrower details (shown after phone verified, may be prefilled) */}
+        {borrowerType && phoneVerified && !prefillLoading && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Borrower Details</Text>
+            {prefillDone && Object.keys(prefillSource).length > 0 && (
+              <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ color: colors.teal, fontSize: 12 }}>
+                  Fields marked with ★ were auto-filled from verified records. You can edit them if incorrect.
+                </Text>
+              </View>
+            )}
             <Input
-              label="Email"
+              label={`Borrower Name${prefillSource.name ? ' ★' : ''}`}
+              value={borrowerName}
+              onChangeText={setBorrowerName}
+              placeholder="Enter full name as per PAN"
+              autoCapitalize="words"
+            />
+            <Input
+              label={`Date of Birth${prefillSource.dob ? ' ★' : ''}`}
+              value={borrowerDob}
+              onChangeText={setBorrowerDob}
+              placeholder="YYYY-MM-DD"
+            />
+            <Input
+              label={`PAN Number${prefillSource.pan ? ' ★' : ''}`}
+              value={borrowerPan}
+              onChangeText={(t) => setBorrowerPan(t.toUpperCase().slice(0, 10))}
+              placeholder="e.g. ABCDE1234F"
+              autoCapitalize="characters"
+              maxLength={10}
+            />
+            <Input
+              label={`Email${prefillSource.email ? ' ★' : ''}`}
               value={borrowerEmail}
               onChangeText={(t) => {
                 setBorrowerEmail(t);
@@ -401,17 +589,21 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               placeholder="Enter email address"
               keyboardType="email-address"
             />
-            {borrowerEmail.length > 0 && !emailVerification && (
+            {borrowerEmail.length > 0 && !emailVerification && !emailVerifying && (
               <Button
-                title={emailVerifying ? 'Verifying...' : 'Verify Email'}
+                title="Verify Email"
                 onPress={handleVerifyEmail}
                 variant="outline"
-                disabled={emailVerifying}
                 style={styles.verifyBtn}
               />
             )}
+            {emailVerifying && (
+              <Text style={{ color: colors.teal, fontSize: 12, marginTop: 4, marginBottom: 8 }}>
+                Verifying email...
+              </Text>
+            )}
             {emailVerification && !emailVerification.isRisky && (
-              <Text style={styles.verifiedText}>✓ Email passes verification (not risky)</Text>
+              <Text style={styles.verifiedText}>✓ Email verified</Text>
             )}
             {emailVerification?.isRisky && (
               <Text style={styles.riskyEmailText}>
@@ -421,11 +613,18 @@ const BorrowerSelectionScreen = ({ navigation }) => {
             {emailVerification && !emailVerification.isRisky && emailVerification.freeEmail && (
               <Text style={styles.emailWarningText}>Free email provider detected</Text>
             )}
+            <Input
+              label={`Address${prefillSource.address ? ' ★' : ''}`}
+              value={borrowerAddress}
+              onChangeText={setBorrowerAddress}
+              placeholder="Enter current address"
+              multiline
+            />
           </Card>
         )}
 
-        {/* Loan Products — only after phone + email verification */}
-        {borrowerType && phoneVerified && borrowerEmail && emailVerification && !emailVerification.isRisky && (
+        {/* Loan Products — shown after phone verified + borrower name filled + email verified */}
+        {borrowerType && phoneVerified && !prefillLoading && borrowerName.trim() && borrowerEmail && emailVerification && !emailVerification.isRisky && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Loan Product</Text>
             {products.map((product) => (
