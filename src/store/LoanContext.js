@@ -406,15 +406,22 @@ async function loadAllApplications() {
       await AsyncStorage.removeItem(STORAGE_KEY);
     }
 
-    // Auto-discard expired, rejected, and terminal applications
+    // Only discard apps older than AUTO_DISCARD_DAYS — keep everything
+    // else (including terminal and rejected apps) so admin / credit /
+    // sales dashboards can see the full pipeline when they read from
+    // the same AsyncStorage key via loadRealApplications().
+    const before = apps.length;
     apps = apps.filter((a) => {
-      if (isExpired(a)) { console.log('[LoanContext] Auto-discarded expired:', a.applicationId); return false; }
-      if (TERMINAL_STATUSES.has(a.status)) return false;
-      if (REJECTED_STATUSES.has(a.status)) return false;
+      if (isExpired(a)) {
+        console.log('[LoanContext] Auto-discarded expired:', a.applicationId);
+        return false;
+      }
       return true;
     });
 
-    await AsyncStorage.setItem(MULTI_STORAGE_KEY, JSON.stringify(apps));
+    if (apps.length !== before) {
+      await AsyncStorage.setItem(MULTI_STORAGE_KEY, JSON.stringify(apps));
+    }
     console.log('[LoanContext] Loaded', apps.length, 'application(s)');
     return apps;
   } catch (err) {
@@ -425,12 +432,10 @@ async function loadAllApplications() {
 
 async function saveApplicationToList(state) {
   try {
-    if (!state.status || !state.applicationId) return;
-    if (TERMINAL_STATUSES.has(state.status)) {
-      // Remove terminal apps from draft list
-      await removeApplicationFromList(state.applicationId);
-      return;
-    }
+    if (!state.applicationId) return;
+    // Always persist — even terminal and rejected apps — so admin /
+    // credit / sales dashboards can see the full pipeline. The customer
+    // flow only restores resumable apps (filtered in the Provider).
     const raw = await AsyncStorage.getItem(MULTI_STORAGE_KEY);
     let apps = raw ? JSON.parse(raw) : [];
     // Auto-discard expired
@@ -467,16 +472,27 @@ export const LoanProvider = ({ children }) => {
   const [hasSavedApplication, setHasSavedApplication] = useState(false);
   const [savedApplications, setSavedApplications] = useState([]); // All persisted draft apps
 
-  // Load all saved applications on mount, restore the most recent one as active
+  // Load all saved applications on mount, restore the most recent
+  // *resumable* one as active (terminal / rejected are kept in the
+  // list for admin dashboards but not auto-restored for the customer).
   useEffect(() => {
     (async () => {
       const apps = await loadAllApplications();
       setSavedApplications(apps);
-      if (apps.length > 0) {
-        // Restore the most recently updated application as active
-        const sorted = [...apps].sort((a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0));
+
+      // Pick only apps the customer can resume
+      const resumable = apps.filter(
+        (a) => !TERMINAL_STATUSES.has(a.status) && !REJECTED_STATUSES.has(a.status),
+      );
+
+      if (resumable.length > 0) {
+        const sorted = [...resumable].sort(
+          (a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0),
+        );
         rawDispatch({ type: 'RESTORE', payload: sorted[0] });
         setHasSavedApplication(true);
+      } else {
+        setHasSavedApplication(apps.length > 0);
       }
       setIsLoaded(true);
     })();
@@ -485,7 +501,7 @@ export const LoanProvider = ({ children }) => {
   // Auto-save current application on every state change
   useEffect(() => {
     if (!isLoaded) return;
-    if (state.status && state.applicationId) {
+    if (state.applicationId) {
       saveApplicationToList(state);
       setHasSavedApplication(true);
       // Update local list cache
