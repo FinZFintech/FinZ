@@ -14,11 +14,24 @@ const MULTI_STORAGE_KEY = 'finz_loan_applications';
 export async function loadRealApplications() {
   try {
     const raw = await AsyncStorage.getItem(MULTI_STORAGE_KEY);
+    console.log(
+      '[loadRealApplications] AsyncStorage raw:',
+      raw ? `${raw.length} chars` : 'null (no data)',
+    );
     if (!raw) return [];
     const apps = JSON.parse(raw);
-    if (!Array.isArray(apps)) return [];
+    if (!Array.isArray(apps)) {
+      console.log('[loadRealApplications] Parsed value is not an array:', typeof apps);
+      return [];
+    }
+    console.log(
+      '[loadRealApplications] Found',
+      apps.length,
+      'app(s):',
+      apps.map((a) => `${a.applicationId} (${a.status})`).join(', '),
+    );
 
-    return apps
+    const transformed = apps
       .filter((a) => a && a.applicationId)
       .map((a) => ({
         // ── Fields the dashboard cards render ──
@@ -112,6 +125,13 @@ export async function loadRealApplications() {
         _rawState: a,
       }))
       .sort((a, b) => (b.lastUpdated || '').localeCompare(a.lastUpdated || ''));
+
+    console.log(
+      '[loadRealApplications] Returning',
+      transformed.length,
+      'transformed app(s)',
+    );
+    return transformed;
   } catch (err) {
     console.log('[loadRealApplications] Failed:', err?.message);
     return [];

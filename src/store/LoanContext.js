@@ -446,8 +446,15 @@ async function saveApplicationToList(state) {
     } else {
       apps.push(state);
     }
-    await AsyncStorage.setItem(MULTI_STORAGE_KEY, JSON.stringify(apps));
-    console.log('[LoanContext] Saved application:', state.applicationId, '→', state.status, `(${apps.length} total)`);
+    const serialized = JSON.stringify(apps);
+    await AsyncStorage.setItem(MULTI_STORAGE_KEY, serialized);
+    console.log(
+      '[LoanContext] Saved application:',
+      state.applicationId, '→', state.status,
+      `(${apps.length} total, ${serialized.length} bytes)`,
+      'hasSignzy:', !!state.signzyVerifications && Object.keys(state.signzyVerifications).length > 0,
+      'hasKycData:', !!state.kycData,
+    );
   } catch (err) {
     console.log('[LoanContext] Failed to save application:', err.message);
   }

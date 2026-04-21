@@ -62,7 +62,9 @@ const CreditDashboardScreen = ({ navigation }) => {
 
   const loadApplications = useCallback(async () => {
     const realApps = await loadRealApplications();
+    console.log('[CreditDashboard] Real apps loaded:', realApps.length);
     const allApps = mergeWithMocks(realApps, MOCK_CREDIT_APPS);
+    console.log('[CreditDashboard] Total apps after merge:', allApps.length);
     setApplications(allApps);
   }, []);
 
