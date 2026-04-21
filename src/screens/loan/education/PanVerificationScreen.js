@@ -9,6 +9,7 @@ import InfoRow from '../../../components/common/InfoRow';
 import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
+import { signzyService } from '../../../services/signzyService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { maskPan, validatePan } from '../../../utils/helpers';
@@ -186,6 +187,12 @@ const PanVerificationScreen = ({ navigation }) => {
       });
       setLoading(false);
       runCreditCheck(pan);
+
+      // Background Signzy phone-prefill — pulls alternate phones, emails,
+      // address history and identity documents for the applicant so
+      // credit / admin can audit the footprint, and the KYC screen can
+      // prefill the communication address. Fire-and-forget.
+      runPhonePrefill(pan, result.firstName || '', result.lastName || '');
     } catch (err) {
       let errorMsg = 'Verification failed. Please try again.';
       if (err?.message) {
@@ -256,6 +263,64 @@ const PanVerificationScreen = ({ navigation }) => {
     dispatch({ type: 'SET_STATUS', payload: 'pan_verified' });
     dispatch({ type: 'SET_STEP', payload: 2 });
     feedCreditBureauData(mockCreditResult);
+  };
+
+  /**
+   * Background Signzy phone-prefill. Non-blocking — stores the result
+   * (or the failure reason) under state.signzyVerifications.phonePrefill
+   * so it shows up on the staff Verifications tab and is available to
+   * the KYC screen for address prefill.
+   */
+  const runPhonePrefill = async (panNumber, firstNameFromPan, lastNameFromPan) => {
+    const phone = state.borrowerDetails?.phone || '';
+    if (!phone) {
+      console.log('[PanVerification] Skipping phone-prefill — no phone on file');
+      return;
+    }
+
+    // Prefer the verified PAN-fetch name (most authoritative); fall back
+    // to the borrower's self-declared name.
+    const fullName = state.borrowerDetails?.name || '';
+    const parts = fullName.trim().split(/\s+/);
+    const firstName = (firstNameFromPan || parts[0] || '').trim();
+    const lastName = (lastNameFromPan || (parts.length > 1 ? parts[parts.length - 1] : '') || '').trim();
+
+    if (!firstName) {
+      console.log('[PanVerification] Skipping phone-prefill — no first name');
+      return;
+    }
+
+    console.log('[PanVerification] phone-prefill →', phone, firstName, lastName || '(no lastName)');
+    try {
+      const result = await signzyService.phonePrefill(phone, firstName, lastName, panNumber);
+      dispatch({
+        type: 'SET_SIGNZY_VERIFICATION',
+        payload: { key: 'phonePrefill', status: 'success', result },
+      });
+      console.log(
+        '[PanVerification] phone-prefill ok →',
+        result.addresses?.length || 0,
+        'addresses,',
+        result.alternatePhones?.length || 0,
+        'phones,',
+        result.emails?.length || 0,
+        'emails',
+      );
+    } catch (err) {
+      console.log('[PanVerification] phone-prefill failed:', err?.message);
+      dispatch({
+        type: 'SET_SIGNZY_VERIFICATION',
+        payload: {
+          key: 'phonePrefill',
+          status: 'failure',
+          error: {
+            message: err?.message || 'Unknown error',
+            statusCode: err?.statusCode ?? err?.response?.status ?? null,
+            raw: err?.signzyError || err?.response?.data || null,
+          },
+        },
+      });
+    }
   };
 
   return (

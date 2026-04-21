@@ -229,6 +229,11 @@ const initialState = {
   // see what was tried, why it failed, and what the gateway returned.
   // Each entry: { method, stage, reason, statusCode?, errorCode?, raw?, at }
   kycFailures: [],
+  // Signzy verification results (employment / phone intel / email / etc.).
+  // Keyed by verification type so more APIs can slot in alongside the
+  // existing employmentBasic entry without schema changes.
+  // Each entry: { status: 'success'|'failure', result?, error?, fetchedAt }
+  signzyVerifications: {},
   addressCorrection: null,   // { address, city, state, pincode, proofUri, proofName, status: 'pending'|'approved'|'rejected' }
   selfieData: null,
   bankDetails: null,
@@ -298,6 +303,24 @@ const loanReducer = (state, action) => {
       break;
     case 'CLEAR_KYC_FAILURES':
       next = { ...state, kycFailures: [] };
+      break;
+    case 'SET_SIGNZY_VERIFICATION':
+      // payload: { key, status, result?, error?, fetchedAt? }
+      next = {
+        ...state,
+        signzyVerifications: {
+          ...(state.signzyVerifications || {}),
+          [action.payload.key]: {
+            status: action.payload.status,
+            result: action.payload.result ?? null,
+            error: action.payload.error ?? null,
+            fetchedAt: action.payload.fetchedAt || new Date().toISOString(),
+          },
+        },
+      };
+      break;
+    case 'CLEAR_SIGNZY_VERIFICATIONS':
+      next = { ...state, signzyVerifications: {} };
       break;
     case 'SET_ADDRESS_CORRECTION':
       next = { ...state, addressCorrection: action.payload };
