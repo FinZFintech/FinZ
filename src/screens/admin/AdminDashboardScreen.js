@@ -267,7 +267,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             <InfoRow label="Institute" value={app.instituteName} />
             <InfoRow label="Amount" value={formatCurrency(app.amount)} />
             <InfoRow label="Applied" value={formatDate(app.appliedDate)} />
-            <InfoRow label="Assigned To" value={app.assignedTo.charAt(0).toUpperCase() + app.assignedTo.slice(1)} />
+            <InfoRow label="Assigned To" value={(app.assignedTo || 'Unassigned').charAt(0).toUpperCase() + (app.assignedTo || 'unassigned').slice(1)} />
 
             {(app.creditScore || app.riskScore) && (
               <View style={styles.scoreRow}>
