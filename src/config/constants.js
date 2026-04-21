@@ -51,6 +51,7 @@ export const SIGNZY_CONFIG = {
     PHONE_INTELLIGENCE: '/phone-intelligence',
     WHATSAPP_PRESENCE: '/whatsapp-presence',
     DIGITAL_IDENTITY_SCORE: '/digital-identity-score',
+    FRAUDSHIELD_LITE: '/fraudshield-advanced-score',
 
     // Banking (Hybrid Bank Account Verification — penny drop / penniless)
     BANK_ACCOUNT_VERIFICATION: '/bankaccountverification/bankaccountverifications',
@@ -60,6 +61,10 @@ export const SIGNZY_CONFIG = {
     EMPLOYMENT_VERIFICATION: '/employmentVerification',
     ADVANCED_EMPLOYMENT: '/advancedEmploymentVerification',
     EMPLOYMENT_CURRENT_EMPLOYER: '/employment-verification/current-employer',
+
+    // GST
+    PAN_TO_GSTN: '/gst/panToGstnDetail',
+    GSTN_DETAILED: '/gstn/gstndetailed',
 
     // Address
     ADDRESS_GEOCODE: '/addressGeocode',
