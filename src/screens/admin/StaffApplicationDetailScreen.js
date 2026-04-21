@@ -23,6 +23,7 @@ const TABS = ['Details', 'Documents', 'Verifications', 'Comments', 'Communicatio
 const SIGNZY_VERIFICATION_LABELS = {
   employmentBasic: 'Employment (UAN Basic)',
   phonePrefill: 'Phone Prefill',
+  fraudShieldLite: 'FraudShield Lite',
 };
 
 /**
@@ -867,7 +868,8 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
               {/* Success body: type-specific rendering */}
               {isSuccess && key === 'employmentBasic' && renderEmploymentBasic(entry.result)}
               {isSuccess && key === 'phonePrefill' && renderPhonePrefill(entry.result)}
-              {isSuccess && key !== 'employmentBasic' && key !== 'phonePrefill' && (
+              {isSuccess && key === 'fraudShieldLite' && renderFraudShield(entry.result)}
+              {isSuccess && !['employmentBasic', 'phonePrefill', 'fraudShieldLite'].includes(key) && (
                 <Text style={{ color: colors.textSecondary }}>
                   {JSON.stringify(entry.result, null, 2)}
                 </Text>
@@ -1103,6 +1105,135 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
             {drivingLicenses.map((dl, idx) => (
               <InfoRow key={`dl-${idx}`} label={drivingLicenses.length > 1 ? `Driving License ${idx + 1}` : 'Driving License'} value={dl} />
             ))}
+          </>
+        ) : null}
+      </>
+    );
+  };
+
+  /**
+   * Structured render of a FraudShield Lite result.
+   * Organizes the response into headline trust score, then collapsible
+   * sections for cybercrime, digital identity, finance, phone, email,
+   * pincode and IP blacklist.
+   */
+  const renderFraudShield = (result) => {
+    if (!result) return null;
+    const ts = result.trustScore || {};
+    const cc = result.cyberCrimeCheck || {};
+    const di = result.digitalIdentity || {};
+    const fi = result.financeDetails || {};
+    const ph = result.phoneDetails || {};
+    const em = result.emailDetails || {};
+    const pc = result.pincodeDetails || {};
+    const ip = result.ipBlacklist || {};
+
+    const scoreColor =
+      ts.score > 750 ? colors.teal
+        : ts.score > 500 ? colors.teal
+          : ts.score > 300 ? colors.warning
+            : colors.error;
+
+    const SectionHeader = ({ title, impact }) => (
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, marginBottom: 6 }}>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>{title}</Text>
+        {impact ? <Text style={{ fontSize: 11, color: colors.textSecondary }}>{impact}</Text> : null}
+      </View>
+    );
+
+    const Row = ({ label, value }) => {
+      if (!value && value !== 0) return null;
+      return <InfoRow label={label} value={String(value)} />;
+    };
+
+    return (
+      <>
+        {/* Headline trust score */}
+        <View style={{ alignItems: 'center', marginBottom: 12 }}>
+          <Text style={{ fontSize: 40, fontWeight: '800', color: scoreColor }}>
+            {ts.score || '—'}
+          </Text>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: scoreColor, marginTop: 2 }}>
+            {ts.riskCategory || 'Unknown'}
+          </Text>
+          {ts.nameMatch ? (
+            <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 4 }}>
+              Name match: {ts.nameMatch}
+            </Text>
+          ) : null}
+        </View>
+
+        {/* Cybercrime */}
+        <SectionHeader title="Cybercrime Check" impact={cc.impact} />
+        <Row label="Phone Flagged" value={cc.phoneNumber} />
+        <Row label="Email Flagged" value={cc.email} />
+
+        {/* Digital Identity */}
+        <SectionHeader title="Digital Identity" impact={di.impact} />
+        <Row label="Digital Identity Score" value={di.score} />
+        <Row label="Digital Footprint" value={di.digitalFootprint} />
+        <Row label="E-commerce" value={di.ecomFootprint} />
+        <Row label="Social" value={di.socialFootprint} />
+        <Row label="Travel" value={di.travelFootprint} />
+        <Row label="Fintech Count" value={di.fintechCount} />
+        <Row label="Age Band" value={di.ageBand} />
+        <Row label="Gender" value={di.gender} />
+        <Row label="First Name Match" value={di.firstNameMatch} />
+        <Row label="Last Name Match" value={di.lastNameMatch} />
+        <Row label="Phone First Seen" value={di.phoneFirstSeenYear} />
+        <Row label="Email First Seen" value={di.emailFirstSeenYear} />
+        <Row label="Phone↔Email Match" value={di.phoneEmailMatch} />
+        <Row label="Same Phone-Name Count" value={di.samePhoneNameCount} />
+        <Row label="Different Phone-Name Count" value={di.differentPhoneNameCount} />
+
+        {/* Finance */}
+        <SectionHeader title="Finance Details" impact={fi.impact} />
+        <Row label="DMAT Account" value={fi.dmatAccount} />
+        <Row label="Mutual Fund" value={fi.hasMutualFund} />
+        <Row label="Credit Card" value={fi.hasCreditCard} />
+        <Row label="Occupation" value={fi.occupation} />
+        <Row label="Business Owner" value={fi.businessOwner} />
+
+        {/* Phone */}
+        <SectionHeader title="Phone Details" impact={ph.impact} />
+        <Row label="Customer Name" value={ph.customerName} />
+        <Row label="Connection Type" value={ph.connectionType} />
+        <Row label="Current Provider" value={ph.currentServiceProvider} />
+        <Row label="Original Provider" value={ph.originalServiceProvider} />
+        <Row label="Ported" value={ph.isPorted} />
+        <Row label="Deactivated Days" value={ph.phoneDeactivatedDays} />
+        <Row label="Deactivation Count" value={ph.phoneDeactivationCount} />
+
+        {/* Email */}
+        <SectionHeader title="Email Details" impact={em.impact} />
+        <Row label="Status" value={em.status} />
+        <Row label="Free Email" value={em.freeEmail} />
+        <Row label="Sub Status" value={em.subStatus} />
+        <Row label="Domain" value={em.domain} />
+        <Row label="Domain Age (days)" value={em.domainAgeDays} />
+        {em.emailBreach.length > 0 ? (
+          <Row label="Breaches" value={em.emailBreach.length + ' breach(es) found'} />
+        ) : null}
+
+        {/* Pincode */}
+        <SectionHeader title="Pincode" impact={pc.impact} />
+        <Row label="Blacklisted" value={pc.blacklisted} />
+        <Row label="Phone-Pincode Match" value={pc.phonePincodeMatchCount} />
+        <Row label="Email-Pincode Match" value={pc.emailPincodeMatchCount} />
+
+        {/* IP Blacklist */}
+        {ip.impact ? (
+          <>
+            <SectionHeader title="IP Blacklist" impact={ip.impact} />
+            <Row label="Tor" value={ip.isTor} />
+            <Row label="VPN" value={ip.isVpn} />
+            <Row label="Proxy" value={ip.isProxy} />
+            <Row label="Bot" value={ip.isBot} />
+            <Row label="Malware" value={ip.isMalware} />
+            <Row label="Spyware" value={ip.isSpyware} />
+            <Row label="Listed" value={ip.isListed} />
+            <Row label="Lists Count" value={ip.listCount} />
+            {ip.city ? <Row label="IP Location" value={`${ip.city}, ${ip.region || ''} ${ip.country || ''}`} /> : null}
           </>
         ) : null}
       </>

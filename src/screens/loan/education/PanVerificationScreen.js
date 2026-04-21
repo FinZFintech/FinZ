@@ -188,11 +188,12 @@ const PanVerificationScreen = ({ navigation }) => {
       setLoading(false);
       runCreditCheck(pan);
 
-      // Background Signzy phone-prefill — pulls alternate phones, emails,
-      // address history and identity documents for the applicant so
-      // credit / admin can audit the footprint, and the KYC screen can
-      // prefill the communication address. Fire-and-forget.
+      // Background Signzy phone-prefill + FraudShield — pull applicant
+      // footprint and fraud-risk score. Fire-and-forget. Both run
+      // concurrently via Promise.allSettled so one failure doesn't block
+      // the other.
       runPhonePrefill(pan, result.firstName || '', result.lastName || '');
+      runFraudShield();
     } catch (err) {
       let errorMsg = 'Verification failed. Please try again.';
       if (err?.message) {
@@ -263,6 +264,55 @@ const PanVerificationScreen = ({ navigation }) => {
     dispatch({ type: 'SET_STATUS', payload: 'pan_verified' });
     dispatch({ type: 'SET_STEP', payload: 2 });
     feedCreditBureauData(mockCreditResult);
+  };
+
+  /**
+   * Background FraudShield Lite check. Non-blocking — stores the trust
+   * score / risk category and the full breakdown under
+   * state.signzyVerifications.fraudShieldLite so credit / admin can
+   * review the fraud-risk profile from the staff view.
+   */
+  const runFraudShield = async () => {
+    const phone = state.borrowerDetails?.phone || '';
+    const name = state.borrowerDetails?.name || '';
+    const email = state.borrowerDetails?.email || '';
+    if (!phone || !name) {
+      console.log('[PanVerification] Skipping FraudShield — no phone/name');
+      return;
+    }
+
+    console.log('[PanVerification] FraudShield Lite →', phone);
+    try {
+      const result = await signzyService.fraudShieldLite({
+        phoneNumber: phone,
+        name,
+        email,
+      });
+      dispatch({
+        type: 'SET_SIGNZY_VERIFICATION',
+        payload: { key: 'fraudShieldLite', status: 'success', result },
+      });
+      console.log(
+        '[PanVerification] FraudShield ok → score =',
+        result.trustScore?.score,
+        ', risk =',
+        result.trustScore?.riskCategory,
+      );
+    } catch (err) {
+      console.log('[PanVerification] FraudShield failed:', err?.message);
+      dispatch({
+        type: 'SET_SIGNZY_VERIFICATION',
+        payload: {
+          key: 'fraudShieldLite',
+          status: 'failure',
+          error: {
+            message: err?.message || 'Unknown error',
+            statusCode: err?.statusCode ?? err?.response?.status ?? null,
+            raw: err?.signzyError || err?.response?.data || null,
+          },
+        },
+      });
+    }
   };
 
   /**

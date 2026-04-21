@@ -533,6 +533,145 @@ export const signzyService = {
     };
   },
 
+  /**
+   * FraudShield Lite — holistic fraud-risk score for a customer
+   * record. Evaluates phone, email, name, pincode and IP across
+   * cybercrime databases, digital-identity signals, finance records,
+   * phone carrier data, email validation and IP blacklists, then
+   * returns a trust score (0-1000) with a risk category.
+   *
+   * POST /fraudshield-advanced-score
+   */
+  async fraudShieldLite({ phoneNumber, name, email, pincode, ipAddress }) {
+    console.log('[signzyService] fraudShieldLite → phone =', phoneNumber, ', name =', name);
+
+    const body = { phoneNumber, name };
+    if (email) body.email = email;
+    if (pincode) body.pincode = String(pincode);
+    if (ipAddress) body.ipaddress = ipAddress;
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.FRAUDSHIELD_LITE, body);
+    const r = data?.result || data || {};
+
+    const ts = r.trustScore || {};
+    const cc = r.cyberCrimeCheck || {};
+    const di = r.digitalIdentityDetails || {};
+    const fi = r.financeDetails || {};
+    const ph = r.phoneDetails || {};
+    const em = r.emailDetails || {};
+    const pc = r.pincode || {};
+    const ip = r.ipBlacklist || {};
+
+    const score = parseInt(ts.score, 10) || 0;
+    const riskCategory =
+      ts.riskCategory ||
+      (score > 750 ? 'Very Low Risk' : score > 500 ? 'Low Risk' : score > 300 ? 'Moderate Risk' : 'High Risk');
+
+    return {
+      trustScore: {
+        score,
+        riskCategory,
+        nameMatch: ts.nameMatch || '',
+      },
+      cyberCrimeCheck: {
+        impact: cc.impact || '',
+        phoneNumber: cc.phoneNumber || '',
+        email: cc.email || '',
+      },
+      digitalIdentity: {
+        impact: di.impact || '',
+        score: di.digitalIdentityScore || '',
+        samePhoneNameCount: di.samePhoneNameCount || '',
+        differentPhoneNameCount: di.differentPhoneNameCount || '',
+        sameEmailNameCount: di.sameEmailNameCount || '',
+        differentEmailNameCount: di.differentEmailNameCount || '',
+        totalEmailNameCount: di.totalEmailNameCount || '',
+        morePhonesMappedWithEmail: di.morePhonesMappedWithEmail || '',
+        moreEmailsMappedWithPhone: di.moreEmailsMappedWithPhone || '',
+        ecomFootprint: di.ecomFootprint || '',
+        socialFootprint: di.socialFootprint || '',
+        travelFootprint: di.travelFootprint || '',
+        qcomFootprint: di.qcomFootprint || '',
+        fcomFootprint: di.fcomFootprint || '',
+        digitalFootprint: di.digitalFootprint || '',
+        fintechCount: di.fintechCount || '',
+        ageBand: di.ageBand || '',
+        gender: di.gender || '',
+        firstNameMatch: di.firstNameMatch || '',
+        lastNameMatch: di.lastNameMatch || '',
+        phoneFirstSeenYear: di.phoneFirstSeenYear || '',
+        emailFirstSeenYear: di.emailFirstSeenYear || '',
+        phoneEmailMatch: di.phoneEmailMatch || '',
+        phoneEmailFirstSeenYear: di.phoneEmailFirstSeenYear || '',
+        phoneEmailLastSeenYear: di.phoneEmailLastSeenYear || '',
+        phoneNameFirstSeenYear: di.phoneNameFirstSeenYear || '',
+        phoneNameLastSeenYear: di.phoneNameLastSeenYear || '',
+        emailNameFirstSeenYear: di.emailNameFirstSeenYear || '',
+        emailNameLastSeenYear: di.emailNameLastSeenYear || '',
+      },
+      financeDetails: {
+        impact: fi.impact || '',
+        dmatAccount: fi.dmatAccount || '',
+        hasMutualFund: fi.hasMutualFund || '',
+        hasCreditCard: fi.hasCreditCard || '',
+        occupation: fi.occupation || '',
+        businessOwner: fi.businessOwner || '',
+      },
+      phoneDetails: {
+        impact: ph.impact || '',
+        customerName: ph.customerName || '',
+        connectionType: ph.connectionType || '',
+        currentServiceProvider: ph.currentServiceProvider || '',
+        originalServiceProvider: ph.originalServiceProvider || '',
+        isPorted: ph.isPorted || '',
+        phoneDeactivatedDays: ph.phoneDeactivatedDays || '',
+        phoneDeactivationCount: ph.phoneDeactivationCount || '',
+      },
+      emailDetails: {
+        impact: em.impact || '',
+        status: em.status || '',
+        freeEmail: em.freeEmail || '',
+        subStatus: em.subStatus || '',
+        domain: em.domain || '',
+        domainAgeDays: em.domainAgeDays || '',
+        emailBreach: Array.isArray(em.emailBreach) ? em.emailBreach : [],
+      },
+      pincodeDetails: {
+        impact: pc.impact || '',
+        blacklisted: pc.blacklisted || '',
+        phonePincodeMatchCount: pc.phonePincodeMatchCount || '',
+        phoneUniquePincodeCount: pc.phoneUniquePincodeCount || '',
+        emailPincodeMatchCount: pc.emailPincodeMatchCount || '',
+        emailUniquePincodeCount: pc.emailUniquePincodeCount || '',
+      },
+      ipBlacklist: {
+        impact: ip.impact || '',
+        isHijacked: ip.isHijacked || '',
+        isSpider: ip.isSpider || '',
+        isTor: ip.isTor || '',
+        isDshield: ip.isDshield || '',
+        isVpn: ip.isVpn || '',
+        isSpyware: ip.isSpyware || '',
+        isSpamBot: ip.isSpamBot || '',
+        isBot: ip.isBot || '',
+        isListed: ip.isListed || '',
+        isProxy: ip.isProxy || '',
+        isMalware: ip.isMalware || '',
+        isExploitBot: ip.isExploitBot || '',
+        blocklists: Array.isArray(ip.blocklists) ? ip.blocklists : [],
+        listCount: ip.listCount || '',
+        sensors: Array.isArray(ip.sensors) ? ip.sensors : [],
+        city: ip.city || '',
+        region: ip.region || '',
+        regionCode: ip.regionCode || '',
+        country: ip.country || '',
+        latitude: ip.latitude || '',
+        longitude: ip.longitude || '',
+      },
+      rawResponse: data,
+    };
+  },
+
   // ─── Banking ────────────────────────────────────────────────────────────
 
   /**
