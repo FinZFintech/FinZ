@@ -195,67 +195,85 @@ const ImageZoomModal = ({ visible, uri, label, onClose }) => {
 
 // ─── Mock full application data builder ──────────────────────────────────────
 function getFullApplication(app) {
+  // Real applications (loaded from AsyncStorage via loadRealApplications)
+  // already have all fields populated — don't overwrite them with mock
+  // defaults. Mock applications (hardcoded in the dashboards) get demo
+  // placeholder values so the detail screen doesn't show blanks.
+  const isReal = app._isReal === true;
+
+  const d = (realValue, mockDefault) =>
+    realValue !== undefined && realValue !== null && realValue !== ''
+      ? realValue
+      : isReal ? (realValue ?? '') : mockDefault;
+
   return {
     ...app,
     // Customer details
-    customerEmail: app.customerEmail || 'customer@email.com',
-    customerDob: app.customerDob || '15/06/2000',
-    customerGender: app.customerGender || 'Male',
-    customerAddress: app.customerAddress || '123, MG Road, Bangalore, Karnataka - 560001',
+    customerEmail: d(app.customerEmail, 'customer@email.com'),
+    customerDob: d(app.customerDob, '15/06/2000'),
+    customerGender: d(app.customerGender, 'Male'),
+    customerAddress: d(app.customerAddress, '123, MG Road, Bangalore, Karnataka - 560001'),
     // Student / borrower
-    studentName: app.studentName || app.customerName,
-    fatherName: app.fatherName || 'Rajesh ' + (app.customerName || '').split(' ').pop(),
-    courseName: app.courseName || 'B.Tech Computer Science',
-    regNo: app.regNo || 'REG' + (app.id || '').replace(/[^0-9]/g, ''),
-    borrowerType: app.borrowerType || 'Self',
+    studentName: d(app.studentName, app.customerName),
+    fatherName: d(app.fatherName, isReal ? '' : 'Rajesh ' + (app.customerName || '').split(' ').pop()),
+    courseName: d(app.courseName, 'B.Tech Computer Science'),
+    regNo: d(app.regNo, 'REG' + (app.id || '').replace(/[^0-9]/g, '')),
+    borrowerType: d(app.borrowerType, 'Self'),
     // PAN & Credit
-    panNumber: app.panNumber || 'ABCDE1234F',
-    creditScore: app.creditScore || null,
-    riskScore: app.riskScore || null,
+    panNumber: d(app.panNumber, 'ABCDE1234F'),
+    creditScore: app.creditScore ?? (isReal ? null : null),
+    riskScore: app.riskScore ?? null,
     // KYC
-    kycMethod: app.kycMethod || (app.status !== 'draft' ? 'DigiLocker' : null),
-    kycStatus: app.kycStatus || (app.status === 'kyc_completed' || app.status === 'selfie_verified' ? 'Verified' : 'Pending'),
-    aadhaarLast4: app.aadhaarLast4 || '4321',
+    kycMethod: d(app.kycMethod, app.status !== 'draft' ? 'DigiLocker' : null),
+    kycStatus: d(
+      app.kycStatus,
+      app.status === 'kyc_completed' || app.status === 'selfie_verified' ? 'Verified' : 'Pending',
+    ),
+    kycData: app.kycData || null,
+    kycFailures: app.kycFailures || [],
+    aadhaarLast4: d(app.aadhaarLast4, '4321'),
     // Bank
-    bankName: app.bankName || 'State Bank of India',
-    accountNumber: app.accountNumber || 'XXXX XXXX 5678',
-    ifscCode: app.ifscCode || 'SBIN0001234',
-    pennyDropStatus: app.pennyDropStatus || 'Verified',
+    bankName: d(app.bankName, 'State Bank of India'),
+    accountNumber: d(app.accountNumber, 'XXXX XXXX 5678'),
+    ifscCode: d(app.ifscCode, 'SBIN0001234'),
+    pennyDropStatus: d(app.pennyDropStatus, 'Verified'),
     // Income
-    monthlyIncome: app.monthlyIncome || 45000,
-    incomeSource: app.incomeSource || 'Bank Statement',
-    foirRatio: app.foirRatio || '38%',
+    monthlyIncome: app.monthlyIncome || (isReal ? 0 : 45000),
+    incomeSource: d(app.incomeSource, 'Bank Statement'),
+    foirRatio: d(app.foirRatio, '38%'),
     // Loan product
-    product: app.product || 'Education Loan - EMI',
-    interestRate: app.interestRate || 14,
-    tenure: app.tenure || 12,
-    processingFee: app.processingFee || '2% + GST',
-    emi: app.emi || Math.round(app.amount * 0.09),
+    product: d(app.product, 'Education Loan - EMI'),
+    interestRate: app.interestRate || (isReal ? 0 : 14),
+    tenure: app.tenure || (isReal ? 0 : 12),
+    processingFee: d(app.processingFee, '2% + GST'),
+    emi: app.emi || (isReal ? 0 : Math.round((app.amount || 0) * 0.09)),
     // eNACH / eSign
-    enachStatus: app.enachStatus || 'Pending',
-    esignStatus: app.esignStatus || 'Pending',
+    enachStatus: d(app.enachStatus, 'Pending'),
+    esignStatus: d(app.esignStatus, 'Pending'),
+    // Signzy verifications — preserved as-is from the real application
+    signzyVerifications: app.signzyVerifications || {},
     // Documents
-    documents: app.documents || [
+    documents: app.documents || (isReal ? [] : [
       { id: 'doc_1', name: 'PAN Card', type: 'identity', uploadedAt: '2026-03-28', status: 'verified' },
       { id: 'doc_2', name: 'Aadhaar Card', type: 'identity', uploadedAt: '2026-03-28', status: 'verified' },
       { id: 'doc_3', name: 'Fee Receipt', type: 'academic', uploadedAt: '2026-03-27', status: 'pending_review' },
       { id: 'doc_4', name: 'Bank Statement (3 months)', type: 'financial', uploadedAt: '2026-03-27', status: 'verified' },
       { id: 'doc_5', name: 'Admission Letter', type: 'academic', uploadedAt: '2026-03-26', status: 'verified' },
       { id: 'doc_6', name: 'Selfie Photo', type: 'verification', uploadedAt: '2026-03-28', status: 'verified' },
-    ],
+    ]),
     // Comments / activity log
-    comments: app.comments || [
+    comments: app.comments || (isReal ? [] : [
       { id: 'c1', author: 'System', role: 'system', text: 'Application created', timestamp: '2026-03-25T10:00:00Z' },
       { id: 'c2', author: 'Sales Executive', role: 'sales', text: 'Contacted customer, guided through institute selection', timestamp: '2026-03-26T11:30:00Z' },
       { id: 'c3', author: 'System', role: 'system', text: 'PAN verification completed', timestamp: '2026-03-27T09:15:00Z' },
       { id: 'c4', author: 'Credit Officer', role: 'credit', text: 'Credit score is satisfactory. Proceeding with income verification.', timestamp: '2026-03-28T14:00:00Z' },
-    ],
+    ]),
     // Staff documents
     staffDocuments: app.staffDocuments || [],
     // Communication log
-    communications: app.communications || [
+    communications: app.communications || (isReal ? [] : [
       { id: 'comm_1', type: 'sms', to: app.customerPhone || '9876543210', message: 'Your loan application has been received. Application ID: ' + (app.id || 'N/A'), sentAt: '2026-03-25T10:05:00Z', sentBy: 'System' },
-    ],
+    ]),
   };
 }
 

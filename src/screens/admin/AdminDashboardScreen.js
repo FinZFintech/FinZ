@@ -8,6 +8,7 @@ import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
+import { loadRealApplications, mergeWithMocks } from '../../utils/loadApplications';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { adminService } from '../../services/adminService';
@@ -79,15 +80,17 @@ const AdminDashboardScreen = ({ navigation }) => {
     } catch {
       // Use mock data
     }
-    setApplications(MOCK_ALL_APPS);
+    const realApps = await loadRealApplications();
+    const allApps = mergeWithMocks(realApps, MOCK_ALL_APPS);
+    setApplications(allApps);
 
     setStats({
-      totalApplications: MOCK_ALL_APPS.length,
-      pendingReview: MOCK_ALL_APPS.filter(a => a.status === 'manual_review').length,
-      inProgress: MOCK_ALL_APPS.filter(a => !['draft', 'disbursed', 'credit_check_failed', 'not_eligible'].includes(a.status)).length,
-      disbursed: MOCK_ALL_APPS.filter(a => a.status === 'disbursed').length,
-      rejected: MOCK_ALL_APPS.filter(a => a.status === 'credit_check_failed' || a.status === 'not_eligible').length,
-      totalDisbursedAmount: MOCK_ALL_APPS.filter(a => a.status === 'disbursed').reduce((sum, a) => sum + a.amount, 0),
+      totalApplications: allApps.length,
+      pendingReview: allApps.filter(a => a.status === 'manual_review').length,
+      inProgress: allApps.filter(a => !['draft', 'disbursed', 'credit_check_failed', 'not_eligible'].includes(a.status)).length,
+      disbursed: allApps.filter(a => a.status === 'disbursed').length,
+      rejected: allApps.filter(a => a.status === 'credit_check_failed' || a.status === 'not_eligible').length,
+      totalDisbursedAmount: allApps.filter(a => a.status === 'disbursed').reduce((sum, a) => sum + a.amount, 0),
     });
   }, []);
 
