@@ -9,6 +9,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
+import { loadRealApplications, mergeWithMocks } from '../../utils/loadApplications';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { navigationRef } from '../../navigation/navigationRef';
@@ -73,8 +74,9 @@ const SalesDashboardScreen = ({ navigation }) => {
   useEffect(() => { loadApplications(); }, []);
 
   const loadApplications = useCallback(async () => {
-    // In production, fetch from API filtered by sales user assignment
-    setApplications(MOCK_APPLICATIONS);
+    const realApps = await loadRealApplications();
+    const allApps = mergeWithMocks(realApps, MOCK_APPLICATIONS);
+    setApplications(allApps);
   }, []);
 
   const onRefresh = useCallback(async () => {

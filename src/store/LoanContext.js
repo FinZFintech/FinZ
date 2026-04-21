@@ -365,8 +365,8 @@ const loanReducer = (state, action) => {
       next = { ...state, step: action.payload };
       break;
     case 'RESTORE':
-      // Restore saved state from AsyncStorage
-      return { ...action.payload };
+      next = { ...initialState, ...action.payload };
+      break;
     case 'RESET':
       return { ...initialState };
     default:

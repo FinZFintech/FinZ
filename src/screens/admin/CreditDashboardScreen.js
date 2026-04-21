@@ -8,6 +8,7 @@ import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
+import { loadRealApplications, mergeWithMocks } from '../../utils/loadApplications';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { navigationRef } from '../../navigation/navigationRef';
@@ -60,7 +61,9 @@ const CreditDashboardScreen = ({ navigation }) => {
   useEffect(() => { loadApplications(); }, []);
 
   const loadApplications = useCallback(async () => {
-    setApplications(MOCK_CREDIT_APPS);
+    const realApps = await loadRealApplications();
+    const allApps = mergeWithMocks(realApps, MOCK_CREDIT_APPS);
+    setApplications(allApps);
   }, []);
 
   const onRefresh = useCallback(async () => {
