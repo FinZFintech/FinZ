@@ -195,10 +195,11 @@ const IncomeVerificationScreen = ({ navigation }) => {
         payload: { bankName, accountNumber, ifsc, accountType, branchName, occupationCategory: selectedCategory?.label, occupation: resolvedOccupation, declaredAnnualIncome: parseInt(declaredAnnualIncome, 10) || 0 },
       });
 
-      // Background Signzy employment verification — fire-and-forget for
-      // salaried applicants so credit / admin can see the EPFO footprint
-      // later in the staff view. Must not block the user flow.
+      // Background Signzy verifications — fire-and-forget so credit /
+      // admin can see the EPFO / GST footprint later in the staff view.
+      // Must not block the user flow.
       runEmploymentVerification();
+      runGstVerification();
 
       // Run matching
       runMatching(pdResult, incResult);
@@ -249,6 +250,51 @@ const IncomeVerificationScreen = ({ navigation }) => {
         type: 'SET_SIGNZY_VERIFICATION',
         payload: {
           key: 'employmentBasic',
+          status: 'failure',
+          error: {
+            message: err?.message || 'Unknown error',
+            statusCode: err?.statusCode ?? err?.response?.status ?? null,
+            raw: err?.signzyError || err?.response?.data || null,
+          },
+        },
+      });
+    }
+  };
+
+  /**
+   * Background GST income lookup for self-employed applicants.
+   * Chains PAN → GSTIN list → GSTIN detailed search (turnover,
+   * filing status, gross income). Stores result under
+   * signzyVerifications.gstIncome. Fire-and-forget.
+   */
+  const runGstVerification = async () => {
+    const category = occupationCategory || '';
+    const isSelfEmployed = category.startsWith('self_employed') || category.startsWith('business');
+    if (!isSelfEmployed) return;
+
+    const pan = state.panDetails?.panNumber || '';
+    if (!pan) {
+      console.log('[IncomeVerification] Skipping GST lookup — no PAN');
+      return;
+    }
+
+    console.log('[IncomeVerification] GST income lookup → pan =', pan);
+    try {
+      const result = await signzyService.gstIncomeByPan(pan);
+      dispatch({
+        type: 'SET_SIGNZY_VERIFICATION',
+        payload: { key: 'gstIncome', status: 'success', result },
+      });
+      console.log(
+        '[IncomeVerification] GST lookup ok →',
+        result.found ? `GSTIN ${result.gstin}, turnover = ${result.annualAggregateTurnOver}` : 'no GSTIN found',
+      );
+    } catch (err) {
+      console.log('[IncomeVerification] GST lookup failed:', err?.message);
+      dispatch({
+        type: 'SET_SIGNZY_VERIFICATION',
+        payload: {
+          key: 'gstIncome',
           status: 'failure',
           error: {
             message: err?.message || 'Unknown error',

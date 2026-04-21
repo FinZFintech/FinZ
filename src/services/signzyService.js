@@ -836,6 +836,166 @@ export const signzyService = {
     };
   },
 
+  // ─── GST ───────────────────────────────────────────────────────────────
+
+  /**
+   * PAN to GST — looks up all GSTINs linked to a PAN.
+   * POST /gst/panToGstnDetail
+   *
+   * Returns an array of GSTIN records with business name, status,
+   * registration date, constitution, principal place address, and
+   * the nature of business activities.
+   */
+  async panToGst(panNumber, state, email) {
+    console.log('[signzyService] panToGst → pan =', panNumber);
+
+    const body = { panNumber };
+    if (state) body.state = state;
+    if (email) body.email = email;
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PAN_TO_GSTN, body);
+    const r = data?.result || data || {};
+
+    const gstnDetailed = Array.isArray(r.gstnDetailed) ? r.gstnDetailed : [];
+    const gstnRecords = Array.isArray(r.gstnRecords) ? r.gstnRecords : [];
+
+    const gstins = gstnDetailed.map((g) => ({
+      gstin: g.gstin || '',
+      legalName: g.legalNameOfBusiness || '',
+      tradeName: g.tradeNameOfBusiness || '',
+      constitution: g.constitutionOfBusiness || '',
+      status: g.gstinStatus || '',
+      registrationDate: g.registrationDate || '',
+      cancellationDate: g.cancellationDate || '',
+      taxPayerType: g.taxPayerType || '',
+      eInvoicingStatus: g['e-invoicingStatus'] || '',
+      activities: Array.isArray(g.natureOfBusinessActivities)
+        ? g.natureOfBusinessActivities
+        : [],
+      principalAddress: g.principalPlaceAddress || '',
+      principalState: g.principalPlaceState || '',
+      principalPincode: g.principalPlacePincode || '',
+      centreJurisdiction: g.centreJurisdiction || '',
+      stateJurisdiction: g.stateJurisdiction || '',
+      lastUpdatedDate: g.lastUpdatedDate || '',
+    }));
+
+    return {
+      gstin: r.gstin || '',
+      gstins,
+      gstnRecords,
+      rawResponse: data,
+    };
+  },
+
+  /**
+   * GSTIN Detailed Search — full breakdown for one GSTIN:
+   * filing status, turnover range, gross income, filing frequency,
+   * director names, principal + additional addresses.
+   *
+   * POST /gstn/gstndetailed
+   */
+  async gstinDetailed(gstin) {
+    console.log('[signzyService] gstinDetailed → gstin =', gstin);
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.GSTN_DETAILED, {
+      gstin,
+      returnFilingFrequency: true,
+      getAllAdditionalAddress: 'true',
+    });
+
+    const r = data?.result || data || {};
+    const d = r.gstnDetailed || {};
+    const ppa = d.principalPlaceAddress || {};
+    const splitAddr = ppa.splitAddress || {};
+
+    return {
+      gstin: r.gstin || d.gstin || gstin,
+      constitution: d.constitutionOfBusiness || '',
+      legalName: d.legalNameOfBusiness || '',
+      tradeName: d.tradeNameOfBusiness || '',
+      status: d.gstinStatus || '',
+      registrationDate: d.registrationDate || '',
+      cancellationDate: d.cancellationDate || '',
+      taxPayerType: d.taxPayerType || '',
+      eInvoicingStatus: d['e-invoicingStatus'] || '',
+      complianceRating: d.complianceRating || '',
+      centreJurisdiction: d.centreJurisdiction || '',
+      stateJurisdiction: d.stateJurisdiction || '',
+      activities: Array.isArray(d.natureOfBusinessActivities)
+        ? d.natureOfBusinessActivities
+        : [],
+      directorNames: Array.isArray(d.directorNames) ? d.directorNames : [],
+      principalPlace: {
+        address: typeof ppa === 'string' ? ppa : (ppa.address || ''),
+        email: ppa.emailId || '',
+        mobile: ppa.mobile || '',
+        natureOfBusiness: ppa.natureOfBusiness || '',
+        lastUpdatedDate: ppa.lastUpdatedDate || '',
+        state: d.principalPlaceState || '',
+        district: d.principalPlaceDistrict || '',
+        pincode: d.principalPlacePincode || '',
+        splitAddress: splitAddr,
+      },
+      additionalAddresses: Array.isArray(d.additionalPlaceAddress)
+        ? d.additionalPlaceAddress
+        : [],
+      // Income / turnover
+      annualAggregateTurnOver: r.annualAggregateTurnOver || '',
+      aggregateTurnOverRange: r.aggregateTurnOverRange || null,
+      grossTotalIncome: r.grossTotalIncome || '',
+      grossTotalIncomeFinancialYear: r.grossTotalIncomeFinancialYear || '',
+      // Filing
+      filingStatus: Array.isArray(r.filingStatus) ? r.filingStatus : [],
+      returnFilingFrequency: Array.isArray(r.returnFilingFrequency)
+        ? r.returnFilingFrequency
+        : [],
+      gstnRecords: Array.isArray(r.gstnRecords) ? r.gstnRecords : [],
+      rawResponse: data,
+    };
+  },
+
+  /**
+   * Chained GST lookup — PAN → GSTIN list → detailed search on the
+   * first active GSTIN. Returns both the PAN-to-GST mapping and the
+   * detailed income/filing data so credit can assess the self-employed
+   * applicant's business footprint in one go.
+   */
+  async gstIncomeByPan(panNumber) {
+    console.log('[signzyService] gstIncomeByPan → pan =', panNumber);
+
+    const panToGstResult = await this.panToGst(panNumber);
+
+    if (!panToGstResult.gstins.length) {
+      return {
+        found: false,
+        panToGst: panToGstResult,
+        gstinDetail: null,
+        message: 'No GSTIN linked to this PAN.',
+      };
+    }
+
+    // Prefer the first active GSTIN; fall back to the first record.
+    const active =
+      panToGstResult.gstins.find((g) => /active/i.test(g.status)) ||
+      panToGstResult.gstins[0];
+
+    const gstinDetail = await this.gstinDetailed(active.gstin);
+
+    return {
+      found: true,
+      panToGst: panToGstResult,
+      gstinDetail,
+      gstin: active.gstin,
+      legalName: active.legalName,
+      tradeName: active.tradeName,
+      status: active.status,
+      annualAggregateTurnOver: gstinDetail.annualAggregateTurnOver,
+      aggregateTurnOverRange: gstinDetail.aggregateTurnOverRange,
+      grossTotalIncome: gstinDetail.grossTotalIncome,
+    };
+  },
+
   // ─── Address ────────────────────────────────────────────────────────────
 
   async geocodeAddress(address, latitude, longitude) {

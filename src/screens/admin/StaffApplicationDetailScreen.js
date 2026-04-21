@@ -24,6 +24,7 @@ const SIGNZY_VERIFICATION_LABELS = {
   employmentBasic: 'Employment (UAN Basic)',
   phonePrefill: 'Phone Prefill',
   fraudShieldLite: 'FraudShield Lite',
+  gstIncome: 'GST Income (PAN → GSTIN)',
 };
 
 /**
@@ -869,7 +870,8 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
               {isSuccess && key === 'employmentBasic' && renderEmploymentBasic(entry.result)}
               {isSuccess && key === 'phonePrefill' && renderPhonePrefill(entry.result)}
               {isSuccess && key === 'fraudShieldLite' && renderFraudShield(entry.result)}
-              {isSuccess && !['employmentBasic', 'phonePrefill', 'fraudShieldLite'].includes(key) && (
+              {isSuccess && key === 'gstIncome' && renderGstIncome(entry.result)}
+              {isSuccess && !['employmentBasic', 'phonePrefill', 'fraudShieldLite', 'gstIncome'].includes(key) && (
                 <Text style={{ color: colors.textSecondary }}>
                   {JSON.stringify(entry.result, null, 2)}
                 </Text>
@@ -1234,6 +1236,169 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
             <Row label="Listed" value={ip.isListed} />
             <Row label="Lists Count" value={ip.listCount} />
             {ip.city ? <Row label="IP Location" value={`${ip.city}, ${ip.region || ''} ${ip.country || ''}`} /> : null}
+          </>
+        ) : null}
+      </>
+    );
+  };
+
+  /**
+   * Structured render of a GST Income (PAN → GSTIN) result.
+   */
+  const renderGstIncome = (result) => {
+    if (!result) return null;
+
+    if (!result.found) {
+      return (
+        <Text style={{ color: colors.textSecondary }}>
+          No GSTIN linked to this PAN. The applicant may not be GST-registered.
+        </Text>
+      );
+    }
+
+    const detail = result.gstinDetail || {};
+    const principal = detail.principalPlace || {};
+    const filingStatus = detail.filingStatus || [];
+    const filingFreq = detail.returnFilingFrequency || [];
+    const directors = detail.directorNames || [];
+    const activities = detail.activities || [];
+    const panToGst = result.panToGst || {};
+    const allGstins = panToGst.gstins || [];
+
+    const Row = ({ label, value }) => {
+      if (!value && value !== 0) return null;
+      return <InfoRow label={label} value={String(value)} />;
+    };
+
+    return (
+      <>
+        {/* Headline */}
+        <Row label="GSTIN" value={result.gstin} />
+        <Row label="Legal Name" value={result.legalName} />
+        <Row label="Trade Name" value={result.tradeName} />
+        <Row label="Status" value={result.status} />
+
+        {/* Income / Turnover */}
+        {(result.annualAggregateTurnOver || result.grossTotalIncome) ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              Income / Turnover
+            </Text>
+            <Row label="Annual Aggregate Turnover" value={result.annualAggregateTurnOver} />
+            {result.aggregateTurnOverRange ? (
+              <Row
+                label="Turnover Range"
+                value={
+                  result.aggregateTurnOverRange.maximum
+                    ? `₹${(result.aggregateTurnOverRange.minimum / 10000000).toFixed(1)} Cr – ₹${(result.aggregateTurnOverRange.maximum / 10000000).toFixed(1)} Cr`
+                    : `₹${(result.aggregateTurnOverRange.minimum / 10000000).toFixed(1)} Cr and above`
+                }
+              />
+            ) : null}
+            <Row label="Gross Total Income" value={result.grossTotalIncome} />
+            {detail.grossTotalIncomeFinancialYear ? (
+              <Row label="Income FY" value={detail.grossTotalIncomeFinancialYear} />
+            ) : null}
+          </>
+        ) : null}
+
+        {/* Business details */}
+        <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+          Business Details
+        </Text>
+        <Row label="Constitution" value={detail.constitution} />
+        <Row label="Taxpayer Type" value={detail.taxPayerType} />
+        <Row label="Registration Date" value={detail.registrationDate} />
+        <Row label="e-Invoicing" value={detail.eInvoicingStatus} />
+        <Row label="Compliance Rating" value={detail.complianceRating} />
+
+        {activities.length > 0 ? (
+          <Row label="Activities" value={activities.join(', ')} />
+        ) : null}
+
+        {directors.length > 0 ? (
+          <Row label="Directors" value={directors.join(', ')} />
+        ) : null}
+
+        {/* Principal place */}
+        {principal.address ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              Principal Place of Business
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>{principal.address}</Text>
+            <Row label="State" value={principal.state} />
+            <Row label="Pincode" value={principal.pincode} />
+            <Row label="Email" value={principal.email} />
+            <Row label="Mobile" value={principal.mobile} />
+          </>
+        ) : null}
+
+        {/* Filing frequency */}
+        {filingFreq.length > 0 ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              Filing Frequency ({filingFreq.length})
+            </Text>
+            {filingFreq.map((f, idx) => (
+              <Text key={idx} style={{ color: colors.textSecondary, marginBottom: 2 }}>
+                {f.financialYear} · {f.returnFilingType} · {f.frequency}
+                {f.quarter ? ` (${f.quarter})` : ''}
+              </Text>
+            ))}
+          </>
+        ) : null}
+
+        {/* Recent filing status */}
+        {filingStatus.length > 0 ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              Filing Status (latest {Math.min(filingStatus.length, 12)})
+            </Text>
+            {filingStatus.slice(0, 12).map((f, idx) => (
+              <View
+                key={idx}
+                style={{
+                  paddingVertical: 6,
+                  borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+                  borderTopColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.textPrimary }}>
+                  {f.gstType} · {f.filingYear} · {f.monthOfFiling}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                  Status: {f.gstStatus}
+                  {f.dateOfFiling ? ` · Filed ${f.dateOfFiling}` : ''}
+                  {f.methodOfFilling ? ` · Method ${f.methodOfFilling}` : ''}
+                </Text>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        {/* Other GSTINs on same PAN */}
+        {allGstins.length > 1 ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              All GSTINs on PAN ({allGstins.length})
+            </Text>
+            {allGstins.map((g, idx) => (
+              <View
+                key={idx}
+                style={{
+                  paddingVertical: 6,
+                  borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+                  borderTopColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>{g.gstin}</Text>
+                <Text style={{ color: colors.textSecondary }}>
+                  {g.tradeName || g.legalName} · {g.status}
+                  {g.principalState ? ` · ${g.principalState}` : ''}
+                </Text>
+              </View>
+            ))}
           </>
         ) : null}
       </>

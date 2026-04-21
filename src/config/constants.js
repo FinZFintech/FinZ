@@ -62,6 +62,10 @@ export const SIGNZY_CONFIG = {
     ADVANCED_EMPLOYMENT: '/advancedEmploymentVerification',
     EMPLOYMENT_CURRENT_EMPLOYER: '/employment-verification/current-employer',
 
+    // GST
+    PAN_TO_GSTN: '/gst/panToGstnDetail',
+    GSTN_DETAILED: '/gstn/gstndetailed',
+
     // Address
     ADDRESS_GEOCODE: '/addressGeocode',
     PINCODE_DETAILS: '/pincodeDetails',
