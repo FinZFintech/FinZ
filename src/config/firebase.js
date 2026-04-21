@@ -13,12 +13,13 @@ import { getFirestore } from 'firebase/firestore';
 // The free Spark plan handles: 1 GB storage, 50K reads/day, 20K writes/day.
 
 const firebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  apiKey: 'AIzaSyCFJWb90Y0Cj11L0pNc1mJ0l4DW5uT0eZU',
+  authDomain: 'finz-2e9dc.firebaseapp.com',
+  projectId: 'finz-2e9dc',
+  storageBucket: 'finz-2e9dc.firebasestorage.app',
+  messagingSenderId: '47131445566',
+  appId: '1:47131445566:web:d313e5c09e9daccf08046f',
+  measurementId: 'G-REGJP0CEV4',
 };
 
 if (!firebaseConfig.apiKey) {
