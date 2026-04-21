@@ -1,35 +1,55 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loadAllApplicationsFromDb } from '../services/applicationDbService';
+import { isFirebaseConfigured } from '../config/firebase';
 
 const MULTI_STORAGE_KEY = 'finz_loan_applications';
 
 /**
- * Load all real applications from AsyncStorage (the same store
- * LoanContext writes to) and transform them into the shape the admin
- * dashboard cards expect.  Returns an array sorted by lastUpdated
- * (most recent first).
+ * Load all real applications — tries Firestore first (shared DB visible
+ * to all roles on all devices), falls back to AsyncStorage (local
+ * device only) when Firebase isn't configured.
  *
- * The dashboards can merge this list with their mock data so staff
- * always see both real in-progress applications AND demo data.
+ * Returns an array sorted by lastUpdated (most recent first), shaped
+ * for the admin dashboard cards.
  */
 export async function loadRealApplications() {
   try {
-    const raw = await AsyncStorage.getItem(MULTI_STORAGE_KEY);
-    console.log(
-      '[loadRealApplications] AsyncStorage raw:',
-      raw ? `${raw.length} chars` : 'null (no data)',
-    );
-    if (!raw) return [];
-    const apps = JSON.parse(raw);
-    if (!Array.isArray(apps)) {
-      console.log('[loadRealApplications] Parsed value is not an array:', typeof apps);
-      return [];
+    let apps = [];
+
+    // ── Primary: Firestore (shared across devices / roles) ──
+    if (isFirebaseConfigured()) {
+      const firestoreApps = await loadAllApplicationsFromDb();
+      console.log(
+        '[loadRealApplications] Firestore:',
+        firestoreApps.length,
+        'app(s)',
+        firestoreApps.map((a) => `${a.applicationId} (${a.status})`).join(', '),
+      );
+      apps = firestoreApps;
     }
-    console.log(
-      '[loadRealApplications] Found',
-      apps.length,
-      'app(s):',
-      apps.map((a) => `${a.applicationId} (${a.status})`).join(', '),
-    );
+
+    // ── Fallback: AsyncStorage (local, same-device only) ──
+    if (apps.length === 0) {
+      const raw = await AsyncStorage.getItem(MULTI_STORAGE_KEY);
+      console.log(
+        '[loadRealApplications] AsyncStorage fallback:',
+        raw ? `${raw.length} chars` : 'null (no data)',
+      );
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          apps = parsed;
+          console.log(
+            '[loadRealApplications] AsyncStorage:',
+            apps.length,
+            'app(s):',
+            apps.map((a) => `${a.applicationId} (${a.status})`).join(', '),
+          );
+        }
+      }
+    }
+
+    if (apps.length === 0) return [];
 
     const transformed = apps
       .filter((a) => a && a.applicationId)

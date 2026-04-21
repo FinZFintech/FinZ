@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LOAN_STATUS } from '../config/constants';
+import { saveApplicationToDb } from '../services/applicationDbService';
 
 const LoanContext = createContext(null);
 
@@ -505,11 +506,14 @@ export const LoanProvider = ({ children }) => {
     })();
   }, []);
 
-  // Auto-save current application on every state change
+  // Auto-save current application on every state change —
+  // dual-write to AsyncStorage (local, offline-capable) AND
+  // Firestore (shared across all devices / roles).
   useEffect(() => {
     if (!isLoaded) return;
     if (state.applicationId) {
       saveApplicationToList(state);
+      saveApplicationToDb(state); // fire-and-forget to Firestore
       setHasSavedApplication(true);
       // Update local list cache
       setSavedApplications((prev) => {
