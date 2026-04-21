@@ -514,6 +514,78 @@ export const signzyService = {
     };
   },
 
+  /**
+   * Employment Verification — UAN Basic (EPFO lookup by mobile + PAN).
+   *
+   * Endpoint: POST /employment-verification/current-employer
+   * Used for salaried applicants where PF is being deducted — pulls
+   * current / most recent EPFO employment record and every UAN linked
+   * to the applicant.
+   *
+   * Returns a normalized object with the headline employment summary
+   * (employer name, joining / exit dates, UAN count, is_employed),
+   * a detailed per-UAN breakdown with basic_details + employment_details,
+   * and the raw Signzy payload for audit. All fields default safely
+   * when Signzy returns a partial record.
+   */
+  async getCurrentEmployer(mobile, panNumber) {
+    console.log('[signzyService] getCurrentEmployer → mobile =', mobile, ', pan =', panNumber);
+    const { data } = await signzyApi.post(
+      SIGNZY_CONFIG.ENDPOINTS.EMPLOYMENT_CURRENT_EMPLOYER,
+      { mobile, panNumber },
+    );
+
+    const r = extractResult(data);
+    const summary = r.employmentSummary || {};
+    const recent = summary.recent_employer_data || {};
+    const uanDetails = r.uanDetails || {};
+    const uanNumbers = Array.isArray(r.uanNumbers) ? r.uanNumbers : [];
+
+    // Flatten the per-UAN map into an array for easier rendering.
+    const uans = Object.entries(uanDetails).map(([uan, details]) => {
+      const basic = details?.basic_details || {};
+      const emp = details?.employment_details || {};
+      return {
+        uan,
+        name: basic.name || '',
+        gender: basic.gender || '',
+        dob: basic.date_of_birth || '',
+        mobile: basic.mobile || '',
+        aadhaarVerificationStatus: basic.aadhaar_verification_status ?? null,
+        employeeConfidenceScore: basic.employee_confidence_score ?? null,
+        memberId: emp.member_id || '',
+        establishmentId: emp.establishment_id || '',
+        establishmentName: emp.establishment_name || '',
+        dateOfJoining: emp.date_of_joining || '',
+        dateOfExit: emp.date_of_exit || '',
+        leaveReason: emp.leave_reason || '',
+        employerConfidenceScore: emp.employer_confidence_score ?? null,
+      };
+    });
+
+    return {
+      resultCode: data.resultCode ?? r.resultCode ?? null,
+      isEmployed: summary.is_employed ?? false,
+      uanCount: summary.uan_count ?? uanNumbers.length,
+      employeeNameMatch: summary.employee_name_match ?? null,
+      employerNameMatch: summary.employer_name_match ?? null,
+      dateOfExitMarked: summary.date_of_exit_marked ?? false,
+      recentEmployer: {
+        memberId: recent.member_id || '',
+        establishmentId: recent.establishment_id || '',
+        establishmentName: recent.establishment_name || '',
+        dateOfJoining: recent.date_of_joining || '',
+        dateOfExit: recent.date_of_exit || '',
+        employerConfidenceScore: recent.employer_confidence_score ?? null,
+        matchingUan: recent.matching_uan || '',
+      },
+      uans,
+      uanNumbers,
+      uanDataSource: Array.isArray(r.uanDataSource) ? r.uanDataSource : [],
+      rawResponse: data,
+    };
+  },
+
   async advancedEmploymentVerification(params) {
     const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.ADVANCED_EMPLOYMENT, params);
     const r = extractResult(data);

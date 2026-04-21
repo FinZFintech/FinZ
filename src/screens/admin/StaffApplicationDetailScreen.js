@@ -14,7 +14,15 @@ import { formatCurrency, formatDate } from '../../utils/helpers';
 import { smsService } from '../../services/smsService';
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
-const TABS = ['Details', 'Documents', 'Comments', 'Communication'];
+const TABS = ['Details', 'Documents', 'Verifications', 'Comments', 'Communication'];
+
+/**
+ * Labels for Signzy verification keys so the staff view can render a
+ * card per verification without hard-coding display names inline.
+ */
+const SIGNZY_VERIFICATION_LABELS = {
+  employmentBasic: 'Employment (UAN Basic)',
+};
 
 /**
  * Renders a single image in its native aspect ratio. Uses Image.getSize
@@ -802,6 +810,187 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
     );
   };
 
+  // ─── VERIFICATIONS TAB (Signzy) ──────────────────────────────────────────
+  /**
+   * Renders the structured result (or the failure reason) for every
+   * Signzy verification the app has run against this application.
+   * Each verification is keyed in state.signzyVerifications so more
+   * APIs can drop in here without a UI change to the tab framework.
+   */
+  const renderVerifications = () => {
+    const verifications = application.signzyVerifications || {};
+    const entries = Object.entries(verifications);
+
+    if (entries.length === 0) {
+      return (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Signzy Verifications</Text>
+          <Text style={{ color: colors.textSecondary }}>
+            No Signzy verifications have been run for this application yet.
+            Results from automated checks (employment, phone intelligence,
+            email, etc.) will appear here once they are triggered during
+            the application flow.
+          </Text>
+        </Card>
+      );
+    }
+
+    return (
+      <>
+        {entries.map(([key, entry]) => {
+          const label = SIGNZY_VERIFICATION_LABELS[key] || key;
+          const status = entry?.status || 'unknown';
+          const isSuccess = status === 'success';
+
+          return (
+            <Card key={key} accent={isSuccess ? colors.teal : colors.warning}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>{label}</Text>
+                <Text
+                  style={{
+                    color: isSuccess ? colors.teal : colors.warning,
+                    fontSize: 12,
+                    fontWeight: '600',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {status}
+                </Text>
+              </View>
+              {entry?.fetchedAt ? (
+                <Text style={{ color: colors.textSecondary, fontSize: 11, marginBottom: 8 }}>
+                  Fetched: {formatDate(entry.fetchedAt)}
+                </Text>
+              ) : null}
+
+              {/* Success body: type-specific rendering */}
+              {isSuccess && key === 'employmentBasic' && renderEmploymentBasic(entry.result)}
+              {isSuccess && key !== 'employmentBasic' && (
+                <Text style={{ color: colors.textSecondary }}>
+                  {JSON.stringify(entry.result, null, 2)}
+                </Text>
+              )}
+
+              {/* Failure body */}
+              {!isSuccess && entry?.error ? (
+                <View
+                  style={{
+                    backgroundColor: `${colors.warning}14`,
+                    padding: 12,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.warning, fontWeight: '600', marginBottom: 4 }}>
+                    {entry.error.message || 'Verification failed'}
+                  </Text>
+                  {entry.error.statusCode ? (
+                    <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+                      HTTP {entry.error.statusCode}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </Card>
+          );
+        })}
+      </>
+    );
+  };
+
+  /**
+   * Structured render of an Employment UAN Basic result.
+   */
+  const renderEmploymentBasic = (result) => {
+    if (!result) return null;
+    const recent = result.recentEmployer || {};
+    const uans = Array.isArray(result.uans) ? result.uans : [];
+
+    return (
+      <>
+        <InfoRow
+          label="Currently Employed"
+          value={result.isEmployed ? 'Yes' : 'No'}
+          highlight={result.isEmployed}
+        />
+        <InfoRow label="UANs Linked" value={String(result.uanCount ?? 0)} />
+        {result.dateOfExitMarked ? (
+          <InfoRow label="Date of Exit Marked" value="Yes" />
+        ) : null}
+
+        {recent.establishmentName ? (
+          <>
+            <Text style={[styles.subSectionTitle || { fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }]}>
+              Most Recent Employer
+            </Text>
+            <InfoRow label="Employer" value={recent.establishmentName} />
+            {recent.matchingUan ? (
+              <InfoRow label="UAN" value={recent.matchingUan} />
+            ) : null}
+            {recent.memberId ? (
+              <InfoRow label="Member ID" value={recent.memberId} />
+            ) : null}
+            {recent.establishmentId ? (
+              <InfoRow label="Establishment ID" value={recent.establishmentId} />
+            ) : null}
+            {recent.dateOfJoining ? (
+              <InfoRow label="Date of Joining" value={recent.dateOfJoining} />
+            ) : null}
+            {recent.dateOfExit ? (
+              <InfoRow label="Date of Exit" value={recent.dateOfExit} />
+            ) : null}
+            {recent.employerConfidenceScore != null ? (
+              <InfoRow
+                label="Employer Confidence"
+                value={String(recent.employerConfidenceScore)}
+              />
+            ) : null}
+          </>
+        ) : null}
+
+        {uans.length > 0 ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              UAN Details ({uans.length})
+            </Text>
+            {uans.map((u, idx) => (
+              <View
+                key={u.uan || idx}
+                style={{
+                  paddingVertical: 8,
+                  borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+                  borderTopColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>
+                  {u.uan}
+                </Text>
+                {u.name ? (
+                  <Text style={{ color: colors.textSecondary, marginTop: 2 }}>
+                    {u.name}
+                    {u.gender ? ` · ${u.gender}` : ''}
+                    {u.dob ? ` · DOB ${u.dob}` : ''}
+                  </Text>
+                ) : null}
+                {u.establishmentName ? (
+                  <Text style={{ color: colors.textSecondary, marginTop: 2 }}>
+                    {u.establishmentName}
+                    {u.dateOfJoining ? ` · Joined ${u.dateOfJoining}` : ''}
+                    {u.dateOfExit ? ` · Exited ${u.dateOfExit}` : ''}
+                  </Text>
+                ) : null}
+                {u.leaveReason ? (
+                  <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }}>
+                    Leave reason: {u.leaveReason}
+                  </Text>
+                ) : null}
+              </View>
+            ))}
+          </>
+        ) : null}
+      </>
+    );
+  };
+
   // ─── COMMUNICATION TAB ────────────────────────────────────────────────────
   const renderCommunication = () => (
     <>
@@ -892,6 +1081,7 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
     switch (activeTab) {
       case 'Details': return renderDetails();
       case 'Documents': return renderDocuments();
+      case 'Verifications': return renderVerifications();
       case 'Comments': return renderComments();
       case 'Communication': return renderCommunication();
       default: return null;

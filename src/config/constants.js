@@ -58,6 +58,7 @@ export const SIGNZY_CONFIG = {
     // Employment
     EMPLOYMENT_VERIFICATION: '/employmentVerification',
     ADVANCED_EMPLOYMENT: '/advancedEmploymentVerification',
+    EMPLOYMENT_CURRENT_EMPLOYER: '/employment-verification/current-employer',
 
     // Address
     ADDRESS_GEOCODE: '/addressGeocode',

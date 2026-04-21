@@ -20,6 +20,7 @@ import InfoRow from '../../../components/common/InfoRow';
 import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { bankService } from '../../../services/bankService';
 import { kycService } from '../../../services/kycService';
+import { signzyService } from '../../../services/signzyService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { useTheme } from '../../../store/ThemeContext';
@@ -194,10 +195,68 @@ const IncomeVerificationScreen = ({ navigation }) => {
         payload: { bankName, accountNumber, ifsc, accountType, branchName, occupationCategory: selectedCategory?.label, occupation: resolvedOccupation, declaredAnnualIncome: parseInt(declaredAnnualIncome, 10) || 0 },
       });
 
+      // Background Signzy employment verification — fire-and-forget for
+      // salaried applicants so credit / admin can see the EPFO footprint
+      // later in the staff view. Must not block the user flow.
+      runEmploymentVerification();
+
       // Run matching
       runMatching(pdResult, incResult);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Background Signzy EPFO employment lookup for salaried applicants.
+   * Fire-and-forget — stores the result (or the failure reason) on
+   * state.signzyVerifications.employmentBasic so credit / admin can
+   * audit it from the staff view. Never throws back into the main
+   * flow.
+   */
+  const runEmploymentVerification = async () => {
+    const category = occupationCategory || '';
+    const isSalaried = category.startsWith('salaried_');
+    if (!isSalaried) return;
+
+    const mobile = state.borrowerDetails?.phone || '';
+    const pan = state.panDetails?.panNumber || '';
+    if (!mobile || !pan) {
+      console.log('[IncomeVerification] Skipping employment verification — missing mobile/PAN');
+      return;
+    }
+
+    console.log('[IncomeVerification] Employment verification → mobile =', mobile);
+    try {
+      const result = await signzyService.getCurrentEmployer(mobile, pan);
+      dispatch({
+        type: 'SET_SIGNZY_VERIFICATION',
+        payload: {
+          key: 'employmentBasic',
+          status: 'success',
+          result,
+        },
+      });
+      console.log(
+        '[IncomeVerification] Employment verification ok → employer =',
+        result.recentEmployer?.establishmentName || '(none)',
+        ', isEmployed =',
+        result.isEmployed,
+      );
+    } catch (err) {
+      console.log('[IncomeVerification] Employment verification failed:', err?.message);
+      dispatch({
+        type: 'SET_SIGNZY_VERIFICATION',
+        payload: {
+          key: 'employmentBasic',
+          status: 'failure',
+          error: {
+            message: err?.message || 'Unknown error',
+            statusCode: err?.statusCode ?? err?.response?.status ?? null,
+            raw: err?.signzyError || err?.response?.data || null,
+          },
+        },
+      });
     }
   };
 
