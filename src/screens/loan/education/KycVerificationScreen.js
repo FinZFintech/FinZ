@@ -1562,6 +1562,48 @@ const KycVerificationScreen = ({ navigation }) => {
 
               {!sameAsAadhaar && (
                 <View style={styles.addressForm}>
+                  {/* Prefill suggestion from Signzy phone-prefill — shown when
+                     the applicant has a known primary / most-recent address
+                     on file and the comm address form is empty. One tap
+                     copies it in for editing. */}
+                  {(() => {
+                    const pf = state.signzyVerifications?.phonePrefill;
+                    const pa = pf?.status === 'success' ? pf?.result?.primaryAddress : null;
+                    if (!pa || !pa.address) return null;
+                    const hasEntered = !!commAddress.addressLine?.trim();
+                    if (hasEntered) return null;
+                    return (
+                      <TouchableOpacity
+                        onPress={() => setCommAddress({
+                          addressLine: pa.address,
+                          city: '',
+                          state: pa.state || '',
+                          pincode: pa.postal || '',
+                        })}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.teal,
+                          backgroundColor: tealBg,
+                          padding: 10,
+                          borderRadius: 8,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <Text style={{ color: colors.teal, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>
+                          Prefill suggestion from records (tap to use)
+                        </Text>
+                        <Text style={{ color: colors.textPrimary, fontSize: 13 }}>
+                          {pa.address}
+                          {pa.state ? `, ${pa.state}` : ''}
+                          {pa.postal ? ` - ${pa.postal}` : ''}
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }}>
+                          {pa.type || 'Address'}
+                          {pa.reportedDate ? ` · reported ${pa.reportedDate}` : ''}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })()}
                   <Input
                     label="Address Line"
                     value={commAddress.addressLine}

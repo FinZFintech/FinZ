@@ -22,6 +22,7 @@ const TABS = ['Details', 'Documents', 'Verifications', 'Comments', 'Communicatio
  */
 const SIGNZY_VERIFICATION_LABELS = {
   employmentBasic: 'Employment (UAN Basic)',
+  phonePrefill: 'Phone Prefill',
 };
 
 /**
@@ -865,7 +866,8 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
 
               {/* Success body: type-specific rendering */}
               {isSuccess && key === 'employmentBasic' && renderEmploymentBasic(entry.result)}
-              {isSuccess && key !== 'employmentBasic' && (
+              {isSuccess && key === 'phonePrefill' && renderPhonePrefill(entry.result)}
+              {isSuccess && key !== 'employmentBasic' && key !== 'phonePrefill' && (
                 <Text style={{ color: colors.textSecondary }}>
                   {JSON.stringify(entry.result, null, 2)}
                 </Text>
@@ -984,6 +986,122 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
                   </Text>
                 ) : null}
               </View>
+            ))}
+          </>
+        ) : null}
+      </>
+    );
+  };
+
+  /**
+   * Structured render of a Phone Prefill result.
+   */
+  const renderPhonePrefill = (result) => {
+    if (!result) return null;
+    const alternates = result.alternatePhones || [];
+    const emails = result.emails || [];
+    const addresses = result.addresses || [];
+    const voterIds = result.voterIds || [];
+    const passports = result.passports || [];
+    const drivingLicenses = result.drivingLicenses || [];
+    const name = result.name || {};
+    const primary = result.primaryAddress || null;
+
+    return (
+      <>
+        {/* Demographics */}
+        {name.fullName ? <InfoRow label="Name" value={name.fullName} /> : null}
+        {result.pan ? <InfoRow label="PAN (reported)" value={result.pan} /> : null}
+        {result.dob ? <InfoRow label="Date of Birth" value={result.dob} /> : null}
+        {result.age ? <InfoRow label="Age" value={result.age} /> : null}
+        {result.gender ? <InfoRow label="Gender" value={result.gender} /> : null}
+        {result.income ? <InfoRow label="Reported Income" value={result.income} /> : null}
+
+        {/* Primary address */}
+        {primary ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              Primary / Most-Recent Address
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginBottom: 4 }}>
+              {primary.address}
+              {primary.state ? `, ${primary.state}` : ''}
+              {primary.postal ? ` - ${primary.postal}` : ''}
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+              {primary.type || 'Address'}
+              {primary.reportedDate ? ` · reported ${primary.reportedDate}` : ''}
+            </Text>
+          </>
+        ) : null}
+
+        {/* Alternate phones */}
+        {alternates.length > 0 ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              Alternate Phones ({alternates.length})
+            </Text>
+            {alternates.map((p, idx) => (
+              <Text key={idx} style={{ color: colors.textSecondary, marginBottom: 2 }}>• {p}</Text>
+            ))}
+          </>
+        ) : null}
+
+        {/* Emails */}
+        {emails.length > 0 ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              Emails ({emails.length})
+            </Text>
+            {emails.map((e, idx) => (
+              <Text key={idx} style={{ color: colors.textSecondary, marginBottom: 2 }}>• {e}</Text>
+            ))}
+          </>
+        ) : null}
+
+        {/* Address history */}
+        {addresses.length > 0 ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              Address History ({addresses.length})
+            </Text>
+            {addresses.map((a, idx) => (
+              <View
+                key={idx}
+                style={{
+                  paddingVertical: 8,
+                  borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+                  borderTopColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.textPrimary }}>
+                  {a.address}
+                  {a.state ? `, ${a.state}` : ''}
+                  {a.postal ? ` - ${a.postal}` : ''}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                  {a.type || 'Address'}
+                  {a.reportedDate ? ` · reported ${a.reportedDate}` : ''}
+                </Text>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        {/* Identity documents */}
+        {(voterIds.length > 0 || passports.length > 0 || drivingLicenses.length > 0) ? (
+          <>
+            <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }}>
+              Identity Documents on File
+            </Text>
+            {passports.map((p, idx) => (
+              <InfoRow key={`pp-${idx}`} label={passports.length > 1 ? `Passport ${idx + 1}` : 'Passport'} value={p} />
+            ))}
+            {voterIds.map((v, idx) => (
+              <InfoRow key={`vo-${idx}`} label={voterIds.length > 1 ? `Voter ID ${idx + 1}` : 'Voter ID'} value={v} />
+            ))}
+            {drivingLicenses.map((dl, idx) => (
+              <InfoRow key={`dl-${idx}`} label={drivingLicenses.length > 1 ? `Driving License ${idx + 1}` : 'Driving License'} value={dl} />
             ))}
           </>
         ) : null}

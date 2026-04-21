@@ -45,6 +45,7 @@ export const SIGNZY_CONFIG = {
     PHONE_TO_PREFILL: '/phonekyc/phoneToPrefill',
     PHONE_TO_INCOME: '/phonekyc/phoneToIncome',
     PHONE_TO_IDENTITY_DETAILS: '/phonekyc/phoneToIdentityDetails',
+    PHONE_PREFILL: '/phonekyc/phone-prefill',
 
     // Risk & Fraud
     PHONE_INTELLIGENCE: '/phone-intelligence',

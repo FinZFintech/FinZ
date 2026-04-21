@@ -355,6 +355,105 @@ export const signzyService = {
     };
   },
 
+  /**
+   * Phone KYC — Phone Prefill (/phonekyc/phone-prefill).
+   *
+   * Comprehensive user footprint by phone + PAN + name. Returns
+   * contact details (alternate phones, emails), address history
+   * (with report date + type), identity documents (PAN, passport,
+   * voter ID, driving license), and demographics (name, gender,
+   * age, dob, reported income).
+   *
+   * Primary / most-recent address is surfaced as `primaryAddress`
+   * so the app can prefill the communication address without the
+   * caller having to walk the whole list.
+   */
+  async phonePrefill(phoneNumber, firstName, lastName, pan) {
+    console.log(
+      '[signzyService] phonePrefill → phone =',
+      phoneNumber,
+      ', firstName =',
+      firstName,
+      ', pan =',
+      pan,
+    );
+
+    const body = { phoneNumber, firstName };
+    if (lastName) body.lastName = lastName;
+    if (pan) body.pan = pan;
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PHONE_PREFILL, body);
+    const r = data?.response || data?.result || data || {};
+
+    // Normalize the nested `{ serialNo, <field> }` arrays into simple
+    // lists of strings — easier to render and dedupe.
+    const pickList = (arr, key) =>
+      Array.isArray(arr)
+        ? arr
+            .map((item) => (typeof item === 'string' ? item : item?.[key]))
+            .map((s) => (typeof s === 'string' ? s.trim() : ''))
+            .filter(Boolean)
+        : [];
+
+    const alternatePhones = pickList(r.alternatePhone, 'phoneNumber');
+    const emails = pickList(r.email, 'email');
+    const voterIds = pickList(r.voterId, 'voterId');
+    const passports = pickList(r.passport, 'passport');
+    const drivingLicenses = pickList(r.drivingLicense, 'drivingLicense');
+
+    // Address history — keep the structured form so callers can show the
+    // reported date / type, but also pick the most useful one as the
+    // "primary" for prefill (Type === 'Primary' first, else most recent
+    // by ReportedDate).
+    const addresses = Array.isArray(r.address)
+      ? r.address
+          .map((a) => ({
+            seq: String(a?.Seq || ''),
+            reportedDate: String(a?.ReportedDate || ''),
+            address: String(a?.Address || '').replace(/\s+/g, ' ').trim(),
+            state: String(a?.State || ''),
+            postal: String(a?.Postal || ''),
+            type: String(a?.Type || ''),
+          }))
+          .filter((a) => a.address)
+      : [];
+
+    const byDateDesc = (a, b) => (b.reportedDate || '').localeCompare(a.reportedDate || '');
+    const primaryCandidates = addresses.filter((a) => /primary/i.test(a.type));
+    const sortedPrimary = [...primaryCandidates].sort(byDateDesc);
+    const sortedAll = [...addresses].sort(byDateDesc);
+    const primaryAddress = sortedPrimary[0] || sortedAll[0] || null;
+
+    const nameObj = r.name || {};
+
+    return {
+      // Contact
+      alternatePhones,
+      emails,
+      primaryEmail: emails[0] || '',
+      // Addresses
+      addresses,
+      primaryAddress,
+      // Identity
+      pan: r.pan || '',
+      voterIds,
+      passports,
+      drivingLicenses,
+      // Demographics
+      name: {
+        fullName: String(nameObj.fullName || '').trim(),
+        firstName: String(nameObj.firstName || '').trim(),
+        lastName: String(nameObj.lastName || '').trim(),
+      },
+      gender: r.gender || '',
+      age: r.age ? String(r.age) : '',
+      dob: r.dob || '',
+      income: r.income ? String(r.income) : '',
+      // Audit
+      rawResponse: data,
+    };
+  },
+
   async phoneToIncome(phoneNumber, firstName, dob, address, pincode, lastName, pan) {
     const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.PHONE_TO_INCOME, {
       phoneNumber, firstName, dob, address, pincode, lastName, pan,
