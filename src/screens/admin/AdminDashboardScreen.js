@@ -8,53 +8,12 @@ import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
-import { loadRealApplications, mergeWithMocks } from '../../utils/loadApplications';
+import { loadRealApplications } from '../../utils/loadApplications';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { adminService } from '../../services/adminService';
 import { navigationRef } from '../../navigation/navigationRef';
 import { formatCurrency, formatDate } from '../../utils/helpers';
-
-// All applications visible to admin
-const MOCK_ALL_APPS = [
-  {
-    id: 'APP_001', customerName: 'Rahul Sharma', customerPhone: '9876543210',
-    instituteName: 'IIT Bombay', amount: 250000, status: 'manual_review',
-    creditScore: 720, riskScore: 680, reason: 'Name mismatch (PAN vs Aadhaar)',
-    appliedDate: '2026-03-28', assignedTo: 'credit', category: 'Education',
-  },
-  {
-    id: 'APP_002', customerName: 'Priya Singh', customerPhone: '9876543211',
-    instituteName: 'BITS Pilani', amount: 180000, status: 'kyc_completed',
-    creditScore: 750, riskScore: 740,
-    appliedDate: '2026-03-27', assignedTo: 'operations', category: 'Education',
-  },
-  {
-    id: 'APP_003', customerName: 'Amit Kumar', customerPhone: '9876543212',
-    instituteName: 'VIT Vellore', amount: 120000, status: 'draft',
-    creditScore: null, riskScore: null,
-    appliedDate: '2026-03-30', assignedTo: 'sales', category: 'Education',
-  },
-  {
-    id: 'APP_004', customerName: 'Sneha Patel', customerPhone: '9876543213',
-    instituteName: 'NIT Trichy', amount: 350000, status: 'fully_eligible',
-    creditScore: 680, riskScore: 620,
-    appliedDate: '2026-03-25', assignedTo: 'operations', category: 'Education',
-  },
-  {
-    id: 'APP_005', customerName: 'Raj Verma', customerPhone: '9876543214',
-    instituteName: 'SRM University', amount: 200000, status: 'disbursed',
-    creditScore: 760, riskScore: 780,
-    appliedDate: '2026-03-10', assignedTo: 'operations', category: 'Education',
-    disbursementDate: '2026-03-20',
-  },
-  {
-    id: 'APP_006', customerName: 'Meera Joshi', customerPhone: '9876543215',
-    instituteName: 'Christ University', amount: 150000, status: 'credit_check_failed',
-    creditScore: 420, riskScore: 280, reason: 'Low credit score',
-    appliedDate: '2026-03-22', assignedTo: 'credit', category: 'Education',
-  },
-];
 
 const FILTERS = ['All', 'Sales', 'Credit', 'Operations', 'Completed'];
 
@@ -80,10 +39,8 @@ const AdminDashboardScreen = ({ navigation }) => {
     } catch {
       // Use mock data
     }
-    const realApps = await loadRealApplications();
-    console.log('[AdminDashboard] Real apps loaded:', realApps.length, realApps.map(a => a.id).join(', '));
-    const allApps = mergeWithMocks(realApps, MOCK_ALL_APPS);
-    console.log('[AdminDashboard] Total apps after merge:', allApps.length);
+    const allApps = await loadRealApplications();
+    console.log('[AdminDashboard] Apps loaded:', allApps.length);
     setApplications(allApps);
 
     setStats({
@@ -92,7 +49,7 @@ const AdminDashboardScreen = ({ navigation }) => {
       inProgress: allApps.filter(a => !['draft', 'disbursed', 'credit_check_failed', 'not_eligible'].includes(a.status)).length,
       disbursed: allApps.filter(a => a.status === 'disbursed').length,
       rejected: allApps.filter(a => a.status === 'credit_check_failed' || a.status === 'not_eligible').length,
-      totalDisbursedAmount: allApps.filter(a => a.status === 'disbursed').reduce((sum, a) => sum + a.amount, 0),
+      totalDisbursedAmount: allApps.filter(a => a.status === 'disbursed').reduce((sum, a) => sum + (a.amount || 0), 0),
     });
   }, []);
 
