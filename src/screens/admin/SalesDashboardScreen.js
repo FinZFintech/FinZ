@@ -75,7 +75,9 @@ const SalesDashboardScreen = ({ navigation }) => {
 
   const loadApplications = useCallback(async () => {
     const realApps = await loadRealApplications();
+    console.log('[SalesDashboard] Real apps loaded:', realApps.length);
     const allApps = mergeWithMocks(realApps, MOCK_APPLICATIONS);
+    console.log('[SalesDashboard] Total apps after merge:', allApps.length);
     setApplications(allApps);
   }, []);
 

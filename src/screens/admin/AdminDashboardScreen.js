@@ -81,7 +81,9 @@ const AdminDashboardScreen = ({ navigation }) => {
       // Use mock data
     }
     const realApps = await loadRealApplications();
+    console.log('[AdminDashboard] Real apps loaded:', realApps.length, realApps.map(a => a.id).join(', '));
     const allApps = mergeWithMocks(realApps, MOCK_ALL_APPS);
+    console.log('[AdminDashboard] Total apps after merge:', allApps.length);
     setApplications(allApps);
 
     setStats({
