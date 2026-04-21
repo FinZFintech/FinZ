@@ -66,6 +66,12 @@ export const SIGNZY_CONFIG = {
     PAN_TO_GSTN: '/gst/panToGstnDetail',
     GSTN_DETAILED: '/gstn/gstndetailed',
 
+    // ITR (Income Tax Return)
+    ITR_FORGET_PASSWORD: '/itr/itrforgetpassword',
+    ITR_AUTHORISE_NEW_PASSWORD: '/itr/itrauthorisenewpassword',
+    ITR_PULL: '/itr/itr-pull',
+    FORM_26AS_PULL: '/itr/form-26-as-pull',
+
     // Address
     ADDRESS_GEOCODE: '/addressGeocode',
     PINCODE_DETAILS: '/pincodeDetails',
