@@ -135,6 +135,12 @@ export async function loadRealApplications() {
         // ── References ──
         references: a.references || null,
 
+        // ── Timeline ──
+        timeline: a.timeline || [],
+
+        // ── Eligibility ──
+        eligibilityResult: a.eligibilityResult || null,
+
         // ── Meta ──
         lastUpdated: a.lastUpdated || a.createdAt || '',
         createdAt: a.createdAt || '',
