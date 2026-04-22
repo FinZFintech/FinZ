@@ -1494,6 +1494,26 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
             <Row label="Total Taxes Paid" value={fmtAmt(yr.totalTaxesPaid)} />
             <Row label="Refund Due" value={fmtAmt(yr.refundDue)} />
 
+            {/* Bank accounts from ITR */}
+            {yr.bankAccounts && yr.bankAccounts.length > 0 ? (
+              <>
+                <Text style={{ fontSize: 13, fontWeight: '600', marginTop: 10, marginBottom: 4, color: colors.textSecondary }}>
+                  Bank Account(s) from ITR
+                </Text>
+                {yr.bankAccounts.map((bank, bidx) => (
+                  <View key={bidx} style={{ marginBottom: 4 }}>
+                    <Text style={{ color: colors.textPrimary, fontSize: 13 }}>
+                      {bank.bankName} — ****{bank.accountNumber?.slice(-4)}
+                      {bank.useForRefund ? ' (refund account)' : ''}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+                      IFSC: {bank.ifsc} · {bank.accountType}
+                    </Text>
+                  </View>
+                ))}
+              </>
+            ) : null}
+
             {/* Key deductions */}
             {(yr.section80C > 0 || yr.section80D > 0 || yr.section80CCD1B > 0 || yr.npsEmployer > 0) ? (
               <>

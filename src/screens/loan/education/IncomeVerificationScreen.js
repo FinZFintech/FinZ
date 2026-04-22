@@ -84,6 +84,13 @@ const IncomeVerificationScreen = ({ navigation }) => {
   // Validation errors
   const [errors, setErrors] = useState({});
 
+  // Income source verification state
+  const [incomeSourceLoading, setIncomeSourceLoading] = useState(false);
+  const [incomeSourceDone, setIncomeSourceDone] = useState(false);
+  const [incomeSourceError, setIncomeSourceError] = useState('');
+  const [incomeFromTds, setIncomeFromTds] = useState(null); // { totalPaid, totalTds, employer, monthlyIncome }
+  const [bankFromItr, setBankFromItr] = useState(null); // { ifsc, bankName, accountNumber, accountType }
+
   const loanAmount = state.studentDetails?.balanceFee || 0;
 
   // Derived occupation values
@@ -104,6 +111,65 @@ const IncomeVerificationScreen = ({ navigation }) => {
       setFipList(res.fips || []);
     }).catch(() => {});
   }, []);
+
+  // ── Trigger income source verification when occupation is selected ──
+  // For salaried: runs ITR forget-password → OTP flow (handled by the
+  //   ITR card UI below). Also fires employment verification.
+  //   26AS is preferred over ITR for income — shows TDS-based monthly.
+  // For self-employed: fires GST lookup automatically.
+  useEffect(() => {
+    if (!occupationCategory || incomeSourceDone) return;
+
+    const isSalaried = occupationCategory.startsWith('salaried_');
+    const isSelfEmployed = occupationCategory.startsWith('self_employed') || occupationCategory.startsWith('business');
+
+    if (isSelfEmployed) {
+      runGstVerification();
+    }
+    if (isSalaried) {
+      runEmploymentVerification();
+    }
+  }, [occupationCategory]);
+
+  // ── Prefill bank details from ITR when available ──
+  useEffect(() => {
+    const itrData = state.signzyVerifications?.itrPull;
+    if (itrData?.status !== 'success' || !itrData.result?.itrByYear?.length) return;
+
+    const latestYear = itrData.result.itrByYear[0];
+    const banks = latestYear?.bankAccounts || [];
+    const refundBank = banks.find((b) => b.useForRefund) || banks[0];
+
+    if (refundBank && !ifsc && !accountNumber) {
+      setBankFromItr(refundBank);
+      setIfsc(refundBank.ifsc);
+      setBankName(refundBank.bankName);
+      setAccountNumber(refundBank.accountNumber);
+      setConfirmAccountNumber(refundBank.accountNumber);
+      setAccountType(refundBank.accountType);
+      console.log('[IncomeVerification] Prefilled bank from ITR:', refundBank.bankName, refundBank.accountNumber?.slice(-4));
+    }
+
+    // Extract employer income from 26AS for verification
+    const form26 = state.signzyVerifications?.form26AS;
+    if (form26?.status === 'success' && form26.result?.byYear?.length) {
+      const currentYear = form26.result.byYear[0];
+      const salaryEntries = (currentYear?.tdsEntries || []).filter((e) => e.section === '192');
+      const totalSalaryPaid = salaryEntries.reduce((s, e) => s + (parseFloat(e.amountPaid) || 0), 0);
+      const totalSalaryTds = salaryEntries.reduce((s, e) => s + (parseFloat(e.taxDeducted) || 0), 0);
+      const employer = salaryEntries[0]?.nameOfDeductor || '';
+      const months = salaryEntries.length || 1;
+      setIncomeFromTds({
+        assessmentYear: currentYear.assessmentYear,
+        totalPaid: totalSalaryPaid,
+        totalTds: totalSalaryTds,
+        monthlyIncome: Math.round(totalSalaryPaid / months),
+        employer,
+        entries: salaryEntries.length,
+      });
+      setIncomeSourceDone(true);
+    }
+  }, [state.signzyVerifications?.itrPull, state.signzyVerifications?.form26AS]);
 
   // Auto-match bank name to FIP list for AA
   const matchBankToFip = (name) => {
@@ -731,6 +797,43 @@ const IncomeVerificationScreen = ({ navigation }) => {
 
         {/* Bank Account Details */}
         {!verificationDone && (
+          <>
+          {/* Income from 26AS / ITR — shown when TDS data is available */}
+          {incomeFromTds && (
+            <Card>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                Income Verification (from Tax Records)
+              </Text>
+              <View style={[styles.bankInfoBanner, { backgroundColor: `${colors.teal}14`, borderColor: `${colors.teal}40` }]}>
+                <Text style={styles.bankInfoIcon}>📊</Text>
+                <Text style={[styles.bankInfoText, { color: colors.teal }]}>
+                  We have fetched your income details from Form 26AS (TDS records). Please verify the details below.
+                </Text>
+              </View>
+              <InfoRow label="Assessment Year" value={incomeFromTds.assessmentYear} />
+              <InfoRow label="Employer" value={incomeFromTds.employer} />
+              <InfoRow label="Total Salary Credited" value={formatCurrency(incomeFromTds.totalPaid)} />
+              <InfoRow label="Total TDS Deducted" value={formatCurrency(incomeFromTds.totalTds)} />
+              <InfoRow
+                label="Monthly Income (estimated)"
+                value={formatCurrency(incomeFromTds.monthlyIncome)}
+                highlight
+              />
+              <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 8 }}>
+                Based on {incomeFromTds.entries} salary credit(s) reported in Form 26AS under section 192.
+              </Text>
+            </Card>
+          )}
+
+          {/* Bank prefill indicator from ITR */}
+          {bankFromItr && (
+            <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginHorizontal: 16, marginBottom: 8 }}>
+              <Text style={{ color: colors.teal, fontSize: 12 }}>
+                Bank details below have been auto-filled from your ITR filing ({bankFromItr.bankName} ****{bankFromItr.accountNumber?.slice(-4)}). You can edit if needed.
+              </Text>
+            </View>
+          )}
+
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Bank Account Details</Text>
             <View style={[styles.bankInfoBanner, { backgroundColor: `${colors.teal}14`, borderColor: `${colors.teal}40` }]}>
@@ -796,6 +899,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
             </View>
             {errors.accountType && <Text style={[styles.errorText, { color: colors.error }]}>{errors.accountType}</Text>}
           </Card>
+          </>
         )}
 
         {/* Skip with Test Data */}
