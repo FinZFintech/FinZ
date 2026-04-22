@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { smsService } from './smsService';
-import { getStaffUserByPhone } from './userService';
+import { getStaffUserByPhone, getStaffUserByEmail } from './userService';
 import { isFirebaseConfigured } from '../config/firebase';
 
 const USER_PROFILES_KEY = 'finz_user_profiles';

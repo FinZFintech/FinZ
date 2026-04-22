@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
   TextInput, Alert, RefreshControl, Platform,
@@ -7,13 +7,12 @@ import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import StatusBadge from '../../components/common/StatusBadge';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
-import { formatDate } from '../../utils/helpers';
+import { formatDate, validateMobile, validateEmail } from '../../utils/helpers';
 import {
   createStaffUser, getAllStaffUsers, disableStaffUser,
-  enableStaffUser, updateStaffUserRole,
+  enableStaffUser, getStaffUserByPhone,
 } from '../../services/userService';
 
 const ROLES = ['sales', 'credit', 'operations', 'admin'];
@@ -24,13 +23,17 @@ const UserManagementScreen = ({ navigation }) => {
   const [users, setUsers] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Create user modal
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [loginMethod, setLoginMethod] = useState('phone'); // 'phone' | 'email'
   const [newRole, setNewRole] = useState('sales');
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   const loadUsers = useCallback(async () => {
     try {
@@ -51,31 +54,76 @@ const UserManagementScreen = ({ navigation }) => {
     setRefreshing(false);
   }, [loadUsers]);
 
+  // Search / filter
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery.trim()) return users;
+    const q = searchQuery.trim().toLowerCase();
+    return users.filter(
+      (u) =>
+        (u.name || '').toLowerCase().includes(q) ||
+        (u.phone || '').includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        (u.role || '').toLowerCase().includes(q),
+    );
+  }, [users, searchQuery]);
+
   const handleCreate = async () => {
+    setCreateError('');
+
     if (!newName.trim() || newName.trim().length < 2) {
-      Alert.alert('Error', 'Please enter a valid name (at least 2 characters).');
+      setCreateError('Please enter a valid name (at least 2 characters).');
       return;
     }
-    if (!newPhone || newPhone.length !== 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit mobile number.');
-      return;
+
+    if (loginMethod === 'phone') {
+      if (!newPhone || newPhone.length !== 10) {
+        setCreateError('Please enter a valid 10-digit mobile number.');
+        return;
+      }
+      if (!/^[6-9]\d{9}$/.test(newPhone)) {
+        setCreateError('Invalid mobile number. Must start with 6-9 and be 10 digits.');
+        return;
+      }
+      // Check duplicate
+      const existing = users.find((u) => u.phone === newPhone);
+      if (existing) {
+        setCreateError(`A user with mobile ${newPhone} already exists (${existing.name}, ${existing.role}).`);
+        return;
+      }
+    } else {
+      if (!newEmail || !validateEmail(newEmail)) {
+        setCreateError('Please enter a valid email address.');
+        return;
+      }
+      // Check duplicate email
+      const existing = users.find((u) => u.email?.toLowerCase() === newEmail.toLowerCase());
+      if (existing) {
+        setCreateError(`A user with email ${newEmail} already exists (${existing.name}, ${existing.role}).`);
+        return;
+      }
     }
+
     setCreating(true);
     try {
       await createStaffUser({
-        phone: newPhone,
+        phone: loginMethod === 'phone' ? newPhone : '',
+        email: loginMethod === 'email' ? newEmail.trim() : '',
         name: newName.trim(),
         role: newRole,
+        loginMethod,
         createdBy: user?.name || user?.phone || '',
       });
       setShowCreate(false);
       setNewName('');
       setNewPhone('');
+      setNewEmail('');
       setNewRole('sales');
-      Alert.alert('Success', `${newRole} user created. They can now log in with OTP on ${newPhone}.`);
+      setCreateError('');
+      const loginId = loginMethod === 'phone' ? newPhone : newEmail;
+      Alert.alert('Success', `${newRole} user created. They can log in via OTP on ${loginId}.`);
       loadUsers();
     } catch (err) {
-      Alert.alert('Error', err?.message || 'Failed to create user.');
+      setCreateError(err?.message || 'Failed to create user.');
     } finally {
       setCreating(false);
     }
@@ -84,15 +132,15 @@ const UserManagementScreen = ({ navigation }) => {
   const handleToggleActive = async (staffUser) => {
     const action = staffUser.active ? 'disable' : 'enable';
     const confirmed = Platform.OS === 'web'
-      ? window.confirm(`${action === 'disable' ? 'Disable' : 'Enable'} user ${staffUser.name} (${staffUser.phone})?`)
+      ? window.confirm(`${action === 'disable' ? 'Disable' : 'Enable'} user ${staffUser.name} (${staffUser.phone || staffUser.email})?`)
       : true;
     if (!confirmed) return;
 
     try {
       if (action === 'disable') {
-        await disableStaffUser(staffUser.phone, user?.name || user?.phone || '');
+        await disableStaffUser(staffUser.phone || staffUser.email, user?.name || user?.phone || '');
       } else {
-        await enableStaffUser(staffUser.phone, user?.name || user?.phone || '');
+        await enableStaffUser(staffUser.phone || staffUser.email, user?.name || user?.phone || '');
       }
       loadUsers();
     } catch (err) {
@@ -135,11 +183,23 @@ const UserManagementScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Search */}
+        <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+          <TextInput
+            style={[styles.searchInput, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.surface }]}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search by phone, email, name, or role..."
+            placeholderTextColor={colors.textSecondary}
+            autoCapitalize="none"
+          />
+        </View>
+
         {/* Create button */}
         <Button
           title="+ Create New Staff User"
-          onPress={() => setShowCreate(true)}
-          style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 8 }}
+          onPress={() => { setShowCreate(true); setCreateError(''); }}
+          style={{ marginHorizontal: 16, marginBottom: 8 }}
         />
 
         {/* User list */}
@@ -147,16 +207,18 @@ const UserManagementScreen = ({ navigation }) => {
           <View style={styles.emptyWrap}>
             <Text style={{ color: colors.textSecondary }}>Loading users...</Text>
           </View>
-        ) : users.length === 0 ? (
+        ) : filteredUsers.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <Text style={{ fontSize: 32, marginBottom: 8 }}>👥</Text>
+            <Text style={{ fontSize: 32, marginBottom: 8 }}>{searchQuery ? '🔍' : '👥'}</Text>
             <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>
-              No staff users created yet. Tap the button above to create your first user.
+              {searchQuery
+                ? `No users match "${searchQuery}".`
+                : 'No staff users created yet. Tap the button above to create your first user.'}
             </Text>
           </View>
         ) : (
-          users.map((u) => (
-            <Card key={u.userId || u.phone} style={{ marginHorizontal: 16, marginBottom: 8 }}>
+          filteredUsers.map((u) => (
+            <Card key={u.userId || u.phone || u.email} style={{ marginHorizontal: 16, marginBottom: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                 <View style={{
                   width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
@@ -168,7 +230,10 @@ const UserManagementScreen = ({ navigation }) => {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>{u.name}</Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{u.phone}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                    {u.phone || u.email || '—'}
+                    {u.loginMethod === 'email' ? ' (email login)' : ''}
+                  </Text>
                 </View>
                 <View style={{
                   paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, borderWidth: 1,
@@ -204,66 +269,120 @@ const UserManagementScreen = ({ navigation }) => {
       {/* Create User Modal */}
       <Modal visible={showCreate} transparent animationType="fade" onRequestClose={() => setShowCreate(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 }}>
-          <View style={{ backgroundColor: colors.cardBg, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: colors.border }}>
-            <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 }}>
-              Create Staff User
-            </Text>
-            <Input
-              label="Full Name"
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="Enter staff member name"
-              autoCapitalize="words"
-            />
-            <Input
-              label="Mobile Number"
-              value={newPhone}
-              onChangeText={(t) => setNewPhone(t.replace(/[^0-9]/g, '').slice(0, 10))}
-              placeholder="10-digit mobile number"
-              keyboardType="phone-pad"
-              maxLength={10}
-            />
-            <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 13, marginBottom: 8, marginTop: 4 }}>
-              Role
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 16 }}>
-              {ROLES.map((r) => (
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} keyboardShouldPersistTaps="handled">
+            <View style={{ backgroundColor: colors.cardBg, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '700', marginBottom: 16 }}>
+                Create Staff User
+              </Text>
+
+              {createError ? (
+                <View style={{ backgroundColor: `${colors.error}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                  <Text style={{ color: colors.error, fontSize: 13 }}>{createError}</Text>
+                </View>
+              ) : null}
+
+              <Input
+                label="Full Name"
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="Enter staff member name"
+                autoCapitalize="words"
+              />
+
+              {/* Login method toggle */}
+              <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 13, marginBottom: 8, marginTop: 4 }}>
+                Login Method
+              </Text>
+              <View style={{ flexDirection: 'row', marginBottom: 12 }}>
                 <TouchableOpacity
-                  key={r}
                   style={{
-                    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1,
-                    marginRight: 8, marginBottom: 8,
-                    borderColor: newRole === r ? colors.teal : colors.border,
-                    backgroundColor: newRole === r ? `${colors.teal}14` : colors.surface,
+                    flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, alignItems: 'center', marginRight: 8,
+                    borderColor: loginMethod === 'phone' ? colors.teal : colors.border,
+                    backgroundColor: loginMethod === 'phone' ? `${colors.teal}14` : colors.surface,
                   }}
-                  onPress={() => setNewRole(r)}
+                  onPress={() => setLoginMethod('phone')}
                 >
-                  <Text style={{
-                    color: newRole === r ? colors.teal : colors.textSecondary,
-                    fontSize: 13, fontWeight: newRole === r ? '700' : '400',
-                    textTransform: 'capitalize',
-                  }}>
-                    {r}
+                  <Text style={{ color: loginMethod === 'phone' ? colors.teal : colors.textSecondary, fontWeight: '600', fontSize: 13 }}>
+                    📱 Mobile OTP
                   </Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity
+                  style={{
+                    flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, alignItems: 'center',
+                    borderColor: loginMethod === 'email' ? colors.teal : colors.border,
+                    backgroundColor: loginMethod === 'email' ? `${colors.teal}14` : colors.surface,
+                  }}
+                  onPress={() => setLoginMethod('email')}
+                >
+                  <Text style={{ color: loginMethod === 'email' ? colors.teal : colors.textSecondary, fontWeight: '600', fontSize: 13 }}>
+                    ✉️ Email OTP
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {loginMethod === 'phone' ? (
+                <Input
+                  label="Mobile Number"
+                  value={newPhone}
+                  onChangeText={(t) => setNewPhone(t.replace(/[^0-9]/g, '').slice(0, 10))}
+                  placeholder="10-digit mobile (starts with 6-9)"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              ) : (
+                <Input
+                  label="Email Address"
+                  value={newEmail}
+                  onChangeText={setNewEmail}
+                  placeholder="name@company.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              )}
+
+              <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 13, marginBottom: 8, marginTop: 4 }}>
+                Role
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 16 }}>
+                {ROLES.map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    style={{
+                      paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1,
+                      marginRight: 8, marginBottom: 8,
+                      borderColor: newRole === r ? colors.teal : colors.border,
+                      backgroundColor: newRole === r ? `${colors.teal}14` : colors.surface,
+                    }}
+                    onPress={() => setNewRole(r)}
+                  >
+                    <Text style={{
+                      color: newRole === r ? colors.teal : colors.textSecondary,
+                      fontSize: 13, fontWeight: newRole === r ? '700' : '400',
+                      textTransform: 'capitalize',
+                    }}>
+                      {r}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center', marginRight: 8 }}
+                  onPress={() => setShowCreate(false)}
+                >
+                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: colors.teal, alignItems: 'center', opacity: creating ? 0.6 : 1 }}
+                  onPress={handleCreate}
+                  disabled={creating}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>{creating ? 'Creating...' : 'Create User'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={{ flexDirection: 'row', marginTop: 8 }}>
-              <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center', marginRight: 8 }}
-                onPress={() => setShowCreate(false)}
-              >
-                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: colors.teal, alignItems: 'center', opacity: creating ? 0.6 : 1 }}
-                onPress={handleCreate}
-                disabled={creating}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>{creating ? 'Creating...' : 'Create User'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -278,6 +397,7 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 20, fontWeight: '800' },
   statLabel: { fontSize: 10, marginTop: 2 },
   emptyWrap: { alignItems: 'center', paddingTop: 40, paddingHorizontal: 32 },
+  searchInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
 });
 
 export default UserManagementScreen;
