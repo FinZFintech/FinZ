@@ -56,6 +56,7 @@ export const SIGNZY_CONFIG = {
     // Banking (Hybrid Bank Account Verification — penny drop / penniless)
     BANK_ACCOUNT_VERIFICATION: '/bankaccountverification/bankaccountverifications',
     IFSC_SEARCH: '/ifsc/search',
+    BANK_SEARCH_BY_IFSC: '/bank/searchByIfscCode',
 
     // Employment
     EMPLOYMENT_VERIFICATION: '/employmentVerification',
