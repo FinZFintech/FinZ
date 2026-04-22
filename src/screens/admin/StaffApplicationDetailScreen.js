@@ -1444,6 +1444,8 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
       return <InfoRow label={label} value={String(value)} />;
     };
 
+    const fmtAmt = (v) => (v != null ? formatCurrency(v) : null);
+
     return (
       <>
         {years.map((yr, idx) => (
@@ -1458,14 +1460,83 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
             <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 15, marginBottom: 6 }}>
               AY {yr.assessmentYear} — {yr.itrType || 'Unknown'}
             </Text>
-            <Row label="Gross Total Income" value={yr.grossTotalIncome != null ? formatCurrency(yr.grossTotalIncome) : null} />
-            <Row label="Total Income" value={yr.totalIncome != null ? formatCurrency(yr.totalIncome) : null} />
-            <Row label="Tax Payable" value={yr.totalTaxPayable != null ? formatCurrency(yr.totalTaxPayable) : null} />
-            <Row label="Salary Income" value={yr.salaryIncome != null ? formatCurrency(yr.salaryIncome) : null} />
-            <Row label="House Property" value={yr.housePropertyIncome != null ? formatCurrency(yr.housePropertyIncome) : null} />
-            <Row label="Other Sources" value={yr.otherSourceIncome != null ? formatCurrency(yr.otherSourceIncome) : null} />
             <Row label="Filing Date" value={yr.filingDate} />
             <Row label="Section" value={yr.filingSection} />
+            <Row label="Filing Type" value={yr.filingType} />
+            <Row label="Ack No." value={yr.acknowledgementNumber} />
+            <Row label="Name" value={yr.name} />
+            <Row label="Father's Name" value={yr.fatherName} />
+
+            {/* Income breakdown */}
+            <Text style={{ fontSize: 13, fontWeight: '600', marginTop: 10, marginBottom: 4, color: colors.textSecondary }}>
+              Income
+            </Text>
+            <Row label="Gross Salary" value={fmtAmt(yr.grossSalary)} />
+            <Row label="Salary (after exemptions)" value={fmtAmt(yr.salaryIncome)} />
+            <Row label="House Property" value={fmtAmt(yr.housePropertyIncome)} />
+            <Row label="Other Sources" value={fmtAmt(yr.otherSourceIncome)} />
+            <Row label="Gross Total Income" value={fmtAmt(yr.grossTotalIncome)} />
+            <Row label="Total Deductions (Ch VI-A)" value={fmtAmt(yr.totalDeductions)} />
+            <Row label="Total Taxable Income" value={fmtAmt(yr.totalIncome)} />
+
+            {/* Tax */}
+            <Text style={{ fontSize: 13, fontWeight: '600', marginTop: 10, marginBottom: 4, color: colors.textSecondary }}>
+              Tax
+            </Text>
+            <Row label="Tax Payable" value={fmtAmt(yr.totalTaxPayable)} />
+            <Row label="Education Cess" value={fmtAmt(yr.educationCess)} />
+            <Row label="Rebate u/s 87A" value={fmtAmt(yr.rebate87A)} />
+            <Row label="Net Tax Liability" value={fmtAmt(yr.netTaxLiability)} />
+            <Row label="TDS Paid" value={fmtAmt(yr.tdsPaid)} />
+            <Row label="TCS Paid" value={fmtAmt(yr.tcsPaid)} />
+            <Row label="Advance Tax" value={fmtAmt(yr.advanceTax)} />
+            <Row label="Total Taxes Paid" value={fmtAmt(yr.totalTaxesPaid)} />
+            <Row label="Refund Due" value={fmtAmt(yr.refundDue)} />
+
+            {/* Key deductions */}
+            {(yr.section80C > 0 || yr.section80D > 0 || yr.section80CCD1B > 0 || yr.npsEmployer > 0) ? (
+              <>
+                <Text style={{ fontSize: 13, fontWeight: '600', marginTop: 10, marginBottom: 4, color: colors.textSecondary }}>
+                  Key Deductions
+                </Text>
+                <Row label="80C" value={fmtAmt(yr.section80C)} />
+                <Row label="80D (Health)" value={fmtAmt(yr.section80D)} />
+                <Row label="80CCD(1B) NPS" value={fmtAmt(yr.section80CCD1B)} />
+                <Row label="NPS Employer" value={fmtAmt(yr.npsEmployer)} />
+              </>
+            ) : null}
+
+            {/* Employers */}
+            {yr.employers && yr.employers.length > 0 ? (
+              <>
+                <Text style={{ fontSize: 13, fontWeight: '600', marginTop: 10, marginBottom: 4, color: colors.textSecondary }}>
+                  Employer(s)
+                </Text>
+                {yr.employers.map((emp, eidx) => (
+                  <View key={eidx} style={{ marginBottom: 4 }}>
+                    <Text style={{ color: colors.textPrimary, fontSize: 13 }}>{emp.name}</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+                      TAN: {emp.tan} · Income: {formatCurrency(emp.incomeCharged)} · TDS: {formatCurrency(emp.tdsDeducted)}
+                    </Text>
+                  </View>
+                ))}
+              </>
+            ) : null}
+
+            {/* Filing status trail */}
+            {yr.filingStatus && yr.filingStatus.length > 0 ? (
+              <>
+                <Text style={{ fontSize: 13, fontWeight: '600', marginTop: 10, marginBottom: 4, color: colors.textSecondary }}>
+                  Filing Status
+                </Text>
+                {yr.filingStatus.map((fs, fidx) => (
+                  <Text key={fidx} style={{ color: colors.textSecondary, fontSize: 11, marginBottom: 2 }}>
+                    {fs.activityDate} — {fs.statusDescription}
+                  </Text>
+                ))}
+              </>
+            ) : null}
+
             {yr.pdfUrl ? (
               <TouchableOpacity
                 onPress={() => Linking.openURL(yr.pdfUrl).catch(() => {})}

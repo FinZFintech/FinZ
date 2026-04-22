@@ -1054,55 +1054,101 @@ export const signzyService = {
     const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.ITR_PULL, body);
     const r = data?.result || {};
 
-    // Flatten the year-keyed object into an array for easier rendering.
+    // Year keys can be "2024-2025" (YYYY-YYYY) or "2024-25" (YYYY-YY).
     const years = Object.keys(r)
-      .filter((k) => /^\d{4}-\d{2}$/.test(k))
+      .filter((k) => /^\d{4}-\d{2,4}$/.test(k))
       .sort()
       .reverse();
 
     const itrByYear = years.map((year) => {
       const entry = r[year] || {};
-      const itrObj = entry.json?.ITR || {};
-      const itrType = Object.keys(itrObj).find((k) => /^ITR\d$/.test(k)) || '';
-      const itrData = itrType ? itrObj[itrType] : {};
+
+      // The ITR JSON can be at entry.ITR.ITRn (real API) or
+      // entry.json.ITR.ITRn (older mock format).
+      const itrObj = entry.ITR || entry.json?.ITR || {};
+      const itrTypeKey = Object.keys(itrObj).find((k) => /^ITR\d$/.test(k)) || '';
+      const itrData = itrTypeKey ? itrObj[itrTypeKey] : {};
+
+      // Top-level filing metadata (real API puts these on the year entry)
+      const itrType = entry.itrType
+        ? `ITR${entry.itrType}`
+        : itrTypeKey || '';
 
       // Extract key income figures from the ITR JSON (varies by ITR type).
       const incDed = itrData.ITR1_IncomeDeductions || {};
       const taxComp = itrData.ITR1_TaxComputation || itrData['PartB-TI'] || itrData.PartB_TTI || {};
+      const taxPaid = itrData.TaxPaid?.TaxesPaid || {};
+      const refund = itrData.Refund || {};
       const personalInfo = itrData.PersonalInfo || itrData.PartA_GEN1 || {};
-      const filingStatus = itrData.FilingStatus || {};
+      const verification = itrData.Verification?.Declaration || {};
+
+      // Employer info from TDS on salaries
+      const tdsOnSal = itrData.TDSonSalaries?.TDSonSalary || [];
+      const employers = (Array.isArray(tdsOnSal) ? tdsOnSal : []).map((t) => ({
+        name: t?.EmployerOrDeductorOrCollectDetl?.EmployerOrDeductorOrCollecterName || '',
+        tan: t?.EmployerOrDeductorOrCollectDetl?.TAN || '',
+        incomeCharged: t?.IncChrgSal || 0,
+        tdsDeducted: t?.TotalTDSSal || 0,
+      }));
+
+      // Chapter VI-A deductions
+      const deductions = incDed.DeductUndChapVIA || incDed.UsrDeductUndChapVIA || {};
 
       return {
         assessmentYear: year,
         itrType,
+        filingDate: entry.filingDate || '',
+        filingSection: entry.filingSection || '',
+        filingType: entry.filingType || '',
+        acknowledgementNumber: entry.acknowledgementNumber || '',
+        filingStatus: Array.isArray(entry.itrFilingStatus) ? entry.itrFilingStatus : [],
         pdfUrl: entry.form || '',
-        // Headline income numbers (ITR1 uses different keys than ITR3/4)
-        grossTotalIncome:
-          taxComp.GrossTotIncome ||
-          taxComp.TotalIncome ||
-          incDed.GrossTotIncome ||
-          null,
-        totalIncome:
-          taxComp.TotalIncome ||
-          taxComp.NetTaxLiability ||
-          incDed.TotalIncome ||
-          null,
-        totalTaxPayable: taxComp.TotalTaxPayable || taxComp.NetTaxLiability || null,
-        salaryIncome: incDed.IncomeFromSal || incDed.Salary || null,
-        housePropertyIncome: incDed.IncomeFromHP || null,
+        // Income breakdown
+        grossSalary: incDed.GrossSalary || incDed.Salary || null,
+        salaryIncome: incDed.IncomeFromSal || null,
+        housePropertyIncome: incDed.TotalIncomeOfHP || incDed.IncomeFromHP || null,
         otherSourceIncome: incDed.IncomeOthSrc || null,
-        filingDate: filingStatus.ReturnFiledDate || filingStatus.filingDate || '',
-        filingSection: filingStatus.ReturnFileSec || '',
-        name:
-          personalInfo?.AssesseeName?.SurNameOrOrgName ||
-          personalInfo?.AssesseeName?.FirstName ||
-          '',
+        grossTotalIncome: incDed.GrossTotIncome || null,
+        totalDeductions: deductions.TotalChapVIADeductions || null,
+        totalIncome: incDed.TotalIncome || null,
+        // Tax computation
+        totalTaxPayable: taxComp.TotalTaxPayable || null,
+        netTaxLiability: taxComp.NetTaxLiability || null,
+        educationCess: taxComp.EducationCess || null,
+        rebate87A: taxComp.Rebate87A || null,
+        // Tax paid
+        tdsPaid: taxPaid.TDS || null,
+        tcsPaid: taxPaid.TCS || null,
+        advanceTax: taxPaid.AdvanceTax || null,
+        selfAssessmentTax: taxPaid.SelfAssessmentTax || null,
+        totalTaxesPaid: taxPaid.TotalTaxesPaid || null,
+        // Refund
+        refundDue: refund.RefundDue || null,
+        // Personal
+        name: [
+          personalInfo?.AssesseeName?.FirstName,
+          personalInfo?.AssesseeName?.SurNameOrOrgName,
+        ].filter(Boolean).join(' ') || '',
+        fatherName: verification.FatherName || '',
+        pan: personalInfo?.PAN || entry.panNumber || '',
+        dob: personalInfo?.DOB || '',
+        email: personalInfo?.Address?.EmailAddress || '',
+        mobile: personalInfo?.Address?.MobileNo ? String(personalInfo.Address.MobileNo) : '',
+        // Employers
+        employers,
+        // Key deductions for credit assessment
+        section80C: deductions.Section80C || 0,
+        section80D: deductions.Section80D || 0,
+        section80CCD1B: deductions.Section80CCD1B || 0,
+        npsEmployer: deductions.Section80CCDEmployer || 0,
+        // Raw
         rawJson: itrData,
       };
     });
 
     return {
       username: data.username || username,
+      sessionId: data.sessionId || sessionId || '',
       years,
       itrByYear,
       rawResponse: data,
