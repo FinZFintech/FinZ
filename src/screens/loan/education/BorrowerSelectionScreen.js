@@ -246,9 +246,11 @@ const BorrowerSelectionScreen = ({ navigation }) => {
 
       const sources = {};
 
-      // Prefill name if empty
+      // Always prefill name from API — this is the verified name linked
+      // to the phone number and is more authoritative than what was
+      // pre-filled from student details. Works for both self and parent.
       const prefillName = result.name?.fullName?.trim() || '';
-      if (prefillName && !borrowerName.trim()) {
+      if (prefillName) {
         setBorrowerName(prefillName);
         sources.name = true;
       }
