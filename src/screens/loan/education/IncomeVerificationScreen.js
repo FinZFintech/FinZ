@@ -814,24 +814,6 @@ const IncomeVerificationScreen = ({ navigation }) => {
                 {errors.occupationDetail && <Text style={[styles.errorText, { color: colors.error }]}>{errors.occupationDetail}</Text>}
               </>
             )}
-
-            {/* Annual Income */}
-            <View style={styles.monthlyIncomeSection}>
-              <Input
-                label="Annual Income (₹)"
-                value={declaredAnnualIncome}
-                onChangeText={(t) => setDeclaredAnnualIncome(t.replace(/[^0-9]/g, ''))}
-                placeholder="e.g., 540000"
-                keyboardType="number-pad"
-                maxLength={10}
-                error={errors.declaredAnnualIncome}
-              />
-              {declaredAnnualIncome && parseInt(declaredAnnualIncome, 10) > 0 && (
-                <Text style={[styles.incomeFormatted, { color: colors.teal }]}>
-                  {formatCurrency(parseInt(declaredAnnualIncome, 10))} / year (≈ {formatCurrency(Math.round(parseInt(declaredAnnualIncome, 10) / 12))} / month)
-                </Text>
-              )}
-            </View>
           </Card>
         )}
 
@@ -952,6 +934,49 @@ const IncomeVerificationScreen = ({ navigation }) => {
                 </Text>
               </View>
             )}
+          </Card>
+        )}
+
+        {/* Annual Income — shown after occupation + ITR/GST sections */}
+        {occupationCategory && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Declared Annual Income</Text>
+            {incomeFromTds && !declaredAnnualIncome && (
+              <TouchableOpacity
+                onPress={() => setDeclaredAnnualIncome(String(Math.round(incomeFromTds.totalPaid)))}
+                style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: colors.teal }}
+              >
+                <Text style={{ color: colors.teal, fontSize: 12, fontWeight: '600', marginBottom: 2 }}>
+                  Use income from 26AS (tap to apply)
+                </Text>
+                <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
+                  {formatCurrency(incomeFromTds.totalPaid)} / year from {incomeFromTds.employer}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {gstOrg?.turnover && !declaredAnnualIncome && (
+              <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ color: colors.teal, fontSize: 12 }}>
+                  GST Annual Turnover: {gstOrg.turnover}
+                </Text>
+              </View>
+            )}
+            <View style={styles.monthlyIncomeSection}>
+              <Input
+                label="Annual Income (₹)"
+                value={declaredAnnualIncome}
+                onChangeText={(t) => setDeclaredAnnualIncome(t.replace(/[^0-9]/g, ''))}
+                placeholder="e.g., 540000"
+                keyboardType="number-pad"
+                maxLength={10}
+                error={errors.declaredAnnualIncome}
+              />
+              {declaredAnnualIncome && parseInt(declaredAnnualIncome, 10) > 0 && (
+                <Text style={[styles.incomeFormatted, { color: colors.teal }]}>
+                  {formatCurrency(parseInt(declaredAnnualIncome, 10))} / year (≈ {formatCurrency(Math.round(parseInt(declaredAnnualIncome, 10) / 12))} / month)
+                </Text>
+              )}
+            </View>
           </Card>
         )}
 
