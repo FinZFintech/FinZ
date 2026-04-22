@@ -9,39 +9,11 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
-import { loadRealApplications, mergeWithMocks } from '../../utils/loadApplications';
+import { loadRealApplications } from '../../utils/loadApplications';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { navigationRef } from '../../navigation/navigationRef';
 import { formatCurrency, formatDate, validateMobile } from '../../utils/helpers';
-
-// Mock applications assigned to sales
-const MOCK_APPLICATIONS = [
-  {
-    id: 'APP_S001', customerName: 'Rahul Sharma', customerPhone: '9876543210',
-    instituteName: 'IIT Bombay', loanType: 'education', amount: 250000,
-    status: 'institute_verified', category: 'Education', appliedDate: '2026-03-28',
-    assignedTo: 'sales',
-  },
-  {
-    id: 'APP_S002', customerName: 'Priya Singh', customerPhone: '9876543211',
-    instituteName: 'BITS Pilani', loanType: 'education', amount: 180000,
-    status: 'student_details_done', category: 'Education', appliedDate: '2026-03-27',
-    assignedTo: 'sales',
-  },
-  {
-    id: 'APP_S003', customerName: 'Amit Kumar', customerPhone: '9876543212',
-    instituteName: 'VIT Vellore', loanType: 'education', amount: 120000,
-    status: 'draft', category: 'Education', appliedDate: '2026-03-30',
-    assignedTo: 'sales',
-  },
-  {
-    id: 'APP_S004', customerName: 'Sneha Patel', customerPhone: '9876543213',
-    instituteName: 'SRM University', loanType: 'education', amount: 300000,
-    status: 'pan_verified', category: 'Education', appliedDate: '2026-03-25',
-    assignedTo: 'sales',
-  },
-];
 
 const STATUS_LABELS = {
   draft: 'Draft',
@@ -74,10 +46,8 @@ const SalesDashboardScreen = ({ navigation }) => {
   useEffect(() => { loadApplications(); }, []);
 
   const loadApplications = useCallback(async () => {
-    const realApps = await loadRealApplications();
-    console.log('[SalesDashboard] Real apps loaded:', realApps.length);
-    const allApps = mergeWithMocks(realApps, MOCK_APPLICATIONS);
-    console.log('[SalesDashboard] Total apps after merge:', allApps.length);
+    const allApps = await loadRealApplications();
+    console.log('[SalesDashboard] Apps loaded:', allApps.length);
     setApplications(allApps);
   }, []);
 

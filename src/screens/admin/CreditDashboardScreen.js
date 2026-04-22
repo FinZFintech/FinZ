@@ -8,41 +8,11 @@ import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
-import { loadRealApplications, mergeWithMocks } from '../../utils/loadApplications';
+import { loadRealApplications } from '../../utils/loadApplications';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { navigationRef } from '../../navigation/navigationRef';
 import { formatCurrency, formatDate } from '../../utils/helpers';
-
-// Mock applications in credit bucket
-const MOCK_CREDIT_APPS = [
-  {
-    id: 'APP_C001', customerName: 'Rahul Sharma', customerPhone: '9876543210',
-    instituteName: 'IIT Bombay', amount: 250000, status: 'credit_check_passed',
-    creditScore: 720, panNumber: 'ABCDE1234F', riskScore: 680,
-    appliedDate: '2026-03-28', category: 'Education',
-  },
-  {
-    id: 'APP_C002', customerName: 'Priya Singh', customerPhone: '9876543211',
-    instituteName: 'BITS Pilani', amount: 180000, status: 'manual_review',
-    creditScore: 580, panNumber: 'FGHIJ5678K', riskScore: 420,
-    reason: 'Low credit score - manual review required',
-    appliedDate: '2026-03-27', category: 'Education',
-  },
-  {
-    id: 'APP_C003', customerName: 'Amit Kumar', customerPhone: '9876543212',
-    instituteName: 'VIT Vellore', amount: 120000, status: 'income_verified',
-    creditScore: 750, panNumber: 'LMNOP9012Q', riskScore: 740,
-    appliedDate: '2026-03-26', category: 'Education',
-  },
-  {
-    id: 'APP_C004', customerName: 'Sneha Patel', customerPhone: '9876543213',
-    instituteName: 'NIT Trichy', amount: 350000, status: 'manual_review',
-    creditScore: 620, panNumber: 'RSTUV3456W', riskScore: 380,
-    reason: 'High loan amount relative to income',
-    appliedDate: '2026-03-25', category: 'Education',
-  },
-];
 
 const FILTERS = ['All', 'Pending Review', 'Approved', 'Rejected'];
 
@@ -61,10 +31,8 @@ const CreditDashboardScreen = ({ navigation }) => {
   useEffect(() => { loadApplications(); }, []);
 
   const loadApplications = useCallback(async () => {
-    const realApps = await loadRealApplications();
-    console.log('[CreditDashboard] Real apps loaded:', realApps.length);
-    const allApps = mergeWithMocks(realApps, MOCK_CREDIT_APPS);
-    console.log('[CreditDashboard] Total apps after merge:', allApps.length);
+    const allApps = await loadRealApplications();
+    console.log('[CreditDashboard] Apps loaded:', allApps.length);
     setApplications(allApps);
   }, []);
 

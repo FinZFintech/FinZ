@@ -158,12 +158,3 @@ export async function loadRealApplications() {
   }
 }
 
-/**
- * Merge real applications with mock data. Real apps come first;
- * mocks are appended after with de-duplicated IDs.
- */
-export function mergeWithMocks(realApps, mockApps) {
-  const realIds = new Set(realApps.map((a) => a.id));
-  const uniqueMocks = mockApps.filter((m) => !realIds.has(m.id));
-  return [...realApps, ...uniqueMocks];
-}
