@@ -18,7 +18,8 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../../config/firebase';
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
-const TABS = ['Details', 'Documents', 'Verifications', 'Raw Data', 'Comments', 'Communication'];
+const ALL_TABS = ['Details', 'Documents', 'Verifications', 'Raw Data', 'Comments', 'Communication'];
+const RESTRICTED_TABS = ['Details', 'Documents', 'Verifications', 'Comments', 'Communication'];
 
 /**
  * Labels for Signzy verification keys so the staff view can render a
@@ -283,6 +284,8 @@ function getFullApplication(app) {
 
 const StaffApplicationDetailScreen = ({ route, navigation }) => {
   const { user } = useAuth();
+  const userRole = user?.role || 'customer';
+  const canApproveReject = userRole === 'admin' || userRole === 'credit';
   const { colors } = useTheme();
   const appData = route.params?.application || {};
   const [application, setApplication] = useState(() => getFullApplication(appData));
@@ -2255,18 +2258,22 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
           </Text>
         </View>
         <View style={{ flexDirection: 'row' }}>
-          <TouchableOpacity
-            style={[styles.actionChip, { backgroundColor: `${colors.teal}20`, borderColor: colors.teal, marginRight: 6 }]}
-            onPress={() => openActionModal('approve')}
-          >
-            <Text style={{ color: colors.teal, fontSize: 11, fontWeight: '700' }}>Approve</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionChip, { backgroundColor: `${colors.error}20`, borderColor: colors.error, marginRight: 6 }]}
-            onPress={() => openActionModal('reject')}
-          >
-            <Text style={{ color: colors.error, fontSize: 11, fontWeight: '700' }}>Reject</Text>
-          </TouchableOpacity>
+          {canApproveReject && (
+            <>
+              <TouchableOpacity
+                style={[styles.actionChip, { backgroundColor: `${colors.teal}20`, borderColor: colors.teal, marginRight: 6 }]}
+                onPress={() => openActionModal('approve')}
+              >
+                <Text style={{ color: colors.teal, fontSize: 11, fontWeight: '700' }}>Approve</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionChip, { backgroundColor: `${colors.error}20`, borderColor: colors.error, marginRight: 6 }]}
+                onPress={() => openActionModal('reject')}
+              >
+                <Text style={{ color: colors.error, fontSize: 11, fontWeight: '700' }}>Reject</Text>
+              </TouchableOpacity>
+            </>
+          )}
           {application.customerPhone ? (
             <TouchableOpacity
               style={[styles.actionChip, { backgroundColor: `${colors.teal}10`, borderColor: colors.border }]}
@@ -2285,7 +2292,7 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         style={[styles.tabBar, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}
         contentContainerStyle={styles.tabBarContent}
       >
-        {TABS.map(tab => (
+        {(userRole === 'sales' || userRole === 'operations' ? RESTRICTED_TABS : ALL_TABS).map(tab => (
           <TouchableOpacity
             key={tab}
             style={[styles.tab, activeTab === tab && { borderBottomColor: colors.teal, borderBottomWidth: 2 }]}
