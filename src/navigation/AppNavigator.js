@@ -71,6 +71,7 @@ const AdminHomeStackNav = createStackNavigator();
 const SalesHomeStackNav = createStackNavigator();
 const CreditHomeStackNav = createStackNavigator();
 const OpsHomeStackNav = createStackNavigator();
+const QueueStackNav = createStackNavigator();
 
 const noHeader = { headerShown: false };
 
@@ -97,6 +98,14 @@ const sharedScreens = (Stack) => (
     <Stack.Screen name="Prepayment" component={PrepaymentScreen} />
     <Stack.Screen name="NocRequest" component={NocRequestScreen} />
   </>
+);
+
+// Shared Queue stack so "View Details" works from the Queue tab
+const QueueStack = () => (
+  <QueueStackNav.Navigator screenOptions={noHeader}>
+    <QueueStackNav.Screen name="LoanQueueMain" component={LoanQueueScreen} />
+    <QueueStackNav.Screen name="StaffApplicationDetail" component={StaffApplicationDetailScreen} />
+  </QueueStackNav.Navigator>
 );
 
 // ─── Customer Navigation ────────────────────────────────────────────────────
@@ -273,7 +282,7 @@ const AdminTabs = () => {
       />
       <Tab.Screen
         name="QueueTab"
-        component={LoanQueueScreen}
+        component={QueueStack}
         options={{
           tabBarIcon: ({ focused }) => <TabIcon label="Queue" icon="📋" focused={focused} colors={colors} />,
         }}
@@ -322,7 +331,7 @@ const SalesTabs = () => {
       />
       <Tab.Screen
         name="SalesQueue"
-        component={LoanQueueScreen}
+        component={QueueStack}
         options={{
           tabBarIcon: ({ focused }) => <TabIcon label="Applications" icon="📋" focused={focused} colors={colors} />,
         }}
@@ -371,7 +380,7 @@ const CreditTabs = () => {
       />
       <Tab.Screen
         name="CreditQueue"
-        component={LoanQueueScreen}
+        component={QueueStack}
         options={{
           tabBarIcon: ({ focused }) => <TabIcon label="Bucket" icon="📋" focused={focused} colors={colors} />,
         }}
@@ -420,7 +429,7 @@ const OpsTabs = () => {
       />
       <Tab.Screen
         name="OpsQueue"
-        component={LoanQueueScreen}
+        component={QueueStack}
         options={{
           tabBarIcon: ({ focused }) => <TabIcon label="Bucket" icon="📋" focused={focused} colors={colors} />,
         }}

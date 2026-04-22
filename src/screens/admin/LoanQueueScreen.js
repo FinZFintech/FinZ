@@ -15,7 +15,8 @@ import { loadRealApplications } from '../../utils/loadApplications';
 
 const STATUS_FILTERS = [
   { key: 'all', label: 'All' },
-  { key: 'active', label: 'Active' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'active', label: 'In Progress' },
   { key: 'review', label: 'Under Review' },
   { key: 'rejected', label: 'Rejected' },
   { key: 'completed', label: 'Completed' },
@@ -30,11 +31,17 @@ const COMPLETED_STATUSES = new Set([
 const REVIEW_STATUSES = new Set([
   'manual_review', 'kyc_address_review',
 ]);
+const PENDING_STATUSES = new Set([
+  'draft', 'institute_verified', 'student_details_done', 'borrower_selected',
+  'pan_verified', 'credit_check_passed', 'bank_verified', 'income_verified',
+  'kyc_completed', 'selfie_verified', 'fully_eligible', 'partially_eligible',
+  'vkyc_done',
+]);
 
 const LoanQueueScreen = ({ route, navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const initialFilter = route.params?.filter || 'all';
+  const initialFilter = route.params?.filter || 'pending';
 
   const [applications, setApplications] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -65,7 +72,9 @@ const LoanQueueScreen = ({ route, navigation }) => {
     let list = applications;
 
     // Status filter
-    if (activeFilter === 'rejected') {
+    if (activeFilter === 'pending') {
+      list = list.filter((a) => PENDING_STATUSES.has(a.status));
+    } else if (activeFilter === 'rejected') {
       list = list.filter((a) => REJECTED_STATUSES.has(a.status));
     } else if (activeFilter === 'completed') {
       list = list.filter((a) => COMPLETED_STATUSES.has(a.status));
@@ -94,6 +103,7 @@ const LoanQueueScreen = ({ route, navigation }) => {
 
   const stats = useMemo(() => ({
     total: applications.length,
+    pending: applications.filter((a) => PENDING_STATUSES.has(a.status)).length,
     active: applications.filter((a) => !REJECTED_STATUSES.has(a.status) && !COMPLETED_STATUSES.has(a.status)).length,
     review: applications.filter((a) => REVIEW_STATUSES.has(a.status)).length,
     rejected: applications.filter((a) => REJECTED_STATUSES.has(a.status)).length,
@@ -153,8 +163,8 @@ const LoanQueueScreen = ({ route, navigation }) => {
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total</Text>
         </View>
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: colors.teal }]}>{stats.active}</Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Active</Text>
+          <Text style={[styles.statValue, { color: colors.warning }]}>{stats.pending}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Pending</Text>
         </View>
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: colors.warning }]}>{stats.review}</Text>
@@ -191,6 +201,7 @@ const LoanQueueScreen = ({ route, navigation }) => {
       >
         {STATUS_FILTERS.map((f) => {
           const count = f.key === 'all' ? stats.total
+            : f.key === 'pending' ? stats.pending
             : f.key === 'active' ? stats.active
             : f.key === 'review' ? stats.review
             : f.key === 'rejected' ? stats.rejected
@@ -273,13 +284,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
   },
-  filterScroll: { maxHeight: 44 },
-  filterContent: { paddingHorizontal: 12, gap: 8, alignItems: 'center' },
+  filterScroll: { minHeight: 48, maxHeight: 48 },
+  filterContent: { paddingHorizontal: 12, alignItems: 'center', paddingVertical: 6 },
   filterChip: {
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
+    marginRight: 8,
   },
   filterText: { fontSize: 12 },
   list: { padding: 16, paddingBottom: 80 },
