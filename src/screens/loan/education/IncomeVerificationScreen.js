@@ -33,32 +33,36 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
   const { executePhase, feedBankStatementData } = useRisk();
 
+  // ── Restore from persisted state ──
+  const prevBank = state.bankDetails;
+  const prevIncome = state.incomeData;
+
   // Occupation (two-field)
-  const [occupationCategory, setOccupationCategory] = useState(null);
-  const [occupationDetail, setOccupationDetail] = useState('');
-  const [freeTextOccupation, setFreeTextOccupation] = useState('');
+  const [occupationCategory, setOccupationCategory] = useState(prevBank?.occupationCategory ? OCCUPATION_CATEGORIES.find(c => c.label === prevBank.occupationCategory)?.id || null : null);
+  const [occupationDetail, setOccupationDetail] = useState(prevBank?.occupation || '');
+  const [freeTextOccupation, setFreeTextOccupation] = useState(prevBank?.occupation || '');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showOccupationPicker, setShowOccupationPicker] = useState(false);
   const [occupationSearch, setOccupationSearch] = useState('');
-  const [declaredAnnualIncome, setDeclaredAnnualIncome] = useState('');
+  const [declaredAnnualIncome, setDeclaredAnnualIncome] = useState(prevBank?.declaredAnnualIncome ? String(prevBank.declaredAnnualIncome) : '');
 
-  // Bank details
-  const [ifsc, setIfsc] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [branchName, setBranchName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [confirmAccountNumber, setConfirmAccountNumber] = useState('');
-  const [accountType, setAccountType] = useState('');
+  // Bank details — restore from persisted state
+  const [ifsc, setIfsc] = useState(prevBank?.ifsc || '');
+  const [bankName, setBankName] = useState(prevBank?.bankName || '');
+  const [branchName, setBranchName] = useState(prevBank?.branchName || '');
+  const [accountNumber, setAccountNumber] = useState(prevBank?.accountNumber || '');
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState(prevBank?.accountNumber || '');
+  const [accountType, setAccountType] = useState(prevBank?.accountType || '');
 
   // Income method
   const [method, setMethod] = useState(null); // 'aa' or 'statement'
   const [loading, setLoading] = useState(false);
   const [statementFile, setStatementFile] = useState(null);
-  const [incomeResult, setIncomeResult] = useState(null);
-  const [eligibilityResult, setEligibilityResult] = useState(null);
+  const [incomeResult, setIncomeResult] = useState(prevIncome || null);
+  const [eligibilityResult, setEligibilityResult] = useState(state.eligibilityResult || null);
 
   // Penny drop
-  const [pennyDropDone, setPennyDropDone] = useState(false);
+  const [pennyDropDone, setPennyDropDone] = useState(!!state.pennyDropResult);
   const [pennyDropResult, setPennyDropResult] = useState(null);
 
   // Matching results
@@ -164,6 +168,18 @@ const IncomeVerificationScreen = ({ navigation }) => {
     if (!validateBankDetails()) return;
     setLoading(true);
 
+    // Save bank details immediately so they persist even if the app
+    // crashes during the penny drop / income fetch.
+    dispatch({
+      type: 'SET_BANK_DETAILS',
+      payload: {
+        bankName, accountNumber, ifsc, accountType, branchName,
+        occupationCategory: selectedCategory?.label,
+        occupation: resolvedOccupation,
+        declaredAnnualIncome: parseInt(declaredAnnualIncome, 10) || 0,
+      },
+    });
+
     try {
       // Simulate processing delay
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -196,12 +212,6 @@ const IncomeVerificationScreen = ({ navigation }) => {
       };
       setIncomeResult(incResult);
       await runEligibilityCheck(incResult);
-
-      // Store bank details
-      dispatch({
-        type: 'SET_BANK_DETAILS',
-        payload: { bankName, accountNumber, ifsc, accountType, branchName, occupationCategory: selectedCategory?.label, occupation: resolvedOccupation, declaredAnnualIncome: parseInt(declaredAnnualIncome, 10) || 0 },
-      });
 
       // Background Signzy verifications — fire-and-forget so credit /
       // admin can see the EPFO / GST footprint later in the staff view.

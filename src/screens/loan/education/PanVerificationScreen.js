@@ -19,14 +19,18 @@ const PanVerificationScreen = ({ navigation }) => {
   const styles = getStyles(colors);
   const { state, dispatch } = useLoan();
   const { executePhase, feedCreditBureauData, setExternalData } = useRisk();
-  const [pan, setPan] = useState('');
-  const [panFetched, setPanFetched] = useState(false);
-  const [panVerified, setPanVerified] = useState(false);
-  const [panDetails, setPanDetails] = useState(null);
+
+  // ── Restore from persisted state so user resumes where they left off ──
+  const prevPan = state.panDetails;
+  const prevCredit = state.creditScore;
+  const [pan, setPan] = useState(prevPan?.panNumber || '');
+  const [panFetched, setPanFetched] = useState(!!prevPan?.panNumber);
+  const [panVerified, setPanVerified] = useState(!!prevPan);
+  const [panDetails, setPanDetails] = useState(prevPan || null);
   const [creditChecking, setCreditChecking] = useState(false);
-  const [creditPassed, setCreditPassed] = useState(null);
+  const [creditPassed, setCreditPassed] = useState(prevCredit ? (prevCredit.gatingPassed ?? (prevCredit.cibilScore >= 500)) : null);
   const [loading, setLoading] = useState(false);
-  const [panName, setPanName] = useState('');
+  const [panName, setPanName] = useState(prevPan?.name || '');
   const [panError, setPanError] = useState(null);
   const [panInputError, setPanInputError] = useState('');
   const [panNotLinked, setPanNotLinked] = useState(false);
@@ -34,7 +38,7 @@ const PanVerificationScreen = ({ navigation }) => {
   const [errorModalMessage, setErrorModalMessage] = useState('');
 
   useEffect(() => {
-    fetchPanByMobile();
+    if (!prevPan?.panNumber) fetchPanByMobile();
   }, []);
 
   // PAN format: 5 letters + 4 digits + 1 letter (e.g. ABCDE1234F)
