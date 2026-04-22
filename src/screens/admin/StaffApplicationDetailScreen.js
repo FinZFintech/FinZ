@@ -1989,8 +1989,59 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         onBack={() => navigation.goBack()}
       />
 
-      {/* Tab Bar */}
-      <View style={[styles.tabBar, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+      {/* Quick Action Bar */}
+      <View style={[styles.actionBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }} numberOfLines={1}>
+            {application.customerName || 'Unknown'}
+          </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+            {application.customerPhone || ''} · {application.status ? application.status.replace(/_/g, ' ').toUpperCase() : 'UNKNOWN'}
+          </Text>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <TouchableOpacity
+            style={[styles.actionChip, { backgroundColor: `${colors.teal}20`, borderColor: colors.teal }]}
+            onPress={() => Alert.alert('Approve', 'Mark this application as approved?', [
+              { text: 'Cancel' },
+              { text: 'Approve', onPress: () => {
+                setApplication((prev) => ({ ...prev, status: 'fully_eligible' }));
+                Alert.alert('Done', 'Application approved.');
+              }},
+            ])}
+          >
+            <Text style={{ color: colors.teal, fontSize: 11, fontWeight: '700' }}>Approve</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionChip, { backgroundColor: `${colors.error}20`, borderColor: colors.error }]}
+            onPress={() => Alert.alert('Reject', 'Reject this application?', [
+              { text: 'Cancel' },
+              { text: 'Reject', style: 'destructive', onPress: () => {
+                setApplication((prev) => ({ ...prev, status: 'not_eligible' }));
+                Alert.alert('Done', 'Application rejected.');
+              }},
+            ])}
+          >
+            <Text style={{ color: colors.error, fontSize: 11, fontWeight: '700' }}>Reject</Text>
+          </TouchableOpacity>
+          {application.customerPhone ? (
+            <TouchableOpacity
+              style={[styles.actionChip, { backgroundColor: `${colors.teal}10`, borderColor: colors.border }]}
+              onPress={() => Linking.openURL(`tel:${application.customerPhone}`).catch(() => {})}
+            >
+              <Text style={{ color: colors.textPrimary, fontSize: 11, fontWeight: '600' }}>Call</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+
+      {/* Tab Bar — scrollable since we have 6 tabs */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.tabBar, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}
+        contentContainerStyle={styles.tabBarContent}
+      >
         {TABS.map(tab => (
           <TouchableOpacity
             key={tab}
@@ -2004,7 +2055,7 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
             ]}>{tab}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       <ScrollView
         style={styles.content}
@@ -2090,13 +2141,29 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  actionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  actionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
   tabBar: {
-    flexDirection: 'row', borderBottomWidth: 1, paddingHorizontal: 8,
+    borderBottomWidth: 1, maxHeight: 46,
+  },
+  tabBarContent: {
+    flexDirection: 'row', paddingHorizontal: 8,
   },
   tab: {
-    flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent',
+    paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
-  tabText: { fontSize: 12, fontWeight: '600' },
+  tabText: { fontSize: 13, fontWeight: '600', whiteSpace: 'nowrap' },
   content: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
   overviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
