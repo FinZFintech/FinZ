@@ -638,7 +638,14 @@ export const LoanProvider = ({ children }) => {
 
   // Discard a specific application by ID
   const discardApplication = useCallback((applicationId) => {
-    removeApplicationFromList(applicationId);
+    // Mark as discarded instead of deleting — so admin/credit/sales
+    // can still see discarded applications in the queue.
+    const app = savedApplications.find((a) => a.applicationId === applicationId);
+    if (app) {
+      const discarded = { ...app, status: 'discarded', discardedAt: new Date().toISOString() };
+      saveApplicationToList(discarded);
+      saveApplicationToDb(discarded);
+    }
     setSavedApplications((prev) => {
       const remaining = prev.filter((a) => a.applicationId !== applicationId);
       setHasSavedApplication(remaining.length > 0);
@@ -648,7 +655,7 @@ export const LoanProvider = ({ children }) => {
     if (applicationId === state.applicationId) {
       rawDispatch({ type: 'RESET' });
     }
-  }, [state.applicationId]);
+  }, [state.applicationId, savedApplications]);
 
   const isRejected = REJECTED_STATUSES.has(state.status);
 

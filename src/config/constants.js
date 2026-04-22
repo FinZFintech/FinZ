@@ -218,6 +218,7 @@ export const LOAN_STATUS = {
   ACTIVE: 'active',
   CLOSED: 'closed',
   MANUAL_REVIEW: 'manual_review',
+  DISCARDED: 'discarded',
 };
 
 export const USER_ROLES = {

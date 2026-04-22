@@ -20,6 +20,7 @@ const STATUS_FILTERS = [
   { key: 'review', label: 'Under Review' },
   { key: 'rejected', label: 'Rejected' },
   { key: 'completed', label: 'Completed' },
+  { key: 'discarded', label: 'Discarded' },
 ];
 
 const REJECTED_STATUSES = new Set([
@@ -80,9 +81,11 @@ const LoanQueueScreen = ({ route, navigation }) => {
       list = list.filter((a) => COMPLETED_STATUSES.has(a.status));
     } else if (activeFilter === 'review') {
       list = list.filter((a) => REVIEW_STATUSES.has(a.status));
+    } else if (activeFilter === 'discarded') {
+      list = list.filter((a) => a.status === 'discarded');
     } else if (activeFilter === 'active') {
       list = list.filter(
-        (a) => !REJECTED_STATUSES.has(a.status) && !COMPLETED_STATUSES.has(a.status),
+        (a) => !REJECTED_STATUSES.has(a.status) && !COMPLETED_STATUSES.has(a.status) && a.status !== 'discarded',
       );
     }
 
@@ -104,10 +107,11 @@ const LoanQueueScreen = ({ route, navigation }) => {
   const stats = useMemo(() => ({
     total: applications.length,
     pending: applications.filter((a) => PENDING_STATUSES.has(a.status)).length,
-    active: applications.filter((a) => !REJECTED_STATUSES.has(a.status) && !COMPLETED_STATUSES.has(a.status)).length,
+    active: applications.filter((a) => !REJECTED_STATUSES.has(a.status) && !COMPLETED_STATUSES.has(a.status) && a.status !== 'discarded').length,
     review: applications.filter((a) => REVIEW_STATUSES.has(a.status)).length,
     rejected: applications.filter((a) => REJECTED_STATUSES.has(a.status)).length,
     completed: applications.filter((a) => COMPLETED_STATUSES.has(a.status)).length,
+    discarded: applications.filter((a) => a.status === 'discarded').length,
   }), [applications]);
 
   const renderItem = useCallback(({ item }) => (
@@ -205,6 +209,7 @@ const LoanQueueScreen = ({ route, navigation }) => {
             : f.key === 'active' ? stats.active
             : f.key === 'review' ? stats.review
             : f.key === 'rejected' ? stats.rejected
+            : f.key === 'discarded' ? stats.discarded
             : stats.completed;
           const isActive = activeFilter === f.key;
           return (
