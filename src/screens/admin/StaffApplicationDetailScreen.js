@@ -1832,60 +1832,67 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
     );
   };
 
-  // ── Approve / Reject handlers (cross-platform) ──
-  const handleApprove = async () => {
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm('Mark this application as approved?')
-      : await new Promise((resolve) =>
-          Alert.alert('Approve', 'Mark this application as approved?', [
-            { text: 'Cancel', onPress: () => resolve(false) },
-            { text: 'Approve', onPress: () => resolve(true) },
-          ]),
-        );
-    if (!confirmed) return;
+  // ── Action modal state ──
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [actionModalType, setActionModalType] = useState(null); // 'approve' | 'reject' | 'call'
+  const [actionComment, setActionComment] = useState('');
+  const [actionSaving, setActionSaving] = useState(false);
 
-    const newStatus = 'fully_eligible';
-    setApplication((prev) => ({ ...prev, status: newStatus }));
-    const appId = application.id || application.applicationId;
-    if (isFirebaseConfigured() && appId) {
-      try {
-        await setDoc(doc(db, 'applications', appId), {
-          status: newStatus,
-          adminAction: { action: 'approve', by: user?.name || user?.phone || '', at: new Date().toISOString() },
-          _updatedAt: serverTimestamp(),
-        }, { merge: true });
-        console.log('[StaffDetail] Approved:', appId);
-      } catch (e) { console.log('[StaffDetail] Approve save failed:', e?.message); }
-    }
-    Alert.alert('Done', 'Application approved and saved.');
+  const openActionModal = (type) => {
+    setActionModalType(type);
+    setActionComment('');
+    setActionModalVisible(true);
   };
 
-  const handleReject = async () => {
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm('Reject this application?')
-      : await new Promise((resolve) =>
-          Alert.alert('Reject', 'Reject this application?', [
-            { text: 'Cancel', onPress: () => resolve(false) },
-            { text: 'Reject', onPress: () => resolve(true) },
-          ]),
-        );
-    if (!confirmed) return;
+  const handleActionConfirm = async () => {
+    if (actionModalType === 'call') {
+      Linking.openURL(`tel:${application.customerPhone}`).catch(() => {});
+      setActionModalVisible(false);
+      return;
+    }
 
-    const newStatus = 'not_eligible';
-    setApplication((prev) => ({ ...prev, status: newStatus, eligibilityResult: { eligible: false, status: 'not_eligible' } }));
+    if (actionModalType === 'reject' && !actionComment.trim()) {
+      Alert.alert('Comment Required', 'Please provide a reason for rejection.');
+      return;
+    }
+
+    setActionSaving(true);
+    const newStatus = actionModalType === 'approve' ? 'fully_eligible' : 'not_eligible';
+    const actionData = {
+      action: actionModalType,
+      by: user?.name || user?.phone || 'Unknown',
+      role: user?.role || 'admin',
+      comment: actionComment.trim(),
+      at: new Date().toISOString(),
+    };
+
+    setApplication((prev) => ({
+      ...prev,
+      status: newStatus,
+      adminAction: actionData,
+      ...(actionModalType === 'reject' ? { eligibilityResult: { eligible: false, status: 'not_eligible', adminRejectionReason: actionComment.trim() } } : {}),
+    }));
+
     const appId = application.id || application.applicationId;
     if (isFirebaseConfigured() && appId) {
       try {
-        await setDoc(doc(db, 'applications', appId), {
+        const payload = {
           status: newStatus,
-          eligibilityResult: { eligible: false, status: 'not_eligible' },
-          adminAction: { action: 'reject', by: user?.name || user?.phone || '', at: new Date().toISOString() },
+          adminAction: actionData,
           _updatedAt: serverTimestamp(),
-        }, { merge: true });
-        console.log('[StaffDetail] Rejected:', appId);
-      } catch (e) { console.log('[StaffDetail] Reject save failed:', e?.message); }
+        };
+        if (actionModalType === 'reject') {
+          payload.eligibilityResult = { eligible: false, status: 'not_eligible', adminRejectionReason: actionComment.trim() };
+        }
+        await setDoc(doc(db, 'applications', appId), payload, { merge: true });
+        console.log('[StaffDetail]', actionModalType, ':', appId);
+      } catch (e) {
+        console.log('[StaffDetail] Action save failed:', e?.message);
+      }
     }
-    Alert.alert('Done', 'Application rejected and saved.');
+
+    setActionSaving(false);
+    setActionModalVisible(false);
   };
   /**
    * Shows all raw API responses, extracted images/documents, ITR PDFs,
@@ -2250,20 +2257,20 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         <View style={{ flexDirection: 'row' }}>
           <TouchableOpacity
             style={[styles.actionChip, { backgroundColor: `${colors.teal}20`, borderColor: colors.teal, marginRight: 6 }]}
-            onPress={handleApprove}
+            onPress={() => openActionModal('approve')}
           >
             <Text style={{ color: colors.teal, fontSize: 11, fontWeight: '700' }}>Approve</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionChip, { backgroundColor: `${colors.error}20`, borderColor: colors.error, marginRight: 6 }]}
-            onPress={handleReject}
+            onPress={() => openActionModal('reject')}
           >
             <Text style={{ color: colors.error, fontSize: 11, fontWeight: '700' }}>Reject</Text>
           </TouchableOpacity>
           {application.customerPhone ? (
             <TouchableOpacity
               style={[styles.actionChip, { backgroundColor: `${colors.teal}10`, borderColor: colors.border }]}
-              onPress={() => Linking.openURL(`tel:${application.customerPhone}`).catch(() => {})}
+              onPress={() => openActionModal('call')}
             >
               <Text style={{ color: colors.textPrimary, fontSize: 11, fontWeight: '600' }}>Call</Text>
             </TouchableOpacity>
@@ -2371,6 +2378,128 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         label={zoomImage?.label}
         onClose={() => setZoomImage(null)}
       />
+
+      {/* Action Modal — Approve / Reject / Call */}
+      <Modal visible={actionModalVisible} transparent animationType="fade" onRequestClose={() => setActionModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: colors.cardBg, borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, borderWidth: 1, borderColor: colors.border }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 28, marginRight: 12 }}>
+                {actionModalType === 'approve' ? '✅' : actionModalType === 'reject' ? '❌' : '📞'}
+              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '700' }}>
+                  {actionModalType === 'approve' ? 'Approve Application'
+                    : actionModalType === 'reject' ? 'Reject Application'
+                    : 'Call Customer'}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                  #{application.id} · {application.customerName}
+                </Text>
+              </View>
+            </View>
+
+            {/* Call details */}
+            {actionModalType === 'call' && (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: '600', marginBottom: 4 }}>
+                  {application.customerPhone}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                  You will be redirected to your phone dialer to call the customer.
+                </Text>
+              </View>
+            )}
+
+            {/* Approve/Reject details */}
+            {actionModalType !== 'call' && (
+              <>
+                <View style={{ backgroundColor: colors.background, borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                  <InfoRow label="Application" value={`#${application.id}`} />
+                  <InfoRow label="Customer" value={application.customerName || 'Unknown'} />
+                  <InfoRow label="Amount" value={application.amount ? formatCurrency(application.amount) : '—'} />
+                  <InfoRow label="Current Status" value={(application.status || 'unknown').replace(/_/g, ' ').toUpperCase()} />
+                </View>
+
+                {actionModalType === 'approve' && (
+                  <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>
+                    This will mark the application as approved and notify the customer. Please add any comments below.
+                  </Text>
+                )}
+                {actionModalType === 'reject' && (
+                  <Text style={{ color: colors.error, fontSize: 13, marginBottom: 12 }}>
+                    This will reject the application. A rejection reason is required and will be visible to the credit team.
+                  </Text>
+                )}
+
+                <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 13, marginBottom: 6 }}>
+                  Comments {actionModalType === 'reject' ? '(Required)' : '(Optional)'}
+                </Text>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 8,
+                    padding: 12,
+                    color: colors.textPrimary,
+                    backgroundColor: colors.background,
+                    fontSize: 14,
+                    minHeight: 80,
+                    textAlignVertical: 'top',
+                  }}
+                  value={actionComment}
+                  onChangeText={setActionComment}
+                  placeholder={actionModalType === 'reject'
+                    ? 'Enter reason for rejection...'
+                    : 'Add any comments or notes...'}
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                  numberOfLines={4}
+                />
+
+                {/* Action by info */}
+                <View style={{ backgroundColor: colors.background, borderRadius: 8, padding: 10, marginTop: 12 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+                    Action by: {user?.name || user?.phone || 'Unknown'} ({user?.role || 'staff'}) · {new Date().toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              </>
+            )}
+
+            {/* Buttons */}
+            <View style={{ flexDirection: 'row', marginTop: 16 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1,
+                  borderColor: colors.border, alignItems: 'center', marginRight: 8,
+                }}
+                onPress={() => setActionModalVisible(false)}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center',
+                  backgroundColor: actionModalType === 'reject' ? colors.error
+                    : actionModalType === 'call' ? colors.teal
+                    : colors.teal,
+                  opacity: actionSaving ? 0.6 : 1,
+                }}
+                onPress={handleActionConfirm}
+                disabled={actionSaving}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700' }}>
+                  {actionSaving ? 'Saving...'
+                    : actionModalType === 'approve' ? 'Confirm Approval'
+                    : actionModalType === 'reject' ? 'Confirm Rejection'
+                    : 'Call Now'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
