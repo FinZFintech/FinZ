@@ -88,8 +88,10 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const [incomeSourceLoading, setIncomeSourceLoading] = useState(false);
   const [incomeSourceDone, setIncomeSourceDone] = useState(false);
   const [incomeSourceError, setIncomeSourceError] = useState('');
-  const [incomeFromTds, setIncomeFromTds] = useState(null); // { totalPaid, totalTds, employer, monthlyIncome }
-  const [bankFromItr, setBankFromItr] = useState(null); // { ifsc, bankName, accountNumber, accountType }
+  const [incomeFromTds, setIncomeFromTds] = useState(null);
+  const [bankFromItr, setBankFromItr] = useState(null);
+  const [employerFromUan, setEmployerFromUan] = useState(null); // { name, dateOfJoining, isEmployed }
+  const [gstOrg, setGstOrg] = useState(null); // { name, gstin, turnover, status }
 
   const loanAmount = state.studentDetails?.balanceFee || 0;
 
@@ -170,6 +172,44 @@ const IncomeVerificationScreen = ({ navigation }) => {
       setIncomeSourceDone(true);
     }
   }, [state.signzyVerifications?.itrPull, state.signzyVerifications?.form26AS]);
+
+  // ── Capture employer from UAN employment verification ──
+  useEffect(() => {
+    const emp = state.signzyVerifications?.employmentBasic;
+    if (emp?.status !== 'success' || !emp.result) return;
+    const recent = emp.result.recentEmployer || {};
+    if (recent.establishmentName) {
+      setEmployerFromUan({
+        name: recent.establishmentName,
+        dateOfJoining: recent.dateOfJoining || '',
+        isEmployed: emp.result.isEmployed ?? false,
+        uan: recent.matchingUan || '',
+      });
+      // Auto-fill company name for salaried
+      if (!freeTextOccupation && !occupationDetail) {
+        setFreeTextOccupation(recent.establishmentName);
+      }
+    }
+  }, [state.signzyVerifications?.employmentBasic]);
+
+  // ── Capture org from GST for self-employed ──
+  useEffect(() => {
+    const gst = state.signzyVerifications?.gstIncome;
+    if (gst?.status !== 'success' || !gst.result) return;
+    if (gst.result.found) {
+      setGstOrg({
+        name: gst.result.tradeName || gst.result.legalName || '',
+        gstin: gst.result.gstin || '',
+        turnover: gst.result.annualAggregateTurnOver || '',
+        status: gst.result.status || '',
+        grossIncome: gst.result.grossTotalIncome || '',
+      });
+      // Auto-fill company/business name
+      if (!freeTextOccupation && !occupationDetail) {
+        setFreeTextOccupation(gst.result.tradeName || gst.result.legalName || '');
+      }
+    }
+  }, [state.signzyVerifications?.gstIncome]);
 
   // Auto-match bank name to FIP list for AA
   const matchBankToFip = (name) => {
@@ -795,6 +835,126 @@ const IncomeVerificationScreen = ({ navigation }) => {
           </Card>
         )}
 
+        {/* Employer from UAN (salaried) */}
+        {employerFromUan && (occupationCategory || '').startsWith('salaried_') && (
+          <Card>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 20, marginRight: 8 }}>🏢</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>
+                  Current Employer (from EPFO)
+                </Text>
+              </View>
+              <Text style={{ color: employerFromUan.isEmployed ? colors.teal : colors.warning, fontSize: 11, fontWeight: '700' }}>
+                {employerFromUan.isEmployed ? 'ACTIVE' : 'INACTIVE'}
+              </Text>
+            </View>
+            <InfoRow label="Company" value={employerFromUan.name} />
+            {employerFromUan.dateOfJoining ? (
+              <InfoRow label="Joined" value={employerFromUan.dateOfJoining} />
+            ) : null}
+            {employerFromUan.uan ? (
+              <InfoRow label="UAN" value={employerFromUan.uan} />
+            ) : null}
+          </Card>
+        )}
+
+        {/* GST Organisation (self-employed) */}
+        {gstOrg && ((occupationCategory || '').startsWith('self_employed') || (occupationCategory || '').startsWith('business')) && (
+          <Card>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 20, marginRight: 8 }}>🏪</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>
+                  Business Details (from GST)
+                </Text>
+              </View>
+              <Text style={{ color: gstOrg.status === 'ACTIVE' ? colors.teal : colors.warning, fontSize: 11, fontWeight: '700' }}>
+                {gstOrg.status || 'N/A'}
+              </Text>
+            </View>
+            <InfoRow label="Business Name" value={gstOrg.name} />
+            <InfoRow label="GSTIN" value={gstOrg.gstin} />
+            {gstOrg.turnover ? (
+              <InfoRow label="Annual Turnover" value={gstOrg.turnover} />
+            ) : null}
+            {gstOrg.grossIncome ? (
+              <InfoRow label="Gross Income" value={gstOrg.grossIncome} />
+            ) : null}
+          </Card>
+        )}
+
+        {/* ITR / 26AS Fetch — for salaried, shown BEFORE bank details so bank can be prefilled */}
+        {(occupationCategory || '').startsWith('salaried_') && !verificationDone && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+              Fetch Income & Bank from ITR
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginBottom: 12, fontSize: 13 }}>
+              Fetch your ITR and Form 26AS to auto-fill income and bank details. An OTP will be sent to your ITR portal registered mobile.
+            </Text>
+
+            {!!itrError && (
+              <View style={{ backgroundColor: `${colors.error}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ color: colors.error, fontSize: 13 }}>{itrError}</Text>
+              </View>
+            )}
+
+            {(!itrStep || itrStep === 'error') && (
+              <Button
+                title="Fetch ITR & 26AS"
+                onPress={handleItrInitiate}
+                loading={itrLoading}
+              />
+            )}
+
+            {itrStep === 'otp' && (
+              <>
+                <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                  <Text style={{ color: colors.teal, fontSize: 13 }}>
+                    OTP sent to your ITR portal registered mobile number.
+                  </Text>
+                </View>
+                <Input
+                  label="Enter OTP"
+                  value={itrOtp}
+                  onChangeText={(t) => setItrOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
+                  placeholder="6-digit OTP"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+                <Button
+                  title="Submit OTP & Pull ITR"
+                  onPress={handleItrOtpSubmit}
+                  loading={itrLoading}
+                  disabled={itrOtp.length !== 6}
+                  style={{ marginTop: 12 }}
+                />
+              </>
+            )}
+
+            {itrStep === 'pulling' && (
+              <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+                <Text style={{ color: colors.teal, fontWeight: '600', marginBottom: 4 }}>
+                  Pulling ITR & Form 26AS data...
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                  This may take up to 30 seconds. Please wait.
+                </Text>
+              </View>
+            )}
+
+            {itrStep === 'done' && (
+              <View style={{ backgroundColor: `${colors.teal}14`, padding: 12, borderRadius: 8 }}>
+                <Text style={{ color: colors.teal, fontWeight: '600' }}>ITR data pulled successfully!</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+                  Income and bank details have been extracted. Check below.
+                </Text>
+              </View>
+            )}
+          </Card>
+        )}
+
         {/* Bank Account Details */}
         {!verificationDone && (
           <>
@@ -1137,80 +1297,6 @@ const IncomeVerificationScreen = ({ navigation }) => {
               variant="outline"
               style={styles.btn}
             />
-          </Card>
-        )}
-
-        {/* ITR Verification (salaried) */}
-        {(occupationCategory || '').startsWith('salaried_') && incomeResult && (
-          <Card>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>ITR Verification</Text>
-            <Text style={{ color: colors.textSecondary, marginBottom: 12, fontSize: 13 }}>
-              Verify your income via Income Tax Return portal. An OTP will be sent to your ITR-registered mobile.
-            </Text>
-
-            {!!itrError && (
-              <View style={{ backgroundColor: errorBg, padding: 10, borderRadius: 8, marginBottom: 12 }}>
-                <Text style={{ color: colors.error, fontSize: 13 }}>{itrError}</Text>
-              </View>
-            )}
-
-            {/* Step 1: Initiate */}
-            {(!itrStep || itrStep === 'error') && (
-              <Button
-                title="Verify via ITR Portal"
-                onPress={handleItrInitiate}
-                loading={itrLoading}
-              />
-            )}
-
-            {/* Step 2: OTP entry */}
-            {itrStep === 'otp' && (
-              <>
-                <View style={{ backgroundColor: tealBg, padding: 10, borderRadius: 8, marginBottom: 12 }}>
-                  <Text style={{ color: colors.teal, fontSize: 13 }}>
-                    OTP sent to your ITR portal registered mobile number.
-                  </Text>
-                </View>
-                <Input
-                  label="Enter OTP"
-                  value={itrOtp}
-                  onChangeText={(t) => setItrOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
-                  placeholder="6-digit OTP"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-                <Button
-                  title="Submit OTP & Pull ITR"
-                  onPress={handleItrOtpSubmit}
-                  loading={itrLoading}
-                  disabled={itrOtp.length !== 6}
-                  style={{ marginTop: 12 }}
-                />
-              </>
-            )}
-
-            {/* Step 3: Pulling */}
-            {itrStep === 'pulling' && (
-              <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                <Text style={{ color: colors.teal, fontWeight: '600', marginBottom: 4 }}>
-                  Pulling ITR & Form 26AS data...
-                </Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                  This may take up to 30 seconds. Please wait.
-                </Text>
-              </View>
-            )}
-
-            {/* Step 4: Done */}
-            {itrStep === 'done' && (
-              <View style={{ backgroundColor: tealBg, padding: 12, borderRadius: 8 }}>
-                <Text style={{ color: colors.teal, fontWeight: '600' }}>ITR data pulled successfully!</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                  Your filed ITRs and Form 26AS TDS data have been saved with this application.
-                  The credit team will review them.
-                </Text>
-              </View>
-            )}
           </Card>
         )}
 
