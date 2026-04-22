@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity,
-  TextInput, ScrollView,
+  TextInput, ScrollView, Alert, Platform,
 } from 'react-native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
@@ -12,6 +12,8 @@ import { useTheme } from '../../store/ThemeContext';
 import { useAuth } from '../../store/AuthContext';
 import { formatCurrency, formatDate, getStatusLabel } from '../../utils/helpers';
 import { loadRealApplications } from '../../utils/loadApplications';
+import { assignApplication, moveToWorkflowBucket, requestRejection } from '../../services/userService';
+import { isFirebaseConfigured } from '../../config/firebase';
 
 const STATUS_FILTERS = [
   { key: 'all', label: 'All' },
@@ -42,6 +44,7 @@ const PENDING_STATUSES = new Set([
 const LoanQueueScreen = ({ route, navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const userRole = user?.role || 'customer';
   const initialFilter = route.params?.filter || 'pending';
 
   const [applications, setApplications] = useState([]);
@@ -142,15 +145,77 @@ const LoanQueueScreen = ({ route, navigation }) => {
         </View>
       ) : null}
 
+      {/* Workflow bucket + assigned to */}
+      {(item.workflowBucket || item.assignedTo) ? (
+        <View style={{ flexDirection: 'row', marginTop: 4 }}>
+          {item.workflowBucket ? (
+            <Text style={{ color: colors.teal, fontSize: 11, fontWeight: '600', marginRight: 12 }}>
+              Bucket: {item.workflowBucket}
+            </Text>
+          ) : null}
+          {item.assignedTo ? (
+            <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+              Assigned: {item.assignedTo}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
       <View style={styles.actions}>
         <Button
           title="View Details"
           onPress={() => navigation.navigate('StaffApplicationDetail', { application: item })}
           style={styles.actionBtn}
         />
+        {/* Workflow actions based on role */}
+        {userRole === 'admin' && !item.assignedTo && (
+          <Button
+            title="Assign"
+            variant="outline"
+            onPress={() => {
+              const name = Platform.OS === 'web'
+                ? window.prompt('Assign to (phone or name):')
+                : null;
+              if (name) {
+                assignApplication(item.id, name, user?.name || '');
+                loadData();
+              }
+            }}
+            style={styles.actionBtn}
+          />
+        )}
+        {userRole === 'sales' && item.status !== 'discarded' && (
+          <Button
+            title="Park to Credit"
+            variant="outline"
+            onPress={() => {
+              moveToWorkflowBucket(item.id, 'credit', user?.name || '', 'Sales complete');
+              Alert.alert('Done', 'Application parked to credit bucket.');
+              loadData();
+            }}
+            style={styles.actionBtn}
+          />
+        )}
+        {userRole === 'sales' && item.status !== 'discarded' && !item.rejectionRequested && (
+          <Button
+            title="Request Reject"
+            variant="outline"
+            onPress={() => {
+              const reason = Platform.OS === 'web'
+                ? window.prompt('Reason for rejection request:')
+                : null;
+              if (reason) {
+                requestRejection(item.id, user?.name || '', reason);
+                Alert.alert('Done', 'Rejection request submitted for review.');
+                loadData();
+              }
+            }}
+            style={styles.actionBtn}
+          />
+        )}
       </View>
     </Card>
-  ), [colors, navigation]);
+  ), [colors, navigation, userRole, user]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
