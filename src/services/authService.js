@@ -1,22 +1,48 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { smsService } from './smsService';
+import { getStaffUserByPhone } from './userService';
+import { isFirebaseConfigured } from '../config/firebase';
 
-const USER_PROFILES_KEY = 'finz_user_profiles'; // Map of phone -> user profile
+const USER_PROFILES_KEY = 'finz_user_profiles';
 
-// Generate a stable user ID from phone number
 function getUserIdFromPhone(phone) {
   return `user_${phone}`;
 }
 
-// Role-based routing for test numbers
-function getRoleForPhone(phone) {
-  switch (phone) {
-    case '9999900000': return 'admin';
-    case '9999900001': return 'credit';
-    case '9999900002': return 'sales';
-    case '9999900003': return 'operations';
-    default: return 'customer';
+// Fallback test numbers when Firestore is not configured
+const TEST_STAFF = {
+  '9999900000': 'admin',
+  '9999900001': 'credit',
+  '9999900002': 'sales',
+  '9999900003': 'operations',
+};
+
+/**
+ * Determine user role:
+ *  1. Check Firestore staff_users collection (if Firebase configured)
+ *  2. Fall back to hardcoded test numbers
+ *  3. Default to 'customer'
+ */
+async function getRoleForPhone(phone) {
+  // Try Firestore first
+  if (isFirebaseConfigured()) {
+    try {
+      const staffUser = await getStaffUserByPhone(phone);
+      if (staffUser) {
+        if (!staffUser.active) {
+          throw new Error('Your account has been disabled. Please contact admin.');
+        }
+        return { role: staffUser.role, name: staffUser.name, fromFirestore: true };
+      }
+    } catch (err) {
+      if (err.message?.includes('disabled')) throw err;
+      console.log('[authService] Firestore staff lookup failed:', err?.message);
+    }
   }
+  // Fallback to test numbers
+  const testRole = TEST_STAFF[phone];
+  if (testRole) return { role: testRole, name: '', fromFirestore: false };
+  return { role: 'customer', name: '', fromFirestore: false };
 }
 
 // Load all saved user profiles
@@ -47,22 +73,19 @@ export const authService = {
   },
 
   async verifyOtp(mobile, otp) {
-    // Verify the OTP sent via SMS
     smsService.verifyOtp(mobile, otp);
 
-    const role = getRoleForPhone(mobile);
+    const { role, name: staffName, fromFirestore } = await getRoleForPhone(mobile);
     const stableId = getUserIdFromPhone(mobile);
 
-    // Check if user profile already exists (returning user)
     const profiles = await loadProfiles();
     let user = profiles[mobile];
 
     if (user) {
-      // Returning user — preserve all saved personal details, update role
       user.role = role;
+      if (staffName) user.name = staffName;
       user.lastLoginAt = new Date().toISOString();
     } else {
-      // New user — create profile with defaults
       const roleNames = {
         admin: 'Admin User',
         credit: 'Credit Officer',
@@ -72,7 +95,7 @@ export const authService = {
       };
       user = {
         id: stableId,
-        name: roleNames[role] || '',
+        name: staffName || roleNames[role] || '',
         phone: mobile,
         email: '',
         role,
@@ -83,6 +106,7 @@ export const authService = {
         guardians: [],
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
+        fromFirestore,
       };
     }
 

@@ -200,6 +200,19 @@ const AdminDashboardScreen = ({ navigation }) => {
           />
         </Card>
 
+        {/* User Management */}
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Staff Management</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>
+            Create, enable, or disable sales, credit, and operations users. Staff members log in via OTP.
+          </Text>
+          <Button
+            title="Manage Staff Users"
+            onPress={() => navigation.navigate('UserManagement')}
+            variant="outline"
+          />
+        </Card>
+
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
