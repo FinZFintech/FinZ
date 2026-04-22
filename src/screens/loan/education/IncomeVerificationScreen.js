@@ -25,7 +25,7 @@ import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { useTheme } from '../../../store/ThemeContext';
 import { formatCurrency, validateIfsc, validateAccountNumber } from '../../../utils/helpers';
-import { OCCUPATION_CATEGORIES, getOccupationsForCategory } from '../../../utils/occupationData';
+import { OCCUPATION_CATEGORIES, getOccupationsForCategory, isOccupationBlocked, BLOCKED_OCCUPATION_MESSAGE } from '../../../utils/occupationData';
 const ACCOUNT_TYPES = ['Savings', 'Current'];
 
 const IncomeVerificationScreen = ({ navigation }) => {
@@ -101,6 +101,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const resolvedOccupation = usesFreeText && freeTextOccupation
     ? freeTextOccupation
     : occupationDetail;
+  const occupationBlocked = occupationCategory
+    ? isOccupationBlocked(occupationCategory, resolvedOccupation)
+    : false;
 
   const filteredOccupations = useMemo(() => {
     if (!occupationCategory) return [];
@@ -154,6 +157,8 @@ const IncomeVerificationScreen = ({ navigation }) => {
   }, [state.signzyVerifications?.itrPull]);
 
   // ── Extract income: prefer 26AS, fall back to ITR ──
+  // Auto-fills the declared annual income field so the user doesn't
+  // have to type it manually.
   useEffect(() => {
     if (incomeFromTds) return; // already set
 
@@ -178,6 +183,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
           employer,
           entries: salaryEntries.length,
         });
+        if (!declaredAnnualIncome) {
+          setDeclaredAnnualIncome(String(Math.round(totalSalaryPaid)));
+        }
         setIncomeSourceDone(true);
         return;
       }
@@ -200,6 +208,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
           employer,
           entries: 12,
         });
+        if (!declaredAnnualIncome) {
+          setDeclaredAnnualIncome(String(Math.round(grossSalary)));
+        }
         setIncomeSourceDone(true);
       }
     }
@@ -239,6 +250,16 @@ const IncomeVerificationScreen = ({ navigation }) => {
       // Auto-fill company/business name
       if (!freeTextOccupation && !occupationDetail) {
         setFreeTextOccupation(gst.result.tradeName || gst.result.legalName || '');
+      }
+      // Auto-fill annual income from GST gross income or turnover range
+      if (!declaredAnnualIncome) {
+        const grossIncome = gst.result.grossTotalIncome;
+        const turnoverRange = gst.result.gstinDetail?.aggregateTurnOverRange;
+        if (grossIncome && !isNaN(parseFloat(grossIncome))) {
+          setDeclaredAnnualIncome(String(Math.round(parseFloat(grossIncome))));
+        } else if (turnoverRange?.minimum) {
+          setDeclaredAnnualIncome(String(Math.round(turnoverRange.minimum)));
+        }
       }
     }
   }, [state.signzyVerifications?.gstIncome]);
@@ -296,7 +317,6 @@ const IncomeVerificationScreen = ({ navigation }) => {
     if (!validateAccountNumber(accountNumber)) newErrors.accountNumber = 'Invalid account number';
     if (accountNumber !== confirmAccountNumber) newErrors.confirmAccountNumber = 'Account numbers do not match';
     if (!accountType) newErrors.accountType = 'Please select account type';
-    if (method === 'aa' && !selectedBank) newErrors.ifsc = 'Could not identify bank from IFSC. Please check your IFSC code.';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -849,6 +869,24 @@ const IncomeVerificationScreen = ({ navigation }) => {
           </Card>
         )}
 
+        {/* Blocked occupation message */}
+        {occupationBlocked && (
+          <Card style={{ borderColor: colors.error, borderWidth: 1 }}>
+            <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+              <Text style={{ fontSize: 32, marginBottom: 8 }}>🚫</Text>
+              <Text style={{ color: colors.error, fontWeight: '700', fontSize: 16, marginBottom: 8, textAlign: 'center' }}>
+                Occupation Not Eligible
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                {BLOCKED_OCCUPATION_MESSAGE}
+              </Text>
+            </View>
+          </Card>
+        )}
+
+        {/* Rest of the form — hidden when occupation is blocked */}
+        {!occupationBlocked && (
+          <>
         {/* Employer from UAN (salaried) */}
         {employerFromUan && (occupationCategory || '').startsWith('salaried_') && (
           <Card>
@@ -998,24 +1036,18 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {occupationCategory && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Declared Annual Income</Text>
-            {incomeFromTds && !declaredAnnualIncome && (
-              <TouchableOpacity
-                onPress={() => setDeclaredAnnualIncome(String(Math.round(incomeFromTds.totalPaid)))}
-                style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: colors.teal }}
-              >
-                <Text style={{ color: colors.teal, fontSize: 12, fontWeight: '600', marginBottom: 2 }}>
-                  Use income from {incomeFromTds.source === '26AS' ? 'Form 26AS' : 'ITR'} (tap to apply)
-                </Text>
-                <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
-                  {formatCurrency(incomeFromTds.totalPaid)} / year
-                  {incomeFromTds.employer ? ` from ${incomeFromTds.employer}` : ''}
-                </Text>
-              </TouchableOpacity>
-            )}
-            {gstOrg?.turnover && !declaredAnnualIncome && (
+            {incomeFromTds && declaredAnnualIncome && (
               <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
                 <Text style={{ color: colors.teal, fontSize: 12 }}>
-                  GST Annual Turnover: {gstOrg.turnover}
+                  Auto-filled from {incomeFromTds.source === '26AS' ? 'Form 26AS' : 'ITR'}
+                  {incomeFromTds.employer ? ` (${incomeFromTds.employer})` : ''}. You can edit if incorrect.
+                </Text>
+              </View>
+            )}
+            {gstOrg && declaredAnnualIncome && !incomeFromTds && (
+              <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ color: colors.teal, fontSize: 12 }}>
+                  Auto-filled from GST ({gstOrg.turnover || gstOrg.grossIncome || gstOrg.name}). You can edit if incorrect.
                 </Text>
               </View>
             )}
@@ -1216,17 +1248,10 @@ const IncomeVerificationScreen = ({ navigation }) => {
               <InfoRow label="Account Type" value={accountType} />
             </View>
 
-            {!selectedBank && (
-              <Text style={[styles.warnText, { color: colors.error }]}>
-                Could not auto-match bank from IFSC. Please verify your IFSC code.
-              </Text>
-            )}
-
             <Button
               title="Verify Bank & Fetch Income"
               onPress={handleVerifyAndFetch}
               loading={loading}
-              disabled={!selectedBank}
               style={styles.btn}
             />
           </Card>
@@ -1383,6 +1408,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
               style={styles.btn}
             />
           </Card>
+        )}
+
+        </>
         )}
 
         <View style={styles.bottomSpacer} />
