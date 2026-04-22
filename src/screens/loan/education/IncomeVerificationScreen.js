@@ -151,27 +151,59 @@ const IncomeVerificationScreen = ({ navigation }) => {
       setAccountType(refundBank.accountType);
       console.log('[IncomeVerification] Prefilled bank from ITR:', refundBank.bankName, refundBank.accountNumber?.slice(-4));
     }
+  }, [state.signzyVerifications?.itrPull]);
 
-    // Extract employer income from 26AS for verification
+  // ── Extract income: prefer 26AS, fall back to ITR ──
+  useEffect(() => {
+    if (incomeFromTds) return; // already set
+
+    // Try 26AS first (preferred — shows current year TDS = actual salary)
     const form26 = state.signzyVerifications?.form26AS;
     if (form26?.status === 'success' && form26.result?.byYear?.length) {
       const currentYear = form26.result.byYear[0];
       const salaryEntries = (currentYear?.tdsEntries || []).filter((e) => e.section === '192');
-      const totalSalaryPaid = salaryEntries.reduce((s, e) => s + (parseFloat(e.amountPaid) || 0), 0);
-      const totalSalaryTds = salaryEntries.reduce((s, e) => s + (parseFloat(e.taxDeducted) || 0), 0);
-      const employer = salaryEntries[0]?.nameOfDeductor || '';
-      const months = salaryEntries.length || 1;
-      setIncomeFromTds({
-        assessmentYear: currentYear.assessmentYear,
-        totalPaid: totalSalaryPaid,
-        totalTds: totalSalaryTds,
-        monthlyIncome: Math.round(totalSalaryPaid / months),
-        employer,
-        entries: salaryEntries.length,
-      });
-      setIncomeSourceDone(true);
+
+      if (salaryEntries.length > 0) {
+        const totalSalaryPaid = salaryEntries.reduce((s, e) => s + (parseFloat(e.amountPaid) || 0), 0);
+        const totalSalaryTds = salaryEntries.reduce((s, e) => s + (parseFloat(e.taxDeducted) || 0), 0);
+        const employer = salaryEntries[0]?.nameOfDeductor || '';
+        const months = salaryEntries.length || 1;
+        console.log('[IncomeVerification] Income from 26AS:', totalSalaryPaid, '/', months, 'months =', Math.round(totalSalaryPaid / months), '/month');
+        setIncomeFromTds({
+          source: '26AS',
+          assessmentYear: currentYear.assessmentYear,
+          totalPaid: totalSalaryPaid,
+          totalTds: totalSalaryTds,
+          monthlyIncome: Math.round(totalSalaryPaid / months),
+          employer,
+          entries: salaryEntries.length,
+        });
+        setIncomeSourceDone(true);
+        return;
+      }
     }
-  }, [state.signzyVerifications?.itrPull, state.signzyVerifications?.form26AS]);
+
+    // Fall back to ITR income (filed returns — may be older)
+    const itrData = state.signzyVerifications?.itrPull;
+    if (itrData?.status === 'success' && itrData.result?.itrByYear?.length) {
+      const latestYear = itrData.result.itrByYear[0];
+      const grossSalary = latestYear.grossSalary || latestYear.salaryIncome || latestYear.totalIncome || 0;
+      if (grossSalary > 0) {
+        const employer = (latestYear.employers || [])[0]?.name || '';
+        console.log('[IncomeVerification] Income from ITR:', grossSalary, '/ 12 =', Math.round(grossSalary / 12), '/month');
+        setIncomeFromTds({
+          source: 'ITR',
+          assessmentYear: latestYear.assessmentYear,
+          totalPaid: grossSalary,
+          totalTds: latestYear.tdsPaid || 0,
+          monthlyIncome: Math.round(grossSalary / 12),
+          employer,
+          entries: 12,
+        });
+        setIncomeSourceDone(true);
+      }
+    }
+  }, [state.signzyVerifications?.form26AS, state.signzyVerifications?.itrPull, incomeFromTds]);
 
   // ── Capture employer from UAN employment verification ──
   useEffect(() => {
@@ -882,12 +914,24 @@ const IncomeVerificationScreen = ({ navigation }) => {
               </View>
             )}
 
-            {(!itrStep || itrStep === 'error') && (
+            {(!itrStep || itrStep === 'error') && !itrLoading && (
               <Button
                 title="Fetch ITR & 26AS"
                 onPress={handleItrInitiate}
-                loading={itrLoading}
+                loading={false}
               />
+            )}
+
+            {itrStep === 'init' && itrLoading && (
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <Text style={{ fontSize: 28, marginBottom: 8 }}>⏳</Text>
+                <Text style={{ color: colors.teal, fontWeight: '600', fontSize: 14, marginBottom: 4 }}>
+                  Connecting to ITR Portal...
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'center' }}>
+                  Sending OTP to your registered mobile number. Please wait.
+                </Text>
+              </View>
             )}
 
             {itrStep === 'otp' && (
@@ -905,23 +949,36 @@ const IncomeVerificationScreen = ({ navigation }) => {
                   keyboardType="number-pad"
                   maxLength={6}
                 />
-                <Button
-                  title="Submit OTP & Pull ITR"
-                  onPress={handleItrOtpSubmit}
-                  loading={itrLoading}
-                  disabled={itrOtp.length !== 6}
-                  style={{ marginTop: 12 }}
-                />
+                {itrLoading ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+                    <Text style={{ fontSize: 28, marginBottom: 8 }}>⏳</Text>
+                    <Text style={{ color: colors.teal, fontWeight: '600', fontSize: 14, marginBottom: 4 }}>
+                      Verifying OTP...
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                      Validating your OTP with the ITR portal. Please wait.
+                    </Text>
+                  </View>
+                ) : (
+                  <Button
+                    title="Submit OTP & Pull ITR"
+                    onPress={handleItrOtpSubmit}
+                    loading={false}
+                    disabled={itrOtp.length !== 6}
+                    style={{ marginTop: 12 }}
+                  />
+                )}
               </>
             )}
 
             {itrStep === 'pulling' && (
-              <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                <Text style={{ color: colors.teal, fontWeight: '600', marginBottom: 4 }}>
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <Text style={{ fontSize: 28, marginBottom: 8 }}>📥</Text>
+                <Text style={{ color: colors.teal, fontWeight: '600', fontSize: 14, marginBottom: 4 }}>
                   Pulling ITR & Form 26AS data...
                 </Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                  This may take up to 30 seconds. Please wait.
+                <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'center' }}>
+                  Fetching your filed returns and TDS records from the Income Tax portal. This may take up to 30 seconds.
                 </Text>
               </View>
             )}
@@ -947,10 +1004,11 @@ const IncomeVerificationScreen = ({ navigation }) => {
                 style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: colors.teal }}
               >
                 <Text style={{ color: colors.teal, fontSize: 12, fontWeight: '600', marginBottom: 2 }}>
-                  Use income from 26AS (tap to apply)
+                  Use income from {incomeFromTds.source === '26AS' ? 'Form 26AS' : 'ITR'} (tap to apply)
                 </Text>
                 <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
-                  {formatCurrency(incomeFromTds.totalPaid)} / year from {incomeFromTds.employer}
+                  {formatCurrency(incomeFromTds.totalPaid)} / year
+                  {incomeFromTds.employer ? ` from ${incomeFromTds.employer}` : ''}
                 </Text>
               </TouchableOpacity>
             )}
@@ -983,29 +1041,31 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {/* Bank Account Details */}
         {!verificationDone && (
           <>
-          {/* Income from 26AS / ITR — shown when TDS data is available */}
+          {/* Verified Income from 26AS or ITR */}
           {incomeFromTds && (
             <Card>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-                Income Verification (from Tax Records)
+                Verified Income (from {incomeFromTds.source === '26AS' ? 'Form 26AS' : 'ITR'})
               </Text>
-              <View style={[styles.bankInfoBanner, { backgroundColor: `${colors.teal}14`, borderColor: `${colors.teal}40` }]}>
-                <Text style={styles.bankInfoIcon}>📊</Text>
-                <Text style={[styles.bankInfoText, { color: colors.teal }]}>
-                  We have fetched your income details from Form 26AS (TDS records). Please verify the details below.
+              <View style={{ alignItems: 'center', paddingVertical: 12, marginBottom: 8 }}>
+                <Text style={{ color: colors.teal, fontSize: 11, fontWeight: '600', textTransform: 'uppercase', marginBottom: 4 }}>
+                  Estimated Monthly Income
+                </Text>
+                <Text style={{ color: colors.teal, fontSize: 32, fontWeight: '800' }}>
+                  {formatCurrency(incomeFromTds.monthlyIncome)}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+                  {formatCurrency(incomeFromTds.totalPaid)} / year · AY {incomeFromTds.assessmentYear}
                 </Text>
               </View>
-              <InfoRow label="Assessment Year" value={incomeFromTds.assessmentYear} />
-              <InfoRow label="Employer" value={incomeFromTds.employer} />
-              <InfoRow label="Total Salary Credited" value={formatCurrency(incomeFromTds.totalPaid)} />
+              {incomeFromTds.employer ? (
+                <InfoRow label="Employer / Source" value={incomeFromTds.employer} />
+              ) : null}
               <InfoRow label="Total TDS Deducted" value={formatCurrency(incomeFromTds.totalTds)} />
-              <InfoRow
-                label="Monthly Income (estimated)"
-                value={formatCurrency(incomeFromTds.monthlyIncome)}
-                highlight
-              />
               <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 8 }}>
-                Based on {incomeFromTds.entries} salary credit(s) reported in Form 26AS under section 192.
+                {incomeFromTds.source === '26AS'
+                  ? `Based on ${incomeFromTds.entries} salary credit(s) under §192 in Form 26AS (current year TDS).`
+                  : `Based on gross salary from filed ITR for AY ${incomeFromTds.assessmentYear}.`}
               </Text>
             </Card>
           )}
