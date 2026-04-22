@@ -720,10 +720,11 @@ const IncomeVerificationScreen = ({ navigation }) => {
 
     let result;
     if (foir < 0.5 && emiCapacity >= requestedEmi && income.bounceCount <= 1) {
-      result = { status: 'fully_eligible', message: 'Congratulations! You are fully eligible.' };
+      result = { status: 'fully_eligible', eligible: true, message: 'Congratulations! You are fully eligible.' };
     } else {
       result = {
         status: 'not_eligible',
+        eligible: false,
         message: 'Unfortunately, you are not eligible at this time. Please try after 6 months.',
       };
     }
