@@ -188,26 +188,6 @@ const AdminDashboardScreen = ({ navigation }) => {
           ))}
         </Card>
 
-        {/* Filter Chips */}
-        <View style={styles.filterRow}>
-          {FILTERS.map(f => (
-            <TouchableOpacity
-              key={f}
-              style={[
-                styles.filterChip,
-                { borderColor: colors.border, backgroundColor: colors.cardBg },
-                activeFilter === f && { borderColor: colors.teal, backgroundColor: `${colors.teal}14` },
-              ]}
-              onPress={() => setActiveFilter(f)}
-            >
-              <Text style={[
-                styles.filterText, { color: colors.textSecondary },
-                activeFilter === f && { color: colors.teal },
-              ]}>{f}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
         {/* Quick link to Queue */}
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Applications</Text>
