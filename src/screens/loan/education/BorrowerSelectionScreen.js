@@ -221,15 +221,13 @@ const BorrowerSelectionScreen = ({ navigation }) => {
    * empty — so values the user already typed are never overwritten.
    */
   const runPhonePrefillAfterOtp = async () => {
-    // Need at least a first name for the API — use what's already in
-    // the form, or the student's name, or the logged-in user's name.
-    const currentName = borrowerName || student?.studentName || user?.name || '';
+    // Use the borrower's name for lookup. For parent borrowers this is
+    // the father/guardian name; for self it's the student's own name.
+    // If the name field is still empty, use a minimal placeholder so
+    // the API still returns phone-linked records (it requires firstName).
+    const currentName = borrowerName || student?.fatherName || student?.studentName || user?.name || '';
     const parts = currentName.trim().split(/\s+/);
-    const firstName = parts[0] || '';
-    if (!firstName) {
-      console.log('[BorrowerSelection] Skipping prefill — no first name available');
-      return;
-    }
+    const firstName = parts[0] || 'NA';
 
     setPrefillLoading(true);
     try {
