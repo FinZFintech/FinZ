@@ -208,80 +208,17 @@ const AdminDashboardScreen = ({ navigation }) => {
           ))}
         </View>
 
-        {/* All Applications */}
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-          All Applications ({filteredApps.length})
-        </Text>
-
-        {filteredApps.map(app => (
-          <Card key={app.id} style={styles.appCard}>
-            <View style={styles.appHeader}>
-              <Text style={[styles.appId, { color: colors.textPrimary }]}>#{app.id}</Text>
-              <StatusBadge status={app.status} />
-            </View>
-            <InfoRow label="Customer" value={app.customerName} />
-            <InfoRow label="Phone" value={app.customerPhone} />
-            <InfoRow label="Institute" value={app.instituteName} />
-            <InfoRow label="Amount" value={formatCurrency(app.amount)} />
-            <InfoRow label="Applied" value={formatDate(app.appliedDate)} />
-            <InfoRow label="Assigned To" value={(app.assignedTo || 'Unassigned').charAt(0).toUpperCase() + (app.assignedTo || 'unassigned').slice(1)} />
-
-            {(app.creditScore || app.riskScore) && (
-              <View style={styles.scoreRow}>
-                {app.creditScore && (
-                  <View style={styles.scoreItem}>
-                    <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>CIBIL</Text>
-                    <Text style={[styles.scoreValue, { color: getRiskColor(app.creditScore) }]}>{app.creditScore}</Text>
-                  </View>
-                )}
-                {app.riskScore && (
-                  <View style={styles.scoreItem}>
-                    <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>Risk</Text>
-                    <Text style={[styles.scoreValue, { color: getRiskColor(app.riskScore) }]}>{app.riskScore}</Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {app.reason && (
-              <View style={[styles.reasonBanner, { backgroundColor: `${colors.warning}10` }]}>
-                <Text style={[styles.reasonText, { color: colors.warning }]}>{app.reason}</Text>
-              </View>
-            )}
-
-            {/* Admin actions — all actions available */}
-            <View style={styles.appActions}>
-              <Button title="View Details" onPress={() => navigation.navigate('StaffApplicationDetail', { application: app })} variant="outline" style={styles.actionBtn} />
-              {app.status !== 'disbursed' && app.status !== 'credit_check_failed' && app.status !== 'not_eligible' && (
-                <>
-                  <Button title="Approve" onPress={() => openAction(app, 'approve')} variant="success" style={styles.actionBtn} />
-                  <Button title="Reject" onPress={() => openAction(app, 'reject')} variant="danger" style={styles.actionBtn} />
-                </>
-              )}
-              {(app.status === 'fully_eligible' || app.status === 'esign_done') && (
-                <Button title="Disburse" onPress={() => openAction(app, 'disburse')} style={styles.actionBtn} />
-              )}
-            </View>
-
-            {/* Reassign */}
-            {app.status !== 'disbursed' && app.status !== 'credit_check_failed' && (
-              <View style={styles.reassignRow}>
-                <Text style={[styles.reassignLabel, { color: colors.textSecondary }]}>Reassign:</Text>
-                {['sales', 'credit', 'operations'].filter(r => r !== app.assignedTo).map(r => (
-                  <TouchableOpacity
-                    key={r}
-                    style={[styles.reassignChip, { borderColor: colors.border }]}
-                    onPress={() => openAction(app, `reassign_${r.substring(0, r === 'operations' ? 3 : r.length)}`)}
-                  >
-                    <Text style={[styles.reassignText, { color: colors.teal }]}>
-                      {r.charAt(0).toUpperCase() + r.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </Card>
-        ))}
+        {/* Quick link to Queue */}
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Applications</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>
+            View, search, filter and manage all loan applications from the Queue tab.
+          </Text>
+          <Button
+            title={`View All Applications (${allApps.length})`}
+            onPress={() => navigation.navigate('LoanQueue')}
+          />
+        </Card>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
