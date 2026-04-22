@@ -60,6 +60,7 @@ import ApiHealthMonitorScreen from '../screens/admin/ApiHealthMonitorScreen';
 import AuditTrailViewerScreen from '../screens/admin/AuditTrailViewerScreen';
 import StaffApplicationDetailScreen from '../screens/admin/StaffApplicationDetailScreen';
 import UserManagementScreen from '../screens/admin/UserManagementScreen';
+import VendorConfigScreen from '../screens/admin/VendorConfigScreen';
 
 const RootStack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -254,6 +255,7 @@ const AdminHomeStack = () => (
     <AdminHomeStackNav.Screen name="AuditTrailViewer" component={AuditTrailViewerScreen} />
     <AdminHomeStackNav.Screen name="StaffApplicationDetail" component={StaffApplicationDetailScreen} />
     <AdminHomeStackNav.Screen name="UserManagement" component={UserManagementScreen} />
+    <AdminHomeStackNav.Screen name="VendorConfig" component={VendorConfigScreen} />
   </AdminHomeStackNav.Navigator>
 );
 
