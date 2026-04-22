@@ -1,33 +1,35 @@
-import { getActiveVendors } from './vendorConfigService';
+import { getActiveVendorsForApi } from './vendorConfigService';
 
 /**
- * Vendor Failover Router
+ * Per-API Vendor Failover Router
  *
- * Wraps API calls with automatic failover between vendors.
- * When both vendors are active, tries the primary first — if it
- * fails, retries with the alternate. When only one is active,
- * uses that one directly with no fallback.
+ * Routes each API call through the vendors configured for that
+ * specific operation. When both vendors are active for an API,
+ * tries the primary first and falls back to the alternate.
  *
  * Usage:
- *   const result = await routeApiCall('searchBankByIfsc', {
- *     signzy: () => signzyService.searchBankByIfscCode(ifsc),
- *     digitap: () => digitapService.searchBankByIfsc(ifsc),
+ *   const result = await routeApiCall('panVerification', {
+ *     signzy: () => signzyService.verifyPan(pan),
+ *     digitap: () => digitapService.verifyPan(pan),
  *   });
+ *
+ * The 'panVerification' key maps to the per-API config in Firestore.
+ * Admin can toggle signzy/digitap independently for each API.
  */
 
 /**
  * Route an API call through the vendor failover chain.
  *
- * @param {string} operationName  Human-readable name for logging
- * @param {Object} handlers       Map of vendor key → async function
- * @param {string} [pair='api']   Config pair ('api' or 'sms')
- * @returns {Promise<any>}        Result from the first successful vendor
+ * @param {string} apiKey        Config key (e.g. 'panVerification')
+ * @param {Object} handlers      Map of vendor key → async function
+ * @param {string} [category='apis']  'apis' or 'sms'
+ * @returns {Promise<any>}       Result from the first successful vendor
  */
-export async function routeApiCall(operationName, handlers, pair = 'api') {
-  const activeVendors = await getActiveVendors(pair);
+export async function routeApiCall(apiKey, handlers, category = 'apis') {
+  const activeVendors = await getActiveVendorsForApi(apiKey, category);
 
   if (activeVendors.length === 0) {
-    throw new Error(`No active vendors for ${pair}. Please enable at least one vendor in admin settings.`);
+    throw new Error(`No active vendors for ${apiKey}. Please enable at least one vendor in admin settings.`);
   }
 
   let lastError = null;
@@ -37,20 +39,21 @@ export async function routeApiCall(operationName, handlers, pair = 'api') {
     if (!handler) continue;
 
     try {
-      console.log(`[vendorRouter] ${operationName} → trying ${vendor}`);
+      console.log(`[vendorRouter] ${apiKey} → trying ${vendor}`);
       const result = await handler();
-      console.log(`[vendorRouter] ${operationName} → ${vendor} succeeded`);
-      return { ...result, _vendor: vendor };
+      console.log(`[vendorRouter] ${apiKey} → ${vendor} succeeded`);
+      if (result && typeof result === 'object') {
+        result._vendor = vendor;
+      }
+      return result;
     } catch (err) {
-      console.log(`[vendorRouter] ${operationName} → ${vendor} failed:`, err?.message);
+      console.log(`[vendorRouter] ${apiKey} → ${vendor} failed:`, err?.message);
       lastError = err;
-      // Continue to next vendor
     }
   }
 
-  // All vendors failed
   const err = new Error(
-    lastError?.message || `${operationName} failed on all vendors (${activeVendors.join(', ')})`,
+    lastError?.message || `${apiKey} failed on all vendors (${activeVendors.join(', ')})`,
   );
   err.statusCode = lastError?.statusCode;
   err.vendorsFailed = activeVendors;
@@ -58,8 +61,8 @@ export async function routeApiCall(operationName, handlers, pair = 'api') {
 }
 
 /**
- * Route an SMS/OTP call through the SMS vendor failover chain.
+ * Route an SMS/OTP call through the per-API SMS vendor chain.
  */
-export async function routeSmsCall(operationName, handlers) {
-  return routeApiCall(operationName, handlers, 'sms');
+export async function routeSmsCall(apiKey, handlers) {
+  return routeApiCall(apiKey, handlers, 'sms');
 }
