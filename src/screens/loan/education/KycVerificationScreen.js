@@ -988,12 +988,21 @@ const KycVerificationScreen = ({ navigation }) => {
       });
     }
 
+    let nameMatchData = null;
     try {
       const nameMatchResult = await kycService.matchNames({
         panName: state.panDetails?.name,
         kycName: kycData.name,
         borrowerName: state.borrowerDetails?.name,
       });
+      nameMatchData = {
+        score: nameMatchResult.score,
+        matched: nameMatchResult.matched,
+        panName: state.panDetails?.name || '',
+        kycName: kycData.name || '',
+        borrowerName: state.borrowerDetails?.name || '',
+        checkedAt: new Date().toISOString(),
+      };
       if (nameMatchResult.score < 70) {
         recordKycFailure({
           method,
@@ -1003,7 +1012,7 @@ const KycVerificationScreen = ({ navigation }) => {
           },
           reasonOverride: `Name match score ${nameMatchResult.score}% < 70% threshold (PAN: "${state.panDetails?.name}", KYC: "${kycData.name}", Borrower: "${state.borrowerDetails?.name}")`,
         });
-        dispatch({ type: 'SET_KYC_DATA', payload: { ...kycData, method, nameMatchFailed: true } });
+        dispatch({ type: 'SET_KYC_DATA', payload: { ...kycData, method, nameMatchFailed: true, nameMatch: nameMatchData } });
         dispatch({ type: 'SET_KYC_METHOD', payload: method });
         Alert.alert(
           'Under Review',
@@ -1014,7 +1023,6 @@ const KycVerificationScreen = ({ navigation }) => {
         return;
       }
     } catch (err) {
-      // Name match check failed — allow to proceed (non-blocking) but record it
       recordKycFailure({
         method,
         stage: 'name_match',
@@ -1023,7 +1031,7 @@ const KycVerificationScreen = ({ navigation }) => {
       });
     }
 
-    dispatch({ type: 'SET_KYC_DATA', payload: { ...kycData, method } });
+    dispatch({ type: 'SET_KYC_DATA', payload: { ...kycData, method, nameMatch: nameMatchData } });
     dispatch({ type: 'SET_KYC_METHOD', payload: method });
     dispatch({ type: 'SET_STEP', payload: 4 });
     setKycCompleted(true);

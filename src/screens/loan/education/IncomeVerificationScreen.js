@@ -719,12 +719,37 @@ const IncomeVerificationScreen = ({ navigation }) => {
       : 0;
 
     let result;
-    if (foir < 0.5 && emiCapacity >= requestedEmi && income.bounceCount <= 1) {
-      result = { status: 'fully_eligible', message: 'Congratulations! You are fully eligible.' };
+    const rejectionReasons = [];
+
+    if (foir >= 0.5) {
+      rejectionReasons.push(`Your existing EMI obligations are high relative to your income (FOIR: ${(foir * 100).toFixed(0)}%). We require FOIR below 50%.`);
+    }
+    if (emiCapacity < requestedEmi) {
+      rejectionReasons.push(`The requested EMI (₹${Math.round(requestedEmi).toLocaleString('en-IN')}) exceeds your available capacity (₹${Math.round(emiCapacity).toLocaleString('en-IN')}).`);
+    }
+    if (income.bounceCount > 1) {
+      rejectionReasons.push(`Your bank statement shows ${income.bounceCount} bounced transactions. We allow a maximum of 1.`);
+    }
+
+    if (rejectionReasons.length === 0) {
+      result = {
+        status: 'fully_eligible',
+        eligible: true,
+        message: 'Congratulations! You are fully eligible for the loan.',
+        foir: (foir * 100).toFixed(1),
+        emiCapacity: Math.round(emiCapacity),
+        requestedEmi: Math.round(requestedEmi),
+      };
     } else {
       result = {
         status: 'not_eligible',
-        message: 'Unfortunately, you are not eligible at this time. Please try after 6 months.',
+        eligible: false,
+        rejectionReasons,
+        message: 'We appreciate your interest in our loan products. Unfortunately, based on our current assessment, we are unable to process your application at this time.',
+        retryAfter: foir >= 0.7 || income.bounceCount > 3 ? '6 months' : '1 month',
+        foir: (foir * 100).toFixed(1),
+        emiCapacity: Math.round(emiCapacity),
+        requestedEmi: Math.round(requestedEmi),
       };
     }
 
@@ -1399,8 +1424,21 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {eligibilityResult?.status === 'not_eligible' && (
           <Card style={[styles.resultCard, { backgroundColor: errorBg }]}>
             <Text style={styles.resultIcon}>😔</Text>
-            <Text style={[styles.resultTitle, { color: colors.error }]}>Not Eligible</Text>
-            <Text style={[styles.resultText, { color: colors.textSecondary }]}>{eligibilityResult.message}</Text>
+            <Text style={[styles.resultTitle, { color: colors.error }]}>
+              Application Under Review
+            </Text>
+            <Text style={[styles.resultText, { color: colors.textSecondary, marginBottom: 12 }]}>
+              {eligibilityResult.message}
+            </Text>
+
+            {eligibilityResult.retryAfter && (
+              <View style={{ backgroundColor: `${colors.warning}14`, padding: 12, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ color: colors.warning, fontSize: 13, textAlign: 'center' }}>
+                  We recommend you try again after {eligibilityResult.retryAfter}. In the meantime, you can improve your eligibility by reducing existing EMIs or increasing your income.
+                </Text>
+              </View>
+            )}
+
             <Button
               title="Apply with Different Borrower"
               onPress={handleRetryDifferentBorrower}

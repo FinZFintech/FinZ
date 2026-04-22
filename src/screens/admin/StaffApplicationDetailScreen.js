@@ -11,8 +11,11 @@ import InfoRow from '../../components/common/InfoRow';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
+import { computeCustomerRiskSegment } from '../../utils/riskSegment';
 import { smsService } from '../../services/smsService';
 import { loadAllRawData } from '../../services/applicationDbService';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db, isFirebaseConfigured } from '../../config/firebase';
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 const TABS = ['Details', 'Documents', 'Verifications', 'Raw Data', 'Comments', 'Communication'];
@@ -435,6 +438,54 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         {application.disbursementDate && <InfoRow label="Disbursed On" value={formatDate(application.disbursementDate)} />}
       </Card>
 
+      {/* Customer Risk Segment */}
+      {(() => {
+        const riskSeg = computeCustomerRiskSegment(application._rawState || application);
+        const segColor = riskSeg.color === 'teal' ? colors.teal : riskSeg.color === 'error' ? colors.error : colors.warning;
+        return (
+          <Card accent={segColor}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>Customer Risk Profile</Text>
+              <View style={{ backgroundColor: `${segColor}20`, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: segColor }}>
+                <Text style={{ color: segColor, fontSize: 12, fontWeight: '800' }}>{riskSeg.segment} Risk</Text>
+              </View>
+            </View>
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{riskSeg.reason}</Text>
+          </Card>
+        );
+      })()}
+
+      {/* Rejection / Non-Eligibility Details */}
+      {application.eligibilityResult?.eligible === false && (
+        <Card accent={colors.error}>
+          <Text style={[styles.sectionTitle, { color: colors.error }]}>Rejection Details</Text>
+          {application.eligibilityResult.foir ? (
+            <InfoRow label="FOIR" value={`${application.eligibilityResult.foir}%`} />
+          ) : null}
+          {application.eligibilityResult.emiCapacity != null ? (
+            <InfoRow label="EMI Capacity" value={formatCurrency(application.eligibilityResult.emiCapacity)} />
+          ) : null}
+          {application.eligibilityResult.requestedEmi != null ? (
+            <InfoRow label="Requested EMI" value={formatCurrency(application.eligibilityResult.requestedEmi)} />
+          ) : null}
+          {application.eligibilityResult.retryAfter ? (
+            <InfoRow label="Retry After" value={application.eligibilityResult.retryAfter} />
+          ) : null}
+          {Array.isArray(application.eligibilityResult.rejectionReasons) && application.eligibilityResult.rejectionReasons.length > 0 && (
+            <>
+              <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 13, marginTop: 8, marginBottom: 4 }}>
+                Rejection Reasons
+              </Text>
+              {application.eligibilityResult.rejectionReasons.map((reason, idx) => (
+                <Text key={idx} style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 4 }}>
+                  {idx + 1}. {reason}
+                </Text>
+              ))}
+            </>
+          )}
+        </Card>
+      )}
+
       {/* Customer Details */}
       <Card>
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Customer Details</Text>
@@ -476,6 +527,66 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
           </View>
         )}
       </Card>
+
+      {/* Name Match Results */}
+      {application.kycData?.nameMatch && (
+        <Card accent={application.kycData.nameMatch.score >= 70 ? colors.teal : colors.error}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Name Match Verification</Text>
+          <View style={{ alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{
+              fontSize: 32, fontWeight: '800',
+              color: application.kycData.nameMatch.score >= 70 ? colors.teal : colors.error,
+            }}>
+              {application.kycData.nameMatch.score}%
+            </Text>
+            <Text style={{
+              fontSize: 12, fontWeight: '600',
+              color: application.kycData.nameMatch.score >= 70 ? colors.teal : colors.error,
+            }}>
+              {application.kycData.nameMatch.score >= 70 ? 'MATCH' : 'MISMATCH'}
+            </Text>
+          </View>
+          <InfoRow label="PAN Name" value={application.kycData.nameMatch.panName || '—'} />
+          <InfoRow label="KYC Name" value={application.kycData.nameMatch.kycName || '—'} />
+          <InfoRow label="Borrower Name" value={application.kycData.nameMatch.borrowerName || '—'} />
+          {application.kycData.nameMatch.checkedAt ? (
+            <InfoRow label="Checked At" value={formatDate(application.kycData.nameMatch.checkedAt)} />
+          ) : null}
+        </Card>
+      )}
+
+      {/* Face Match / Selfie Results */}
+      {(application.selfieData || application._rawState?.selfieData) && (() => {
+        const selfie = application.selfieData || application._rawState?.selfieData || {};
+        return (
+          <Card accent={selfie.matched ? colors.teal : colors.error}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Face Match / Selfie Verification</Text>
+            <View style={{ alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{
+                fontSize: 28, fontWeight: '800',
+                color: selfie.matched ? colors.teal : colors.error,
+              }}>
+                {selfie.faceMatchPercentage || '0%'}
+              </Text>
+              <Text style={{
+                fontSize: 12, fontWeight: '600',
+                color: selfie.matched ? colors.teal : colors.error,
+              }}>
+                {selfie.matched ? 'FACE MATCHED' : 'FACE NOT MATCHED'}
+              </Text>
+            </View>
+            <InfoRow label="Face Match" value={selfie.matched ? 'Yes' : 'No'} highlight={selfie.matched} />
+            <InfoRow label="Match Percentage" value={selfie.faceMatchPercentage || '—'} />
+            <InfoRow label="Liveness Verified" value={selfie.livenessVerified ? 'Yes' : 'No'} highlight={selfie.livenessVerified} />
+            {selfie.timestamp ? (
+              <InfoRow label="Captured At" value={formatDate(selfie.timestamp)} />
+            ) : null}
+            {selfie.location ? (
+              <InfoRow label="Location" value={selfie.location} />
+            ) : null}
+          </Card>
+        );
+      })()}
 
       {/* KYC Details */}
       <Card>
@@ -711,6 +822,22 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         <Card accent={colors.warning}>
           <Text style={[styles.sectionTitle, { color: colors.warning }]}>Remarks / Flags</Text>
           <Text style={[styles.reasonText, { color: colors.textPrimary }]}>{application.reason}</Text>
+        </Card>
+      )}
+
+      {/* Admin Action History */}
+      {application.adminAction && (
+        <Card accent={application.adminAction.action === 'approve' ? colors.teal : colors.error}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Last Admin Action</Text>
+          <InfoRow
+            label="Action"
+            value={application.adminAction.action === 'approve' ? 'Approved' : 'Rejected'}
+            highlight={application.adminAction.action === 'approve'}
+          />
+          <InfoRow label="By" value={application.adminAction.by || 'Unknown'} />
+          {application.adminAction.at ? (
+            <InfoRow label="Date" value={formatDate(application.adminAction.at)} />
+          ) : null}
         </Card>
       )}
     </>
@@ -1999,26 +2126,47 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
             {application.customerPhone || ''} · {application.status ? application.status.replace(/_/g, ' ').toUpperCase() : 'UNKNOWN'}
           </Text>
         </View>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
+        <View style={{ flexDirection: 'row' }}>
           <TouchableOpacity
-            style={[styles.actionChip, { backgroundColor: `${colors.teal}20`, borderColor: colors.teal }]}
+            style={[styles.actionChip, { backgroundColor: `${colors.teal}20`, borderColor: colors.teal, marginRight: 6 }]}
             onPress={() => Alert.alert('Approve', 'Mark this application as approved?', [
               { text: 'Cancel' },
-              { text: 'Approve', onPress: () => {
-                setApplication((prev) => ({ ...prev, status: 'fully_eligible' }));
-                Alert.alert('Done', 'Application approved.');
+              { text: 'Approve', onPress: async () => {
+                const newStatus = 'fully_eligible';
+                setApplication((prev) => ({ ...prev, status: newStatus }));
+                if (isFirebaseConfigured() && application.id) {
+                  try {
+                    await setDoc(doc(db, 'applications', application.id), {
+                      status: newStatus,
+                      adminAction: { action: 'approve', by: user?.name || user?.phone || '', at: new Date().toISOString() },
+                      _updatedAt: serverTimestamp(),
+                    }, { merge: true });
+                  } catch (e) { console.log('[StaffDetail] Approve save failed:', e?.message); }
+                }
+                Alert.alert('Done', 'Application approved and saved.');
               }},
             ])}
           >
             <Text style={{ color: colors.teal, fontSize: 11, fontWeight: '700' }}>Approve</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionChip, { backgroundColor: `${colors.error}20`, borderColor: colors.error }]}
+            style={[styles.actionChip, { backgroundColor: `${colors.error}20`, borderColor: colors.error, marginRight: 6 }]}
             onPress={() => Alert.alert('Reject', 'Reject this application?', [
               { text: 'Cancel' },
-              { text: 'Reject', style: 'destructive', onPress: () => {
-                setApplication((prev) => ({ ...prev, status: 'not_eligible' }));
-                Alert.alert('Done', 'Application rejected.');
+              { text: 'Reject', style: 'destructive', onPress: async () => {
+                const newStatus = 'not_eligible';
+                setApplication((prev) => ({ ...prev, status: newStatus, eligibilityResult: { eligible: false, status: 'not_eligible' } }));
+                if (isFirebaseConfigured() && application.id) {
+                  try {
+                    await setDoc(doc(db, 'applications', application.id), {
+                      status: newStatus,
+                      eligibilityResult: { eligible: false, status: 'not_eligible' },
+                      adminAction: { action: 'reject', by: user?.name || user?.phone || '', at: new Date().toISOString() },
+                      _updatedAt: serverTimestamp(),
+                    }, { merge: true });
+                  } catch (e) { console.log('[StaffDetail] Reject save failed:', e?.message); }
+                }
+                Alert.alert('Done', 'Application rejected and saved.');
               }},
             ])}
           >
