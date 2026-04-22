@@ -129,22 +129,38 @@ const UserManagementScreen = ({ navigation }) => {
     }
   };
 
-  const handleToggleActive = async (staffUser) => {
-    const action = staffUser.active ? 'disable' : 'enable';
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm(`${action === 'disable' ? 'Disable' : 'Enable'} user ${staffUser.name} (${staffUser.phone || staffUser.email})?`)
-      : true;
-    if (!confirmed) return;
+  // Toggle active modal
+  const [showToggleModal, setShowToggleModal] = useState(false);
+  const [toggleUser, setToggleUser] = useState(null);
+  const [toggling, setToggling] = useState(false);
 
+  const openToggleModal = (staffUser) => {
+    setToggleUser(staffUser);
+    setShowToggleModal(true);
+  };
+
+  const handleToggleConfirm = async () => {
+    if (!toggleUser) return;
+    const action = toggleUser.active ? 'disable' : 'enable';
+    setToggling(true);
     try {
       if (action === 'disable') {
-        await disableStaffUser(staffUser.phone || staffUser.email, user?.name || user?.phone || '');
+        await disableStaffUser(toggleUser.phone || toggleUser.email, user?.name || user?.phone || '');
       } else {
-        await enableStaffUser(staffUser.phone || staffUser.email, user?.name || user?.phone || '');
+        await enableStaffUser(toggleUser.phone || toggleUser.email, user?.name || user?.phone || '');
       }
-      loadUsers();
+      // Update local state immediately for instant UI feedback
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.userId === toggleUser.userId ? { ...u, active: !toggleUser.active } : u,
+        ),
+      );
+      setShowToggleModal(false);
+      setToggleUser(null);
     } catch (err) {
       Alert.alert('Error', err?.message || `Failed to ${action} user.`);
+    } finally {
+      setToggling(false);
     }
   };
 
@@ -254,7 +270,7 @@ const UserManagementScreen = ({ navigation }) => {
                     borderColor: u.active ? colors.error : colors.teal,
                     backgroundColor: u.active ? `${colors.error}14` : `${colors.teal}14`,
                   }}
-                  onPress={() => handleToggleActive(u)}
+                  onPress={() => openToggleModal(u)}
                 >
                   <Text style={{ color: u.active ? colors.error : colors.teal, fontSize: 11, fontWeight: '700' }}>
                     {u.active ? 'Disable' : 'Enable'}
@@ -383,6 +399,84 @@ const UserManagementScreen = ({ navigation }) => {
               </View>
             </View>
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Enable/Disable Confirmation Modal */}
+      <Modal visible={showToggleModal} transparent animationType="fade" onRequestClose={() => setShowToggleModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: colors.cardBg, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: colors.border }}>
+            {toggleUser && (
+              <>
+                <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                  <Text style={{ fontSize: 36, marginBottom: 8 }}>
+                    {toggleUser.active ? '🚫' : '✅'}
+                  </Text>
+                  <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '700', textAlign: 'center' }}>
+                    {toggleUser.active ? 'Disable User' : 'Enable User'}
+                  </Text>
+                </View>
+
+                <View style={{ backgroundColor: colors.background, borderRadius: 8, padding: 14, marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: `${roleColor(toggleUser.role)}20`, marginRight: 12,
+                    }}>
+                      <Text style={{ color: roleColor(toggleUser.role), fontWeight: '800', fontSize: 16 }}>
+                        {(toggleUser.name || '?')[0].toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 15 }}>{toggleUser.name}</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{toggleUser.phone || toggleUser.email}</Text>
+                    </View>
+                    <View style={{
+                      paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, borderWidth: 1,
+                      borderColor: roleColor(toggleUser.role), backgroundColor: `${roleColor(toggleUser.role)}14`,
+                    }}>
+                      <Text style={{ color: roleColor(toggleUser.role), fontSize: 10, fontWeight: '800', textTransform: 'uppercase' }}>
+                        {toggleUser.role}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={{ color: toggleUser.active ? colors.teal : colors.error, fontSize: 12, fontWeight: '600' }}>
+                    Current status: {toggleUser.active ? '● Active' : '○ Disabled'}
+                  </Text>
+                </View>
+
+                <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 16 }}>
+                  {toggleUser.active
+                    ? 'This user will no longer be able to log in or access the system. Their existing data will be preserved.'
+                    : 'This user will be able to log in and access the system again with their existing role and permissions.'}
+                </Text>
+
+                <View style={{ flexDirection: 'row' }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center', marginRight: 8 }}
+                    onPress={() => { setShowToggleModal(false); setToggleUser(null); }}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{
+                      flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center',
+                      backgroundColor: toggleUser.active ? colors.error : colors.teal,
+                      opacity: toggling ? 0.6 : 1,
+                    }}
+                    onPress={handleToggleConfirm}
+                    disabled={toggling}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>
+                      {toggling
+                        ? (toggleUser.active ? 'Disabling...' : 'Enabling...')
+                        : (toggleUser.active ? 'Confirm Disable' : 'Confirm Enable')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
         </View>
       </Modal>
     </View>
