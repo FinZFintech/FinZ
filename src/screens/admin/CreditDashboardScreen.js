@@ -146,72 +146,17 @@ const CreditDashboardScreen = ({ navigation }) => {
           ))}
         </View>
 
-        {/* Applications */}
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-          My Bucket ({filteredApps.length})
-        </Text>
-
-        {filteredApps.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No applications in this category</Text>
-          </Card>
-        ) : (
-          filteredApps.map(app => (
-            <Card key={app.id} style={styles.appCard}>
-              <View style={styles.appHeader}>
-                <Text style={[styles.appId, { color: colors.textPrimary }]}>#{app.id}</Text>
-                <StatusBadge status={app.status} />
-              </View>
-              <InfoRow label="Customer" value={app.customerName} />
-              <InfoRow label="Institute" value={app.instituteName} />
-              <InfoRow label="Amount" value={formatCurrency(app.amount)} />
-              <InfoRow label="PAN" value={app.panNumber} />
-              <InfoRow label="Applied" value={formatDate(app.appliedDate)} />
-
-              {/* Credit & Risk Scores */}
-              <View style={styles.scoreRow}>
-                <View style={styles.scoreItem}>
-                  <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>CIBIL</Text>
-                  <Text style={[styles.scoreValue, { color: getRiskColor(app.creditScore) }]}>{app.creditScore}</Text>
-                </View>
-                <View style={styles.scoreItem}>
-                  <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>Risk Score</Text>
-                  <Text style={[styles.scoreValue, { color: getRiskColor(app.riskScore) }]}>{app.riskScore}</Text>
-                </View>
-              </View>
-
-              {app.reason && (
-                <View style={[styles.reasonBanner, { backgroundColor: `${colors.warning}10` }]}>
-                  <Text style={[styles.reasonText, { color: colors.warning }]}>{app.reason}</Text>
-                </View>
-              )}
-
-              {(app.status === 'manual_review' || app.status === 'credit_check_passed' || app.status === 'income_verified') && (
-                <View style={styles.appActions}>
-                  <Button
-                    title="Approve"
-                    onPress={() => openAction(app, 'approve')}
-                    variant="success"
-                    style={styles.actionBtn}
-                  />
-                  <Button
-                    title="Reject"
-                    onPress={() => openAction(app, 'reject')}
-                    variant="danger"
-                    style={styles.actionBtn}
-                  />
-                  <Button
-                    title="Details"
-                    onPress={() => navigation.navigate('StaffApplicationDetail', { application: app })}
-                    variant="outline"
-                    style={styles.actionBtn}
-                  />
-                </View>
-              )}
-            </Card>
-          ))
-        )}
+        {/* Quick link to Queue */}
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Applications</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>
+            View, search, and review all loan applications in the Bucket tab.
+          </Text>
+          <Button
+            title={`View Applications (${applications.length})`}
+            onPress={() => navigation.navigate('LoanQueue')}
+          />
+        </Card>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>

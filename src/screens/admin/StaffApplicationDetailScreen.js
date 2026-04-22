@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
-  TextInput, Alert, RefreshControl, Linking, Image, Dimensions,
+  TextInput, Alert, RefreshControl, Linking, Image, Dimensions, Platform,
 } from 'react-native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
@@ -1765,7 +1765,61 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
     );
   };
 
-  // ─── RAW DATA TAB ─────────────────────────────────────────────────────────
+  // ── Approve / Reject handlers (cross-platform) ──
+  const handleApprove = async () => {
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Mark this application as approved?')
+      : await new Promise((resolve) =>
+          Alert.alert('Approve', 'Mark this application as approved?', [
+            { text: 'Cancel', onPress: () => resolve(false) },
+            { text: 'Approve', onPress: () => resolve(true) },
+          ]),
+        );
+    if (!confirmed) return;
+
+    const newStatus = 'fully_eligible';
+    setApplication((prev) => ({ ...prev, status: newStatus }));
+    const appId = application.id || application.applicationId;
+    if (isFirebaseConfigured() && appId) {
+      try {
+        await setDoc(doc(db, 'applications', appId), {
+          status: newStatus,
+          adminAction: { action: 'approve', by: user?.name || user?.phone || '', at: new Date().toISOString() },
+          _updatedAt: serverTimestamp(),
+        }, { merge: true });
+        console.log('[StaffDetail] Approved:', appId);
+      } catch (e) { console.log('[StaffDetail] Approve save failed:', e?.message); }
+    }
+    Alert.alert('Done', 'Application approved and saved.');
+  };
+
+  const handleReject = async () => {
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Reject this application?')
+      : await new Promise((resolve) =>
+          Alert.alert('Reject', 'Reject this application?', [
+            { text: 'Cancel', onPress: () => resolve(false) },
+            { text: 'Reject', onPress: () => resolve(true) },
+          ]),
+        );
+    if (!confirmed) return;
+
+    const newStatus = 'not_eligible';
+    setApplication((prev) => ({ ...prev, status: newStatus, eligibilityResult: { eligible: false, status: 'not_eligible' } }));
+    const appId = application.id || application.applicationId;
+    if (isFirebaseConfigured() && appId) {
+      try {
+        await setDoc(doc(db, 'applications', appId), {
+          status: newStatus,
+          eligibilityResult: { eligible: false, status: 'not_eligible' },
+          adminAction: { action: 'reject', by: user?.name || user?.phone || '', at: new Date().toISOString() },
+          _updatedAt: serverTimestamp(),
+        }, { merge: true });
+        console.log('[StaffDetail] Rejected:', appId);
+      } catch (e) { console.log('[StaffDetail] Reject save failed:', e?.message); }
+    }
+    Alert.alert('Done', 'Application rejected and saved.');
+  };
   /**
    * Shows all raw API responses, extracted images/documents, ITR PDFs,
    * and KYC XML/JSON in one place so admin / credit / operations can
@@ -2129,46 +2183,13 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         <View style={{ flexDirection: 'row' }}>
           <TouchableOpacity
             style={[styles.actionChip, { backgroundColor: `${colors.teal}20`, borderColor: colors.teal, marginRight: 6 }]}
-            onPress={() => Alert.alert('Approve', 'Mark this application as approved?', [
-              { text: 'Cancel' },
-              { text: 'Approve', onPress: async () => {
-                const newStatus = 'fully_eligible';
-                setApplication((prev) => ({ ...prev, status: newStatus }));
-                if (isFirebaseConfigured() && application.id) {
-                  try {
-                    await setDoc(doc(db, 'applications', application.id), {
-                      status: newStatus,
-                      adminAction: { action: 'approve', by: user?.name || user?.phone || '', at: new Date().toISOString() },
-                      _updatedAt: serverTimestamp(),
-                    }, { merge: true });
-                  } catch (e) { console.log('[StaffDetail] Approve save failed:', e?.message); }
-                }
-                Alert.alert('Done', 'Application approved and saved.');
-              }},
-            ])}
+            onPress={handleApprove}
           >
             <Text style={{ color: colors.teal, fontSize: 11, fontWeight: '700' }}>Approve</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionChip, { backgroundColor: `${colors.error}20`, borderColor: colors.error, marginRight: 6 }]}
-            onPress={() => Alert.alert('Reject', 'Reject this application?', [
-              { text: 'Cancel' },
-              { text: 'Reject', style: 'destructive', onPress: async () => {
-                const newStatus = 'not_eligible';
-                setApplication((prev) => ({ ...prev, status: newStatus, eligibilityResult: { eligible: false, status: 'not_eligible' } }));
-                if (isFirebaseConfigured() && application.id) {
-                  try {
-                    await setDoc(doc(db, 'applications', application.id), {
-                      status: newStatus,
-                      eligibilityResult: { eligible: false, status: 'not_eligible' },
-                      adminAction: { action: 'reject', by: user?.name || user?.phone || '', at: new Date().toISOString() },
-                      _updatedAt: serverTimestamp(),
-                    }, { merge: true });
-                  } catch (e) { console.log('[StaffDetail] Reject save failed:', e?.message); }
-                }
-                Alert.alert('Done', 'Application rejected and saved.');
-              }},
-            ])}
+            onPress={handleReject}
           >
             <Text style={{ color: colors.error, fontSize: 11, fontWeight: '700' }}>Reject</Text>
           </TouchableOpacity>

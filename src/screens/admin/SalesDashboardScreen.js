@@ -180,48 +180,17 @@ const SalesDashboardScreen = ({ navigation }) => {
           ))}
         </View>
 
-        {/* Applications List */}
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-          My Applications ({filteredApps.length})
-        </Text>
-
-        {filteredApps.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              No applications in this category
-            </Text>
-          </Card>
-        ) : (
-          filteredApps.map(app => (
-            <Card key={app.id} style={styles.appCard}>
-              <View style={styles.appHeader}>
-                <Text style={[styles.appId, { color: colors.textPrimary }]}>#{app.id}</Text>
-                <StatusBadge status={app.status} />
-              </View>
-              <InfoRow label="Customer" value={app.customerName} />
-              <InfoRow label="Phone" value={app.customerPhone} />
-              <InfoRow label="Institute" value={app.instituteName} />
-              {app.amount > 0 && <InfoRow label="Amount" value={formatCurrency(app.amount)} />}
-              <InfoRow label="Applied" value={formatDate(app.appliedDate)} />
-              <InfoRow label="Stage" value={STATUS_LABELS[app.status] || app.status} />
-
-              <View style={styles.appActions}>
-                <Button
-                  title="View Details"
-                  onPress={() => navigation.navigate('StaffApplicationDetail', { application: app })}
-                  style={styles.actionBtn}
-                />
-                <Button
-                  title="Assist"
-                  onPress={() => handleAssist(app)}
-                  variant="outline"
-                  style={styles.actionBtn}
-                />
-              </View>
-            </Card>
-          ))
-        )}
+        {/* Quick link to Queue */}
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Applications</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>
+            View, search, and manage all applications in the Applications tab.
+          </Text>
+          <Button
+            title={`View Applications (${applications.length})`}
+            onPress={() => navigation.navigate('LoanQueue')}
+          />
+        </Card>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
