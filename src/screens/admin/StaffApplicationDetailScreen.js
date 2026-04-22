@@ -12,9 +12,10 @@ import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { smsService } from '../../services/smsService';
+import { loadAllRawData } from '../../services/applicationDbService';
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
-const TABS = ['Details', 'Documents', 'Verifications', 'Comments', 'Communication'];
+const TABS = ['Details', 'Documents', 'Verifications', 'Raw Data', 'Comments', 'Communication'];
 
 /**
  * Labels for Signzy verification keys so the staff view can render a
@@ -1617,6 +1618,252 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
     );
   };
 
+  // ─── RAW DATA TAB ─────────────────────────────────────────────────────────
+  /**
+   * Shows all raw API responses, extracted images/documents, ITR PDFs,
+   * and KYC XML/JSON in one place so admin / credit / operations can
+   * inspect the source data behind every verification.
+   */
+  const [expandedRawSections, setExpandedRawSections] = useState({});
+  const [rawDataFromDb, setRawDataFromDb] = useState(null);
+  const [rawDataLoading, setRawDataLoading] = useState(false);
+  const toggleRawSection = (key) =>
+    setExpandedRawSections((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const RawJsonBlock = ({ title, data, sectionKey }) => {
+    if (!data) return null;
+    const expanded = expandedRawSections[sectionKey];
+    const jsonStr = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    const preview = jsonStr.length > 300 ? jsonStr.slice(0, 300) + '...' : jsonStr;
+
+    return (
+      <View style={{ marginBottom: 16 }}>
+        <TouchableOpacity
+          onPress={() => toggleRawSection(sectionKey)}
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingVertical: 8,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: colors.border,
+          }}
+        >
+          <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 14 }}>{title}</Text>
+          <Text style={{ color: colors.teal, fontSize: 12 }}>
+            {expanded ? 'Collapse ▲' : `Expand ▼ (${(jsonStr.length / 1024).toFixed(1)} KB)`}
+          </Text>
+        </TouchableOpacity>
+        <View
+          style={{
+            backgroundColor: colors.background,
+            borderRadius: 8,
+            padding: 10,
+            marginTop: 6,
+            maxHeight: expanded ? undefined : 120,
+            overflow: 'hidden',
+          }}
+        >
+          <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'monospace' }}>
+            {expanded ? jsonStr : preview}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  const renderRawData = () => {
+    // Lazy-load raw data from Firestore subcollection on first render
+    if (!rawDataFromDb && !rawDataLoading && application.id) {
+      setRawDataLoading(true);
+      loadAllRawData(application.id).then((data) => {
+        setRawDataFromDb(data || {});
+        setRawDataLoading(false);
+      }).catch(() => {
+        setRawDataFromDb({});
+        setRawDataLoading(false);
+      });
+    }
+
+    const kycData = application.kycData || {};
+    const signzy = application.signzyVerifications || {};
+    const kycImages = Array.isArray(kycData.images) ? kycData.images : [];
+    const kycDocs = Array.isArray(kycData.documents) ? kycData.documents : [];
+    const dbRaw = rawDataFromDb || {};
+    const hasAny =
+      kycImages.length > 0 ||
+      kycDocs.length > 0 ||
+      kycData.rawResponse ||
+      Object.keys(signzy).length > 0;
+
+    if (!hasAny) {
+      return (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Raw Data</Text>
+          <Text style={{ color: colors.textSecondary }}>
+            No raw data available yet. API responses, images, and documents
+            will appear here as verifications complete.
+          </Text>
+        </Card>
+      );
+    }
+
+    return (
+      <>
+        {/* KYC Extracted Images */}
+        {kycImages.length > 0 && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+              KYC Images ({kycImages.length})
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>
+              All images extracted from {kycData.method || 'KYC source'}. Tap to zoom.
+            </Text>
+            {kycImages.map((img, idx) => (
+              <AspectImage
+                key={img.sequence || idx}
+                uri={img.uri}
+                label={`${img.label || 'Document ' + (idx + 1)}${img.code ? ' (code: ' + img.code + ')' : ''}`}
+                colors={colors}
+                onPress={() => setZoomImage({ uri: img.uri, label: img.label || `Document ${idx + 1}` })}
+              />
+            ))}
+          </Card>
+        )}
+
+        {/* KYC Identity Documents */}
+        {kycDocs.length > 0 && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+              KYC Identity Documents ({kycDocs.length})
+            </Text>
+            {kycDocs.map((doc, idx) => (
+              <View
+                key={doc.sequence || idx}
+                style={{
+                  paddingVertical: 8,
+                  borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+                  borderTopColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>
+                  {doc.label} — {doc.number}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                  Type: {doc.type} · Status: {doc.verificationStatus || 'N/A'}
+                  {doc.dateOfIssue ? ` · Issued: ${doc.dateOfIssue}` : ''}
+                  {doc.dateOfExpiry ? ` · Expires: ${doc.dateOfExpiry}` : ''}
+                </Text>
+              </View>
+            ))}
+          </Card>
+        )}
+
+        {/* ITR PDFs */}
+        {signzy.itrPull?.status === 'success' && (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+              ITR Documents
+            </Text>
+            {(signzy.itrPull.result?.itrByYear || []).map((yr, idx) => (
+              <View key={yr.assessmentYear || idx} style={{ paddingVertical: 6 }}>
+                <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>
+                  AY {yr.assessmentYear} — {yr.itrType}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+                  Filed: {yr.filingDate} · Ack: {yr.acknowledgementNumber}
+                </Text>
+                {yr.pdfUrl ? (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(yr.pdfUrl).catch(() => {})}
+                    style={{ marginTop: 4 }}
+                  >
+                    <Text style={{ color: colors.teal, fontSize: 13 }}>Download ITR PDF →</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))}
+          </Card>
+        )}
+
+        {/* Raw JSON Responses */}
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            Raw API Responses
+          </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>
+            Complete JSON payloads from each API call for audit and debugging.
+            Tap to expand.
+            {rawDataLoading ? ' Loading from database...' : ''}
+          </Text>
+
+          {/* KYC raw response — from subcollection or inline */}
+          {(kycData.rawResponse || dbRaw.kyc_rawResponse || dbRaw.kyc_raw) && (
+            <RawJsonBlock
+              title={`KYC Response (${kycData.method || 'unknown'})`}
+              data={kycData.rawResponse || dbRaw.kyc_rawResponse || dbRaw.kyc_raw}
+              sectionKey="kyc_raw"
+            />
+          )}
+
+          {/* Each Signzy verification raw response */}
+          {Object.entries(signzy).map(([key, entry]) => {
+            if (!entry) return null;
+            const label = {
+              employmentBasic: 'Employment (UAN Basic)',
+              phonePrefill: 'Phone Prefill',
+              fraudShieldLite: 'FraudShield Lite',
+              gstIncome: 'GST Income',
+              itrPull: 'ITR Pull',
+              form26AS: 'Form 26AS',
+            }[key] || key;
+
+            // Try inline rawResponse first, then subcollection
+            const rawData =
+              entry.result?.rawResponse ||
+              dbRaw[`signzy_${key}_rawResponse`] ||
+              entry.result ||
+              entry.error ||
+              entry;
+
+            return (
+              <RawJsonBlock
+                key={key}
+                title={`${label} (${entry.status || 'unknown'})`}
+                data={rawData}
+                sectionKey={`signzy_${key}`}
+              />
+            );
+          })}
+
+          {/* ITR JSON per year from subcollection */}
+          {Object.keys(dbRaw)
+            .filter((k) => k.startsWith('itr_') && k.endsWith('_json'))
+            .sort()
+            .reverse()
+            .map((k) => (
+              <RawJsonBlock
+                key={k}
+                title={`ITR JSON (${k.replace('itr_', '').replace('_json', '')})`}
+                data={dbRaw[k]}
+                sectionKey={k}
+              />
+            ))
+          }
+
+          {/* KYC failure history raw */}
+          {Array.isArray(application.kycFailures) && application.kycFailures.length > 0 && (
+            <RawJsonBlock
+              title={`KYC Failures (${application.kycFailures.length})`}
+              data={application.kycFailures}
+              sectionKey="kyc_failures_raw"
+            />
+          )}
+        </Card>
+      </>
+    );
+  };
+
   // ─── COMMUNICATION TAB ────────────────────────────────────────────────────
   const renderCommunication = () => (
     <>
@@ -1708,6 +1955,7 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
       case 'Details': return renderDetails();
       case 'Documents': return renderDocuments();
       case 'Verifications': return renderVerifications();
+      case 'Raw Data': return renderRawData();
       case 'Comments': return renderComments();
       case 'Communication': return renderCommunication();
       default: return null;
