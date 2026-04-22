@@ -1,104 +1,252 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity,
+  TextInput, ScrollView,
+} from 'react-native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
-import { COLORS } from '../../config/constants';
 import { useTheme } from '../../store/ThemeContext';
-import { adminService } from '../../services/adminService';
-import { formatCurrency, formatDate } from '../../utils/helpers';
+import { useAuth } from '../../store/AuthContext';
+import { formatCurrency, formatDate, getStatusLabel } from '../../utils/helpers';
+import { loadRealApplications } from '../../utils/loadApplications';
+
+const STATUS_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'active', label: 'Active' },
+  { key: 'review', label: 'Under Review' },
+  { key: 'rejected', label: 'Rejected' },
+  { key: 'completed', label: 'Completed' },
+];
+
+const REJECTED_STATUSES = new Set([
+  'credit_check_failed', 'kyc_failed', 'not_eligible',
+]);
+const COMPLETED_STATUSES = new Set([
+  'submitted', 'disbursed', 'active', 'closed', 'esign_done', 'enach_done',
+]);
+const REVIEW_STATUSES = new Set([
+  'manual_review', 'kyc_address_review',
+]);
 
 const LoanQueueScreen = ({ route, navigation }) => {
   const { colors } = useTheme();
-  const filter = route.params?.filter || 'all';
-  const [loans, setLoans] = useState([]);
+  const { user } = useAuth();
+  const initialFilter = route.params?.filter || 'all';
+
+  const [applications, setApplications] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState(initialFilter);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => { loadLoans(); }, []);
-
-  const loadLoans = async () => {
+  const loadData = useCallback(async () => {
     try {
-      const data = await adminService.getPendingLoans({ filter });
-      setLoans(data.loans || []);
+      const apps = await loadRealApplications();
+      setApplications(apps);
     } catch {
-      setLoans([
-        { id: 'L101', borrowerName: 'Rahul Sharma', phone: '9876543210', instituteName: 'ABC Institute', amount: 250000, status: 'manual_review', reason: 'Name mismatch (PAN vs Aadhaar)', appliedDate: '2026-03-08' },
-        { id: 'L102', borrowerName: 'Priya Singh', phone: '9876543211', instituteName: 'XYZ Academy', amount: 80000, status: 'kyc_failed', reason: 'CKYC/DigiLocker failed', appliedDate: '2026-03-07' },
-        { id: 'L103', borrowerName: 'Amit Kumar', phone: '9876543212', instituteName: 'PQR College', amount: 350000, status: 'not_eligible', reason: 'High FOIR ratio', appliedDate: '2026-03-06' },
-      ]);
+      setApplications([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
-  const onRefresh = async () => { setRefreshing(true); await loadLoans(); setRefreshing(false); };
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const handleUpdateStatus = (loanId, status) => {
-    Alert.prompt
-    Alert.alert('Update Status', `Change loan ${loanId} status to ${status}?`, [
-      { text: 'Cancel' },
-      {
-        text: 'Confirm',
-        onPress: async () => {
-          try {
-            await adminService.updateLoanStatus(loanId, status, '');
-            loadLoans();
-          } catch {
-            setLoans(prev => prev.map(l => l.id === loanId ? { ...l, status } : l));
-          }
-        },
-      },
-    ]);
-  };
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
+
+  const filteredApps = useMemo(() => {
+    let list = applications;
+
+    // Status filter
+    if (activeFilter === 'rejected') {
+      list = list.filter((a) => REJECTED_STATUSES.has(a.status));
+    } else if (activeFilter === 'completed') {
+      list = list.filter((a) => COMPLETED_STATUSES.has(a.status));
+    } else if (activeFilter === 'review') {
+      list = list.filter((a) => REVIEW_STATUSES.has(a.status));
+    } else if (activeFilter === 'active') {
+      list = list.filter(
+        (a) => !REJECTED_STATUSES.has(a.status) && !COMPLETED_STATUSES.has(a.status),
+      );
+    }
+
+    // Search by PAN, phone, name, or application ID
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(
+        (a) =>
+          (a.customerName || '').toLowerCase().includes(q) ||
+          (a.customerPhone || '').includes(q) ||
+          (a.panNumber || '').toLowerCase().includes(q) ||
+          (a.id || '').toLowerCase().includes(q),
+      );
+    }
+
+    return list;
+  }, [applications, activeFilter, searchQuery]);
+
+  const stats = useMemo(() => ({
+    total: applications.length,
+    active: applications.filter((a) => !REJECTED_STATUSES.has(a.status) && !COMPLETED_STATUSES.has(a.status)).length,
+    review: applications.filter((a) => REVIEW_STATUSES.has(a.status)).length,
+    rejected: applications.filter((a) => REJECTED_STATUSES.has(a.status)).length,
+    completed: applications.filter((a) => COMPLETED_STATUSES.has(a.status)).length,
+  }), [applications]);
+
+  const renderItem = useCallback(({ item }) => (
+    <Card style={{ marginBottom: 12 }}>
+      <View style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.appId, { color: colors.textPrimary }]}>
+            #{item.id}
+          </Text>
+          <Text style={[styles.customerName, { color: colors.textPrimary }]}>
+            {item.customerName || 'Unknown'}
+          </Text>
+        </View>
+        <StatusBadge status={item.status} />
+      </View>
+
+      <InfoRow label="Phone" value={item.customerPhone || '—'} />
+      <InfoRow label="Institute" value={item.instituteName || '—'} />
+      <InfoRow label="Amount" value={item.amount ? formatCurrency(item.amount) : '—'} />
+      {item.panNumber ? <InfoRow label="PAN" value={item.panNumber} /> : null}
+      {item.creditScore ? <InfoRow label="CIBIL" value={String(item.creditScore)} /> : null}
+      <InfoRow label="Status" value={getStatusLabel(item.status)} />
+      <InfoRow label="Applied" value={item.appliedDate ? formatDate(item.appliedDate) : '—'} />
+
+      {item.reason ? (
+        <View style={[styles.reasonBanner, { backgroundColor: `${colors.warning}10` }]}>
+          <Text style={[styles.reasonText, { color: colors.warning }]}>{item.reason}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.actions}>
+        <Button
+          title="View Details"
+          onPress={() => navigation.navigate('StaffApplicationDetail', { application: item })}
+          style={styles.actionBtn}
+        />
+      </View>
+    </Card>
+  ), [colors, navigation]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Loan Queue" subtitle={filter} onBack={() => navigation.goBack()} />
+      <Header
+        title="Loan Queue"
+        subtitle={`${filteredApps.length} application(s)`}
+        onBack={() => navigation.goBack()}
+      />
+
+      {/* Stats bar */}
+      <View style={[styles.statsBar, { borderBottomColor: colors.border }]}>
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: colors.teal }]}>{stats.total}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: colors.teal }]}>{stats.active}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Active</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: colors.warning }]}>{stats.review}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Review</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: colors.error }]}>{stats.rejected}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Rejected</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: colors.teal }]}>{stats.completed}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Done</Text>
+        </View>
+      </View>
+
+      {/* Search bar */}
+      <View style={[styles.searchBar, { backgroundColor: colors.surface }]}>
+        <TextInput
+          style={[styles.searchInput, { color: colors.textPrimary, borderColor: colors.border }]}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search by name, phone, PAN, or App ID..."
+          placeholderTextColor={colors.textSecondary}
+          autoCapitalize="none"
+        />
+      </View>
+
+      {/* Filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll}
+        contentContainerStyle={styles.filterContent}
+      >
+        {STATUS_FILTERS.map((f) => {
+          const count = f.key === 'all' ? stats.total
+            : f.key === 'active' ? stats.active
+            : f.key === 'review' ? stats.review
+            : f.key === 'rejected' ? stats.rejected
+            : stats.completed;
+          const isActive = activeFilter === f.key;
+          return (
+            <TouchableOpacity
+              key={f.key}
+              style={[
+                styles.filterChip,
+                { borderColor: colors.border, backgroundColor: colors.surface },
+                isActive && { borderColor: colors.teal, backgroundColor: `${colors.teal}14` },
+              ]}
+              onPress={() => setActiveFilter(f.key)}
+            >
+              <Text style={[
+                styles.filterText,
+                { color: colors.textSecondary },
+                isActive && { color: colors.teal, fontWeight: '700' },
+              ]}>
+                {f.label} ({count})
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Application list */}
       <FlatList
-        data={loans}
-        keyExtractor={item => item.id}
+        data={filteredApps}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        renderItem={({ item }) => (
-          <Card>
-            <View style={styles.header}>
-              <Text style={[styles.loanId, { color: colors.textPrimary }]}>#{item.id}</Text>
-              <StatusBadge status={item.status} />
-            </View>
-            <InfoRow label="Borrower" value={item.borrowerName} />
-            <InfoRow label="Phone" value={item.phone} />
-            <InfoRow label="Institute" value={item.instituteName} />
-            <InfoRow label="Amount" value={formatCurrency(item.amount)} />
-            <InfoRow label="Applied" value={formatDate(item.appliedDate)} />
-            {item.reason && (
-              <View style={styles.reasonBanner}>
-                <Text style={styles.reasonText}>Reason: {item.reason}</Text>
-              </View>
-            )}
-            <View style={styles.actions}>
-              <Button
-                title="Approve"
-                onPress={() => handleUpdateStatus(item.id, 'fully_eligible')}
-                variant="success"
-                style={styles.actionBtn}
-              />
-              <Button
-                title="Reject"
-                onPress={() => handleUpdateStatus(item.id, 'not_eligible')}
-                variant="danger"
-                style={styles.actionBtn}
-              />
-              <Button
-                title="Call"
-                onPress={() => {}}
-                variant="outline"
-                style={styles.actionBtn}
-              />
-            </View>
-          </Card>
-        )}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.teal} />}
         ListEmptyComponent={
-          <View style={styles.empty}><Text style={[styles.emptyText, { color: colors.textSecondary }]}>No loans in queue</Text></View>
+          <View style={styles.empty}>
+            <Text style={{ fontSize: 40, marginBottom: 12 }}>
+              {loading ? '⏳' : searchQuery ? '🔍' : '📋'}
+            </Text>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
+              {loading
+                ? 'Loading applications...'
+                : searchQuery
+                  ? 'No matching applications'
+                  : activeFilter === 'rejected'
+                    ? 'No rejected applications'
+                    : 'No applications in queue'}
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              {loading
+                ? 'Fetching from database...'
+                : searchQuery
+                  ? `No applications match "${searchQuery}". Try a different search.`
+                  : 'Applications will appear here as customers apply.'}
+            </Text>
+          </View>
         }
       />
     </View>
@@ -106,16 +254,45 @@ const LoanQueueScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
+  statsBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  statItem: { alignItems: 'center' },
+  statValue: { fontSize: 18, fontWeight: '800' },
+  statLabel: { fontSize: 10, marginTop: 2 },
+  searchBar: { paddingHorizontal: 16, paddingVertical: 8 },
+  searchInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  filterScroll: { maxHeight: 44 },
+  filterContent: { paddingHorizontal: 12, gap: 8, alignItems: 'center' },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  filterText: { fontSize: 12 },
   list: { padding: 16, paddingBottom: 80 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  loanId: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
-  reasonBanner: { backgroundColor: 'rgba(245,183,49,0.08)', padding: 10, borderRadius: 8, marginTop: 8 },
-  reasonText: { fontSize: 12, color: COLORS.warning, fontWeight: '500' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  appId: { fontSize: 11, fontWeight: '600', opacity: 0.6 },
+  customerName: { fontSize: 15, fontWeight: '700', marginTop: 2 },
+  reasonBanner: { padding: 10, borderRadius: 8, marginTop: 8 },
+  reasonText: { fontSize: 12, fontWeight: '500' },
   actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   actionBtn: { flex: 1, paddingVertical: 10 },
-  empty: { alignItems: 'center', paddingTop: 60 },
-  emptyText: { fontSize: 16, color: COLORS.textSecondary },
+  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
+  emptyText: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
 });
 
 export default LoanQueueScreen;
