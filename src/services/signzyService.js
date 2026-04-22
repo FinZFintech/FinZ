@@ -1122,8 +1122,18 @@ export const signzyService = {
         advanceTax: taxPaid.AdvanceTax || null,
         selfAssessmentTax: taxPaid.SelfAssessmentTax || null,
         totalTaxesPaid: taxPaid.TotalTaxesPaid || null,
-        // Refund
+        // Refund + bank account from ITR
         refundDue: refund.RefundDue || null,
+        bankAccounts: (() => {
+          const banks = refund.BankAccountDtls?.AddtnlBankDetails || [];
+          return (Array.isArray(banks) ? banks : []).map((b) => ({
+            ifsc: b.IFSCCode || '',
+            bankName: b.BankName || '',
+            accountNumber: b.BankAccountNo || '',
+            accountType: b.AccountType === 'SB' ? 'Savings' : b.AccountType === 'CA' ? 'Current' : b.AccountType || '',
+            useForRefund: b.UseForRefund === 'true' || b.UseForRefund === true,
+          }));
+        })(),
         // Personal
         name: [
           personalInfo?.AssesseeName?.FirstName,
@@ -1170,9 +1180,14 @@ export const signzyService = {
 
     const byYear = resultArr.map((yearEntry) => {
       const tds = Array.isArray(yearEntry.tdsData) ? yearEntry.tdsData : [];
-      const totalPaid = tds.reduce((s, r) => s + (parseFloat(r.totalAmountPaid) || 0), 0);
-      const totalDeducted = tds.reduce((s, r) => s + (parseFloat(r.totalTaxDeducted) || 0), 0);
-      const totalDeposited = tds.reduce((s, r) => s + (parseFloat(r.totalTdsDeposited) || 0), 0);
+
+      // Sum the per-ENTRY amounts (amountPaid / taxDeducted / tdsDeposited),
+      // NOT the per-DEDUCTOR totals (totalAmountPaid etc.) which are the
+      // same deductor-level aggregate repeated on every row and would
+      // cause massive double-counting.
+      const totalPaid = tds.reduce((s, r) => s + (parseFloat(r.amountPaid) || 0), 0);
+      const totalDeducted = tds.reduce((s, r) => s + (parseFloat(r.taxDeducted) || 0), 0);
+      const totalDeposited = tds.reduce((s, r) => s + (parseFloat(r.tdsDeposited) || 0), 0);
 
       // Unique deductors (employers / payers) in this AY.
       const deductors = [...new Set(tds.map((r) => r.nameOfDeductor).filter(Boolean))];

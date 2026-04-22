@@ -208,12 +208,16 @@ const KycVerificationScreen = ({ navigation }) => {
   const { user, updateUser } = useAuth();
   const { state, dispatch } = useLoan();
   const { executePhase } = useRisk();
-  const [currentMethod, setCurrentMethod] = useState(null);
+
+  // ── Restore from persisted state ──
+  const prevKyc = state.kycData;
+  const prevMethod = state.kycMethod;
+  const [currentMethod, setCurrentMethod] = useState(prevMethod || null);
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
-  const [kycCompleted, setKycCompleted] = useState(false);
-  const [kycFailed, setKycFailed] = useState(false);
+  const [kycCompleted, setKycCompleted] = useState(!!prevKyc && !!prevMethod && !prevKyc.nameMatchFailed);
+  const [kycFailed, setKycFailed] = useState(!!prevKyc?.nameMatchFailed);
   const [kycErrorMsg, setKycErrorMsg] = useState('');
   const [pincodeBlacklisted, setPincodeBlacklisted] = useState(false);
 

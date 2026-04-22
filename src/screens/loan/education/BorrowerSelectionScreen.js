@@ -35,11 +35,16 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const { user } = useAuth();
   const student = state.studentDetails;
 
-  const [borrowerType, setBorrowerType] = useState(null);
-  const [borrowerName, setBorrowerName] = useState('');
-  const [borrowerPhone, setBorrowerPhone] = useState('');
-  const [borrowerEmail, setBorrowerEmail] = useState('');
-  const [phoneVerified, setPhoneVerified] = useState(false);
+  // ── Restore from persisted state so the user resumes where they left off ──
+  const prevBorrower = state.borrowerDetails;
+  const prevProduct = state.selectedProduct;
+  const prevTenure = state.selectedTenure;
+
+  const [borrowerType, setBorrowerType] = useState(state.borrowerType || null);
+  const [borrowerName, setBorrowerName] = useState(prevBorrower?.name || '');
+  const [borrowerPhone, setBorrowerPhone] = useState(prevBorrower?.phone || '');
+  const [borrowerEmail, setBorrowerEmail] = useState(prevBorrower?.email || '');
+  const [phoneVerified, setPhoneVerified] = useState(prevBorrower?.phoneVerified || false);
   const [showOtp, setShowOtp] = useState(false);
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
@@ -51,19 +56,19 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const MAX_OTP_SENDS = 3;
   const RESEND_COOLDOWN_SECONDS = 30;
   const [products, setProducts] = useState([]);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [selectedTenure, setSelectedTenure] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(prevProduct || null);
+  const [selectedTenure, setSelectedTenure] = useState(prevTenure || null);
   const [loading, setLoading] = useState(false);
   const [emailVerifying, setEmailVerifying] = useState(false);
-  const [emailVerification, setEmailVerification] = useState(null);
+  const [emailVerification, setEmailVerification] = useState(prevBorrower?.emailVerification || null);
 
   // Phone-prefill state — data pulled from Signzy after phone OTP verification
   const [prefillLoading, setPrefillLoading] = useState(false);
-  const [prefillDone, setPrefillDone] = useState(false);
-  const [prefillSource, setPrefillSource] = useState({}); // { name, email, dob, pan, address }
-  const [borrowerDob, setBorrowerDob] = useState('');
-  const [borrowerPan, setBorrowerPan] = useState('');
-  const [borrowerAddress, setBorrowerAddress] = useState('');
+  const [prefillDone, setPrefillDone] = useState(!!prevBorrower?.phone && !!prevBorrower?.phoneVerified);
+  const [prefillSource, setPrefillSource] = useState(prevBorrower?.prefillSource || {});
+  const [borrowerDob, setBorrowerDob] = useState(prevBorrower?.dob || '');
+  const [borrowerPan, setBorrowerPan] = useState(prevBorrower?.pan || '');
+  const [borrowerAddress, setBorrowerAddress] = useState(prevBorrower?.address || '');
 
   const DEFAULT_LOAN_PRODUCTS = [
     {
