@@ -155,12 +155,14 @@ const UserManagementScreen = ({ navigation }) => {
           u.userId === toggleUser.userId ? { ...u, active: !toggleUser.active } : u,
         ),
       );
-      setShowToggleModal(false);
-      setToggleUser(null);
     } catch (err) {
+      console.log('[UserMgmt] Toggle failed:', err?.message);
+      // Still close modal — show error inline or via alert
       Alert.alert('Error', err?.message || `Failed to ${action} user.`);
     } finally {
       setToggling(false);
+      setShowToggleModal(false);
+      setToggleUser(null);
     }
   };
 
