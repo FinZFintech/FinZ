@@ -154,6 +154,8 @@ const IncomeVerificationScreen = ({ navigation }) => {
   }, [state.signzyVerifications?.itrPull]);
 
   // ── Extract income: prefer 26AS, fall back to ITR ──
+  // Auto-fills the declared annual income field so the user doesn't
+  // have to type it manually.
   useEffect(() => {
     if (incomeFromTds) return; // already set
 
@@ -178,6 +180,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
           employer,
           entries: salaryEntries.length,
         });
+        if (!declaredAnnualIncome) {
+          setDeclaredAnnualIncome(String(Math.round(totalSalaryPaid)));
+        }
         setIncomeSourceDone(true);
         return;
       }
@@ -200,6 +205,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
           employer,
           entries: 12,
         });
+        if (!declaredAnnualIncome) {
+          setDeclaredAnnualIncome(String(Math.round(grossSalary)));
+        }
         setIncomeSourceDone(true);
       }
     }
@@ -239,6 +247,16 @@ const IncomeVerificationScreen = ({ navigation }) => {
       // Auto-fill company/business name
       if (!freeTextOccupation && !occupationDetail) {
         setFreeTextOccupation(gst.result.tradeName || gst.result.legalName || '');
+      }
+      // Auto-fill annual income from GST gross income or turnover range
+      if (!declaredAnnualIncome) {
+        const grossIncome = gst.result.grossTotalIncome;
+        const turnoverRange = gst.result.gstinDetail?.aggregateTurnOverRange;
+        if (grossIncome && !isNaN(parseFloat(grossIncome))) {
+          setDeclaredAnnualIncome(String(Math.round(parseFloat(grossIncome))));
+        } else if (turnoverRange?.minimum) {
+          setDeclaredAnnualIncome(String(Math.round(turnoverRange.minimum)));
+        }
       }
     }
   }, [state.signzyVerifications?.gstIncome]);
@@ -998,24 +1016,18 @@ const IncomeVerificationScreen = ({ navigation }) => {
         {occupationCategory && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Declared Annual Income</Text>
-            {incomeFromTds && !declaredAnnualIncome && (
-              <TouchableOpacity
-                onPress={() => setDeclaredAnnualIncome(String(Math.round(incomeFromTds.totalPaid)))}
-                style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: colors.teal }}
-              >
-                <Text style={{ color: colors.teal, fontSize: 12, fontWeight: '600', marginBottom: 2 }}>
-                  Use income from {incomeFromTds.source === '26AS' ? 'Form 26AS' : 'ITR'} (tap to apply)
-                </Text>
-                <Text style={{ color: colors.textPrimary, fontSize: 14 }}>
-                  {formatCurrency(incomeFromTds.totalPaid)} / year
-                  {incomeFromTds.employer ? ` from ${incomeFromTds.employer}` : ''}
-                </Text>
-              </TouchableOpacity>
-            )}
-            {gstOrg?.turnover && !declaredAnnualIncome && (
+            {incomeFromTds && declaredAnnualIncome && (
               <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
                 <Text style={{ color: colors.teal, fontSize: 12 }}>
-                  GST Annual Turnover: {gstOrg.turnover}
+                  Auto-filled from {incomeFromTds.source === '26AS' ? 'Form 26AS' : 'ITR'}
+                  {incomeFromTds.employer ? ` (${incomeFromTds.employer})` : ''}. You can edit if incorrect.
+                </Text>
+              </View>
+            )}
+            {gstOrg && declaredAnnualIncome && !incomeFromTds && (
+              <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ color: colors.teal, fontSize: 12 }}>
+                  Auto-filled from GST ({gstOrg.turnover || gstOrg.grossIncome || gstOrg.name}). You can edit if incorrect.
                 </Text>
               </View>
             )}
