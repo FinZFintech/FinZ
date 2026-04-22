@@ -93,6 +93,7 @@ export const getStatusColor = (status) => {
     active: '#4AEDC4',
     closed: '#6B7280',
     manual_review: '#F5B731',
+    discarded: '#6B7280',
   };
   return statusColors[status] || '#6B7280';
 };
@@ -122,6 +123,7 @@ export const getStatusLabel = (status) => {
     active: 'Active',
     closed: 'Closed',
     manual_review: 'Under Review',
+    discarded: 'Discarded',
   };
   return labels[status] || status || 'Unknown';
 };
