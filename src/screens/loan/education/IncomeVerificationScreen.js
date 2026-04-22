@@ -882,12 +882,24 @@ const IncomeVerificationScreen = ({ navigation }) => {
               </View>
             )}
 
-            {(!itrStep || itrStep === 'error') && (
+            {(!itrStep || itrStep === 'error') && !itrLoading && (
               <Button
                 title="Fetch ITR & 26AS"
                 onPress={handleItrInitiate}
-                loading={itrLoading}
+                loading={false}
               />
+            )}
+
+            {itrStep === 'init' && itrLoading && (
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <Text style={{ fontSize: 28, marginBottom: 8 }}>⏳</Text>
+                <Text style={{ color: colors.teal, fontWeight: '600', fontSize: 14, marginBottom: 4 }}>
+                  Connecting to ITR Portal...
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'center' }}>
+                  Sending OTP to your registered mobile number. Please wait.
+                </Text>
+              </View>
             )}
 
             {itrStep === 'otp' && (
@@ -905,23 +917,36 @@ const IncomeVerificationScreen = ({ navigation }) => {
                   keyboardType="number-pad"
                   maxLength={6}
                 />
-                <Button
-                  title="Submit OTP & Pull ITR"
-                  onPress={handleItrOtpSubmit}
-                  loading={itrLoading}
-                  disabled={itrOtp.length !== 6}
-                  style={{ marginTop: 12 }}
-                />
+                {itrLoading ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+                    <Text style={{ fontSize: 28, marginBottom: 8 }}>⏳</Text>
+                    <Text style={{ color: colors.teal, fontWeight: '600', fontSize: 14, marginBottom: 4 }}>
+                      Verifying OTP...
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                      Validating your OTP with the ITR portal. Please wait.
+                    </Text>
+                  </View>
+                ) : (
+                  <Button
+                    title="Submit OTP & Pull ITR"
+                    onPress={handleItrOtpSubmit}
+                    loading={false}
+                    disabled={itrOtp.length !== 6}
+                    style={{ marginTop: 12 }}
+                  />
+                )}
               </>
             )}
 
             {itrStep === 'pulling' && (
-              <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                <Text style={{ color: colors.teal, fontWeight: '600', marginBottom: 4 }}>
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <Text style={{ fontSize: 28, marginBottom: 8 }}>📥</Text>
+                <Text style={{ color: colors.teal, fontWeight: '600', fontSize: 14, marginBottom: 4 }}>
                   Pulling ITR & Form 26AS data...
                 </Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                  This may take up to 30 seconds. Please wait.
+                <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'center' }}>
+                  Fetching your filed returns and TDS records from the Income Tax portal. This may take up to 30 seconds.
                 </Text>
               </View>
             )}
