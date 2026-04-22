@@ -4,6 +4,34 @@
  * Field 2: Occupation list mapped by category
  */
 
+// Occupation categories that are entirely blocked — no loan offered.
+export const BLOCKED_CATEGORIES = new Set(['pep']);
+
+// Individual occupations that are blocked regardless of category.
+// Matched case-insensitively against the selected occupation.
+export const BLOCKED_OCCUPATIONS = [
+  'police', 'state police', 'traffic police', 'ips officer',
+  'home guard', 'home guards',
+  'lawyer', 'advocate', 'independent lawyer',
+  'politician', 'mla', 'mp', 'minister', 'political party worker',
+  'relative of politician', 'government board member',
+  'actor', 'actress',
+  'influencer', 'youtuber', 'content creator',
+];
+
+/**
+ * Returns true if the given category + occupation is blocked.
+ */
+export const isOccupationBlocked = (categoryId, occupation) => {
+  if (BLOCKED_CATEGORIES.has(categoryId)) return true;
+  if (!occupation) return false;
+  const lower = occupation.toLowerCase().trim();
+  return BLOCKED_OCCUPATIONS.some((b) => lower === b || lower.includes(b));
+};
+
+export const BLOCKED_OCCUPATION_MESSAGE =
+  'We are unable to process loan applications for this occupation category due to our risk policy. Please contact support for more information.';
+
 export const OCCUPATION_CATEGORIES = [
   { id: 'salaried_private', label: 'Salaried – Private Sector', allowFreeText: true, freeTextLabel: 'Company Name', freeTextPlaceholder: 'Enter company name (min 3 characters)' },
   { id: 'salaried_govt', label: 'Salaried – Government / PSU', allowFreeText: true, freeTextLabel: 'Department / Organization', freeTextPlaceholder: 'e.g., Indian Railways, SBI, LIC' },

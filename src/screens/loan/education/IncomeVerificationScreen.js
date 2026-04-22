@@ -25,7 +25,7 @@ import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { useTheme } from '../../../store/ThemeContext';
 import { formatCurrency, validateIfsc, validateAccountNumber } from '../../../utils/helpers';
-import { OCCUPATION_CATEGORIES, getOccupationsForCategory } from '../../../utils/occupationData';
+import { OCCUPATION_CATEGORIES, getOccupationsForCategory, isOccupationBlocked, BLOCKED_OCCUPATION_MESSAGE } from '../../../utils/occupationData';
 const ACCOUNT_TYPES = ['Savings', 'Current'];
 
 const IncomeVerificationScreen = ({ navigation }) => {
@@ -101,6 +101,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const resolvedOccupation = usesFreeText && freeTextOccupation
     ? freeTextOccupation
     : occupationDetail;
+  const occupationBlocked = occupationCategory
+    ? isOccupationBlocked(occupationCategory, resolvedOccupation)
+    : false;
 
   const filteredOccupations = useMemo(() => {
     if (!occupationCategory) return [];
@@ -314,7 +317,6 @@ const IncomeVerificationScreen = ({ navigation }) => {
     if (!validateAccountNumber(accountNumber)) newErrors.accountNumber = 'Invalid account number';
     if (accountNumber !== confirmAccountNumber) newErrors.confirmAccountNumber = 'Account numbers do not match';
     if (!accountType) newErrors.accountType = 'Please select account type';
-    if (method === 'aa' && !selectedBank) newErrors.ifsc = 'Could not identify bank from IFSC. Please check your IFSC code.';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -867,6 +869,24 @@ const IncomeVerificationScreen = ({ navigation }) => {
           </Card>
         )}
 
+        {/* Blocked occupation message */}
+        {occupationBlocked && (
+          <Card style={{ borderColor: colors.error, borderWidth: 1 }}>
+            <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+              <Text style={{ fontSize: 32, marginBottom: 8 }}>🚫</Text>
+              <Text style={{ color: colors.error, fontWeight: '700', fontSize: 16, marginBottom: 8, textAlign: 'center' }}>
+                Occupation Not Eligible
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                {BLOCKED_OCCUPATION_MESSAGE}
+              </Text>
+            </View>
+          </Card>
+        )}
+
+        {/* Rest of the form — hidden when occupation is blocked */}
+        {!occupationBlocked && (
+          <>
         {/* Employer from UAN (salaried) */}
         {employerFromUan && (occupationCategory || '').startsWith('salaried_') && (
           <Card>
@@ -1228,17 +1248,10 @@ const IncomeVerificationScreen = ({ navigation }) => {
               <InfoRow label="Account Type" value={accountType} />
             </View>
 
-            {!selectedBank && (
-              <Text style={[styles.warnText, { color: colors.error }]}>
-                Could not auto-match bank from IFSC. Please verify your IFSC code.
-              </Text>
-            )}
-
             <Button
               title="Verify Bank & Fetch Income"
               onPress={handleVerifyAndFetch}
               loading={loading}
-              disabled={!selectedBank}
               style={styles.btn}
             />
           </Card>
@@ -1395,6 +1408,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
               style={styles.btn}
             />
           </Card>
+        )}
+
+        </>
         )}
 
         <View style={styles.bottomSpacer} />
