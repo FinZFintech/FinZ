@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 // ─── Firebase Configuration ─────────────────────────────────────────────────
 //
@@ -31,15 +32,17 @@ if (!firebaseConfig.apiKey) {
 
 let app = null;
 let db = null;
+let storage = null;
 
 try {
   if (firebaseConfig.apiKey) {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
+    storage = getStorage(app);
   }
 } catch (err) {
   console.warn('[Firebase] Init failed:', err?.message);
 }
 
-export { app, db };
+export { app, db, storage };
 export const isFirebaseConfigured = () => !!db;

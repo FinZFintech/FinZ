@@ -12,6 +12,7 @@ import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { smsService } from '../../services/smsService';
+import { loadAllRawData } from '../../services/applicationDbService';
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 const TABS = ['Details', 'Documents', 'Verifications', 'Raw Data', 'Comments', 'Communication'];
@@ -1624,6 +1625,8 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
    * inspect the source data behind every verification.
    */
   const [expandedRawSections, setExpandedRawSections] = useState({});
+  const [rawDataFromDb, setRawDataFromDb] = useState(null);
+  const [rawDataLoading, setRawDataLoading] = useState(false);
   const toggleRawSection = (key) =>
     setExpandedRawSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -1670,10 +1673,23 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
   };
 
   const renderRawData = () => {
+    // Lazy-load raw data from Firestore subcollection on first render
+    if (!rawDataFromDb && !rawDataLoading && application.id) {
+      setRawDataLoading(true);
+      loadAllRawData(application.id).then((data) => {
+        setRawDataFromDb(data || {});
+        setRawDataLoading(false);
+      }).catch(() => {
+        setRawDataFromDb({});
+        setRawDataLoading(false);
+      });
+    }
+
     const kycData = application.kycData || {};
     const signzy = application.signzyVerifications || {};
     const kycImages = Array.isArray(kycData.images) ? kycData.images : [];
     const kycDocs = Array.isArray(kycData.documents) ? kycData.documents : [];
+    const dbRaw = rawDataFromDb || {};
     const hasAny =
       kycImages.length > 0 ||
       kycDocs.length > 0 ||
@@ -1778,13 +1794,14 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
           <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>
             Complete JSON payloads from each API call for audit and debugging.
             Tap to expand.
+            {rawDataLoading ? ' Loading from database...' : ''}
           </Text>
 
-          {/* KYC raw response */}
-          {kycData.rawResponse && (
+          {/* KYC raw response — from subcollection or inline */}
+          {(kycData.rawResponse || dbRaw.kyc_rawResponse || dbRaw.kyc_raw) && (
             <RawJsonBlock
               title={`KYC Response (${kycData.method || 'unknown'})`}
-              data={kycData.rawResponse}
+              data={kycData.rawResponse || dbRaw.kyc_rawResponse || dbRaw.kyc_raw}
               sectionKey="kyc_raw"
             />
           )}
@@ -1801,8 +1818,10 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
               form26AS: 'Form 26AS',
             }[key] || key;
 
+            // Try inline rawResponse first, then subcollection
             const rawData =
               entry.result?.rawResponse ||
+              dbRaw[`signzy_${key}_rawResponse`] ||
               entry.result ||
               entry.error ||
               entry;
@@ -1816,6 +1835,21 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
               />
             );
           })}
+
+          {/* ITR JSON per year from subcollection */}
+          {Object.keys(dbRaw)
+            .filter((k) => k.startsWith('itr_') && k.endsWith('_json'))
+            .sort()
+            .reverse()
+            .map((k) => (
+              <RawJsonBlock
+                key={k}
+                title={`ITR JSON (${k.replace('itr_', '').replace('_json', '')})`}
+                data={dbRaw[k]}
+                sectionKey={k}
+              />
+            ))
+          }
 
           {/* KYC failure history raw */}
           {Array.isArray(application.kycFailures) && application.kycFailures.length > 0 && (
