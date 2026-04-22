@@ -438,6 +438,69 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         {application.disbursementDate && <InfoRow label="Disbursed On" value={formatDate(application.disbursementDate)} />}
       </Card>
 
+      {/* Application Timeline */}
+      {(() => {
+        const tl = application.timeline || application._rawState?.timeline || [];
+        if (tl.length === 0) return null;
+
+        const EVENT_LABELS = {
+          institute_selected: 'Institute Selected',
+          student_details: 'Student Details',
+          borrower_details: 'Borrower Details',
+          pan_verified: 'PAN Verified',
+          credit_check: 'Credit Check',
+          bank_details: 'Bank Details',
+          penny_drop: 'Penny Drop',
+          income_verified: 'Income Verified',
+          eligibility_check: 'Eligibility Check',
+          kyc_completed: 'KYC Completed',
+          selfie_verified: 'Selfie Verified',
+          enach: 'eNACH Mandate',
+          esign: 'eSign',
+          vkyc: 'Video KYC',
+          submitted: 'Application Submitted',
+        };
+
+        return (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Application Timeline</Text>
+            {tl.map((entry, idx) => {
+              const label = EVENT_LABELS[entry.event] || entry.event;
+              const isLast = idx === tl.length - 1;
+              return (
+                <View key={idx} style={{ flexDirection: 'row', minHeight: 40 }}>
+                  {/* Timeline dot + line */}
+                  <View style={{ width: 24, alignItems: 'center' }}>
+                    <View style={{
+                      width: 10, height: 10, borderRadius: 5, marginTop: 4,
+                      backgroundColor: isLast ? colors.teal : colors.textSecondary,
+                    }} />
+                    {!isLast && (
+                      <View style={{
+                        width: 2, flex: 1,
+                        backgroundColor: `${colors.textSecondary}40`,
+                      }} />
+                    )}
+                  </View>
+                  {/* Event text */}
+                  <View style={{ flex: 1, paddingBottom: 12, paddingLeft: 8 }}>
+                    <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 13 }}>
+                      {label}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                      {entry.at ? new Date(entry.at).toLocaleString('en-IN', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit',
+                      }) : ''}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </Card>
+        );
+      })()}
+
       {/* Customer Risk Segment */}
       {(() => {
         const riskSeg = computeCustomerRiskSegment(application._rawState || application);

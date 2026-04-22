@@ -247,6 +247,8 @@ const initialState = {
   riskProfile: null,
   references: null,
   submittedAt: null,
+  // Append-only timeline of every milestone with exact timestamp
+  timeline: [],
   step: 0,
   // Persistence metadata
   status: null,
@@ -365,6 +367,12 @@ const loanReducer = (state, action) => {
     case 'SET_STEP':
       next = { ...state, step: action.payload };
       break;
+    case 'ADD_TIMELINE_EVENT':
+      next = {
+        ...state,
+        timeline: [...(state.timeline || []), action.payload],
+      };
+      break;
     case 'RESTORE':
       next = { ...initialState, ...action.payload };
       break;
@@ -381,6 +389,32 @@ const loanReducer = (state, action) => {
   if (!next.createdAt) next.createdAt = now;
   if (!next.applicationId) next.applicationId = 'APP_' + Date.now();
   next.step = getStepFromStatus(next.status);
+
+  // ── Auto-record timeline for key milestones ──
+  const timeline = [...(next.timeline || [])];
+  const lastEvent = timeline[timeline.length - 1]?.event;
+  const EVENT_MAP = {
+    SET_INSTITUTE: 'institute_selected',
+    SET_STUDENT: 'student_details',
+    SET_BORROWER_DETAILS: 'borrower_details',
+    SET_PAN: 'pan_verified',
+    SET_CREDIT_SCORE: 'credit_check',
+    SET_BANK_DETAILS: 'bank_details',
+    SET_PENNY_DROP: 'penny_drop',
+    SET_INCOME: 'income_verified',
+    SET_ELIGIBILITY: 'eligibility_check',
+    SET_KYC_DATA: 'kyc_completed',
+    SET_SELFIE: 'selfie_verified',
+    SET_ENACH: 'enach',
+    SET_ESIGN: 'esign',
+    SET_VKYC: 'vkyc',
+    SET_SUBMITTED: 'submitted',
+  };
+  const eventName = EVENT_MAP[action.type];
+  if (eventName && eventName !== lastEvent) {
+    timeline.push({ event: eventName, at: now, action: action.type });
+    next.timeline = timeline;
+  }
 
   return next;
 };
