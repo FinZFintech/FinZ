@@ -69,6 +69,9 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const [borrowerDob, setBorrowerDob] = useState(prevBorrower?.dob || '');
   const [borrowerPan, setBorrowerPan] = useState(prevBorrower?.pan || '');
   const [borrowerAddress, setBorrowerAddress] = useState(prevBorrower?.address || '');
+  const [borrowerRelation, setBorrowerRelation] = useState(prevBorrower?.relation || '');
+
+  const RELATION_OPTIONS = ['Father', 'Mother', 'Guardian', 'Spouse', 'Sibling', 'Other'];
 
   const DEFAULT_LOAN_PRODUCTS = [
     {
@@ -131,6 +134,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     setBorrowerDob('');
     setBorrowerPan('');
     setBorrowerAddress('');
+    setBorrowerRelation('');
     setPhoneVerified(false);
     setPrefillDone(false);
     setPrefillSource({});
@@ -145,6 +149,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     setBorrowerDob('');
     setBorrowerPan('');
     setBorrowerAddress('');
+    setBorrowerRelation('Father');
     setPhoneVerified(false);
     setPrefillDone(false);
     setPrefillSource({});
@@ -412,6 +417,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         dob: borrowerDob,
         pan: borrowerPan,
         address: borrowerAddress,
+        relation: borrowerType === 'parent' ? borrowerRelation : 'Self',
         phoneVerified,
         emailVerification: emailVerification || null,
         prefillSource,
@@ -570,6 +576,30 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               placeholder="Enter full name as per PAN"
               autoCapitalize="words"
             />
+            {borrowerType === 'parent' && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 13, marginBottom: 6 }}>
+                  Relation to Student
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {RELATION_OPTIONS.map((rel) => (
+                    <TouchableOpacity
+                      key={rel}
+                      style={{
+                        paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, marginRight: 8, marginBottom: 8,
+                        borderColor: borrowerRelation === rel ? colors.teal : colors.border,
+                        backgroundColor: borrowerRelation === rel ? `${colors.teal}14` : colors.surface,
+                      }}
+                      onPress={() => setBorrowerRelation(rel)}
+                    >
+                      <Text style={{ color: borrowerRelation === rel ? colors.teal : colors.textSecondary, fontSize: 13, fontWeight: borrowerRelation === rel ? '700' : '400' }}>
+                        {rel}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
             <Input
               label={`Date of Birth${prefillSource.dob ? ' ★' : ''}`}
               value={borrowerDob}

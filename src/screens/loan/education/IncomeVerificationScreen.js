@@ -280,26 +280,49 @@ const IncomeVerificationScreen = ({ navigation }) => {
     }
   };
 
-  const handleIfscLookup = async (ifscCode) => {
-    setIfsc(ifscCode.toUpperCase());
-    if (ifscCode.length === 11 && validateIfsc(ifscCode.toUpperCase())) {
-      try {
-        const result = await bankService.validateIfsc(ifscCode.toUpperCase());
-        const fetchedBank = result.bank || '';
-        const fetchedBranch = result.branch || '';
-        setBankName(fetchedBank);
-        setBranchName(fetchedBranch);
-        matchBankToFip(fetchedBank);
-      } catch {
-        setBankName('');
-        setBranchName('');
-      }
-    } else {
+  const [ifscValidating, setIfscValidating] = useState(false);
+  const [ifscError, setIfscError] = useState('');
+
+  const lookupIfsc = async (code) => {
+    const upper = code.toUpperCase();
+    if (upper.length !== 11 || !validateIfsc(upper)) return;
+    setIfscValidating(true);
+    setIfscError('');
+    try {
+      const result = await signzyService.searchBankByIfscCode(upper);
+      setBankName(result.bankName || '');
+      setBranchName(result.branch || '');
+      matchBankToFip(result.bankName);
+      console.log('[IncomeVerification] IFSC lookup:', upper, '→', result.bankName, result.branch);
+    } catch (err) {
+      console.log('[IncomeVerification] IFSC lookup failed:', err?.message);
+      setIfscError(err?.message || 'Could not verify IFSC code');
+      setBankName('');
+      setBranchName('');
+    } finally {
+      setIfscValidating(false);
+    }
+  };
+
+  const handleIfscLookup = (ifscCode) => {
+    const upper = ifscCode.toUpperCase();
+    setIfsc(upper);
+    setIfscError('');
+    if (upper.length === 11 && validateIfsc(upper)) {
+      lookupIfsc(upper);
+    } else if (upper.length < 11) {
       setBankName('');
       setBranchName('');
       setSelectedBank(null);
     }
   };
+
+  // Auto-validate prefilled IFSC on mount (from ITR)
+  useEffect(() => {
+    if (ifsc && ifsc.length === 11 && validateIfsc(ifsc) && !bankName) {
+      lookupIfsc(ifsc);
+    }
+  }, []);
 
   const validateBankDetails = () => {
     const newErrors = {};
@@ -1151,13 +1174,18 @@ const IncomeVerificationScreen = ({ navigation }) => {
               placeholder="e.g., SBIN0001234"
               maxLength={11}
               autoCapitalize="characters"
-              error={errors.ifsc}
+              error={errors.ifsc || ifscError}
             />
+            {ifscValidating && (
+              <Text style={{ color: colors.teal, fontSize: 12, marginBottom: 8 }}>Verifying IFSC...</Text>
+            )}
             {bankName ? (
-              <>
-                <InfoRow label="Bank" value={bankName} />
-                {branchName ? <InfoRow label="Branch" value={branchName} /> : null}
-              </>
+              <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 8 }}>
+                <Text style={{ color: colors.teal, fontSize: 12, fontWeight: '600' }}>✓ IFSC Verified</Text>
+                <Text style={{ color: colors.textPrimary, fontSize: 13, marginTop: 2 }}>
+                  {bankName}{branchName ? ` — ${branchName}` : ''}
+                </Text>
+              </View>
             ) : null}
             <Input
               label="Account Number"

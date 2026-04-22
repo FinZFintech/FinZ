@@ -215,7 +215,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             View, search, filter and manage all loan applications from the Queue tab.
           </Text>
           <Button
-            title={`View All Applications (${allApps.length})`}
+            title={`View All Applications (${applications.length})`}
             onPress={() => navigation.navigate('LoanQueue')}
           />
         </Card>

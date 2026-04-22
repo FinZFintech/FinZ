@@ -553,6 +553,10 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
       <Card>
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Customer Details</Text>
         <InfoRow label="Name" value={application.customerName} />
+        <InfoRow label="Borrower Type" value={application.borrowerType === 'parent' ? 'Parent / Guardian' : 'Self (Student)'} />
+        {application.borrowerType === 'parent' && (application._rawState?.borrowerDetails?.relation || application.borrowerRelation) ? (
+          <InfoRow label="Relation to Student" value={application._rawState?.borrowerDetails?.relation || application.borrowerRelation} />
+        ) : null}
         <InfoRow label="Phone" value={application.customerPhone} />
         <InfoRow label="Email" value={application.customerEmail} />
         <InfoRow label="Date of Birth" value={application.customerDob} />

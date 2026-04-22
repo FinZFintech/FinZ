@@ -737,6 +737,32 @@ export const signzyService = {
     };
   },
 
+  /**
+   * Search bank by IFSC code — returns full bank details including
+   * name, branch, address, contact, MICR, and split address.
+   * POST /bank/searchByIfscCode
+   */
+  async searchBankByIfscCode(ifscCode) {
+    console.log('[signzyService] searchBankByIfscCode →', ifscCode);
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.BANK_SEARCH_BY_IFSC, {
+      ifscCode,
+    });
+    const r = data?.result || data || {};
+    return {
+      bankName: r.bankName || '',
+      branch: r.branch || '',
+      address: r.address || '',
+      state: r.state || '',
+      district: r.district || '',
+      contact: r.contact || '',
+      ifscCode: r.ifscCode || ifscCode,
+      micrCode: r.micrCode || '',
+      city: r.splitAddress?.city?.[0] || '',
+      pincode: r.splitAddress?.pincode || '',
+      splitAddress: r.splitAddress || null,
+    };
+  },
+
   // ─── Employment ─────────────────────────────────────────────────────────
 
   async verifyEmployment(mobile, panNumber) {
