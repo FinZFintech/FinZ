@@ -470,12 +470,43 @@ const BorrowerSelectionScreen = ({ navigation }) => {
           </View>
         </Card>
 
-        {/* Step 1: Mobile verification */}
+        {/* Step 1: Name + Mobile verification */}
         {borrowerType && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-              Verify Mobile Number
+              {borrowerType === 'parent' ? 'Parent / Guardian Details' : 'Verify Your Identity'}
             </Text>
+            <Input
+              label={borrowerType === 'parent' ? 'Parent / Guardian Name' : 'Borrower Name'}
+              value={borrowerName}
+              onChangeText={setBorrowerName}
+              placeholder={borrowerType === 'parent' ? 'Enter parent / guardian full name' : 'Enter full name as per PAN'}
+              autoCapitalize="words"
+            />
+            {borrowerType === 'parent' && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 13, marginBottom: 6 }}>
+                  Relation to Student
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {RELATION_OPTIONS.map((rel) => (
+                    <TouchableOpacity
+                      key={rel}
+                      style={{
+                        paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, marginRight: 8, marginBottom: 8,
+                        borderColor: borrowerRelation === rel ? colors.teal : colors.border,
+                        backgroundColor: borrowerRelation === rel ? `${colors.teal}14` : colors.surface,
+                      }}
+                      onPress={() => setBorrowerRelation(rel)}
+                    >
+                      <Text style={{ color: borrowerRelation === rel ? colors.teal : colors.textSecondary, fontSize: 13, fontWeight: borrowerRelation === rel ? '700' : '400' }}>
+                        {rel}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
             <Input
               label="Mobile Number"
               value={borrowerPhone}
@@ -489,11 +520,16 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 setPrefillSource({});
                 if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
               }}
-              placeholder="Enter 10-digit mobile number"
+              placeholder={borrowerType === 'parent' ? 'Enter parent mobile number' : 'Enter 10-digit mobile number'}
               keyboardType="phone-pad"
               maxLength={10}
             />
-            {!phoneVerified && !showOtp && borrowerPhone.length === 10 && (
+            {!borrowerName.trim() && borrowerPhone.length >= 10 && (
+              <Text style={{ color: colors.warning, fontSize: 12, marginTop: 4, marginBottom: 8 }}>
+                Please enter {borrowerType === 'parent' ? 'parent / guardian' : 'borrower'} name before verifying phone.
+              </Text>
+            )}
+            {!phoneVerified && !showOtp && borrowerPhone.length === 10 && borrowerName.trim().length >= 2 && (
               <Button
                 title={sendingOtp ? 'Sending OTP...' : 'Verify Phone'}
                 onPress={handleVerifyPhone}
@@ -558,10 +594,12 @@ const BorrowerSelectionScreen = ({ navigation }) => {
           </Card>
         )}
 
-        {/* Step 2: Borrower details (shown after phone verified, may be prefilled) */}
+        {/* Step 2: Additional borrower details (shown after phone verified) */}
         {borrowerType && phoneVerified && !prefillLoading && (
           <Card>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Borrower Details</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+              {prefillSource.name ? 'Verify & Complete Details' : 'Additional Details'}
+            </Text>
             {prefillDone && Object.keys(prefillSource).length > 0 && (
               <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
                 <Text style={{ color: colors.teal, fontSize: 12 }}>
@@ -569,37 +607,14 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 </Text>
               </View>
             )}
+            {/* Show verified name from prefill */}
             <Input
-              label={`Borrower Name${prefillSource.name ? ' ★' : ''}`}
+              label={`Full Name (as per PAN)${prefillSource.name ? ' ★' : ''}`}
               value={borrowerName}
               onChangeText={setBorrowerName}
-              placeholder="Enter full name as per PAN"
+              placeholder="Full name"
               autoCapitalize="words"
             />
-            {borrowerType === 'parent' && (
-              <View style={{ marginBottom: 12 }}>
-                <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 13, marginBottom: 6 }}>
-                  Relation to Student
-                </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  {RELATION_OPTIONS.map((rel) => (
-                    <TouchableOpacity
-                      key={rel}
-                      style={{
-                        paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, marginRight: 8, marginBottom: 8,
-                        borderColor: borrowerRelation === rel ? colors.teal : colors.border,
-                        backgroundColor: borrowerRelation === rel ? `${colors.teal}14` : colors.surface,
-                      }}
-                      onPress={() => setBorrowerRelation(rel)}
-                    >
-                      <Text style={{ color: borrowerRelation === rel ? colors.teal : colors.textSecondary, fontSize: 13, fontWeight: borrowerRelation === rel ? '700' : '400' }}>
-                        {rel}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
             <Input
               label={`Date of Birth${prefillSource.dob ? ' ★' : ''}`}
               value={borrowerDob}
