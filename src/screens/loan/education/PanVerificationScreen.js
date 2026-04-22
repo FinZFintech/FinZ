@@ -10,6 +10,7 @@ import FloatingAssistButton from '../../../components/common/FloatingAssistButto
 import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
 import { signzyService } from '../../../services/signzyService';
+import { checkDedupeByPan } from '../../../services/dedupeService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { maskPan, validatePan } from '../../../utils/helpers';
@@ -36,6 +37,8 @@ const PanVerificationScreen = ({ navigation }) => {
   const [panNotLinked, setPanNotLinked] = useState(false);
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorModalMessage, setErrorModalMessage] = useState('');
+  const [dedupeResult, setDedupeResult] = useState(null);
+  const [dedupeLoading, setDedupeLoading] = useState(false);
 
   useEffect(() => {
     if (!prevPan?.panNumber) fetchPanByMobile();
@@ -102,6 +105,20 @@ const PanVerificationScreen = ({ navigation }) => {
   };
 
   const runCreditCheck = async (panNumber) => {
+    // If we have a fresh credit report from dedupe (< 30 days), reuse it
+    if (dedupeResult?.creditReport?.isFresh) {
+      console.log('[PanVerification] Reusing fresh credit report (', dedupeResult.creditReport.ageDays, 'days old)');
+      const reusedScore = dedupeResult.creditReport.data;
+      const passed = reusedScore.gatingPassed ?? (reusedScore.cibilScore >= 500);
+      setCreditPassed(passed);
+      if (!state.creditScore) {
+        dispatch({ type: 'SET_CREDIT_SCORE', payload: reusedScore });
+      }
+      feedCreditBureauData(reusedScore);
+      if (passed) dispatch({ type: 'SET_STEP', payload: 2 });
+      return;
+    }
+
     setCreditChecking(true);
     try {
       const result = await kycService.softPull({
@@ -114,7 +131,6 @@ const PanVerificationScreen = ({ navigation }) => {
       setCreditPassed(passed);
       dispatch({ type: 'SET_CREDIT_SCORE', payload: result });
 
-      // Feed credit bureau data into risk engine
       feedCreditBureauData(result);
 
       if (passed) {
@@ -198,6 +214,7 @@ const PanVerificationScreen = ({ navigation }) => {
       // the other.
       runPhonePrefill(pan, result.firstName || '', result.lastName || '');
       runFraudShield();
+      runDedupeCheck(pan);
     } catch (err) {
       let errorMsg = 'Verification failed. Please try again.';
       if (err?.message) {
@@ -276,6 +293,42 @@ const PanVerificationScreen = ({ navigation }) => {
    * state.signzyVerifications.fraudShieldLite so credit / admin can
    * review the fraud-risk profile from the staff view.
    */
+  /**
+   * PAN dedupe check — finds existing applications for this PAN
+   * and determines if KYC can be skipped, credit report reused, etc.
+   */
+  const runDedupeCheck = async (panNumber) => {
+    setDedupeLoading(true);
+    try {
+      const result = await checkDedupeByPan(panNumber);
+      setDedupeResult(result);
+      console.log('[PanVerification] Dedupe:', result.found ? `${result.applications.length} app(s), activeLoan=${result.hasActiveLoan}` : 'no history');
+
+      if (result.found) {
+        // Store dedupe result for downstream screens
+        dispatch({
+          type: 'SET_SIGNZY_VERIFICATION',
+          payload: { key: 'panDedupe', status: 'success', result },
+        });
+
+        // If credit report is fresh (< 30 days), reuse it
+        if (result.creditReport?.isFresh && !state.creditScore) {
+          console.log('[PanVerification] Reusing credit report (', result.creditReport.ageDays, 'days old)');
+          dispatch({ type: 'SET_CREDIT_SCORE', payload: result.creditReport.data });
+        }
+
+        // If active loan exists, pre-populate KYC skip flag
+        if (result.canSkipKyc && result.previousKyc) {
+          console.log('[PanVerification] Active loan found — KYC can be skipped');
+        }
+      }
+    } catch (err) {
+      console.log('[PanVerification] Dedupe check failed:', err?.message);
+    } finally {
+      setDedupeLoading(false);
+    }
+  };
+
   const runFraudShield = async () => {
     const phone = state.borrowerDetails?.phone || '';
     const name = state.borrowerDetails?.name || '';

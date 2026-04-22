@@ -209,9 +209,13 @@ const KycVerificationScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
   const { executePhase } = useRisk();
 
+  // ── Check if KYC can be skipped (active loan holder via PAN dedupe) ──
+  const dedupeResult = state.signzyVerifications?.panDedupe?.result;
+  const canSkipKyc = dedupeResult?.canSkipKyc && dedupeResult?.previousKyc;
+
   // ── Restore from persisted state ──
-  const prevKyc = state.kycData;
-  const prevMethod = state.kycMethod;
+  const prevKyc = canSkipKyc ? dedupeResult.previousKyc.kycData : state.kycData;
+  const prevMethod = canSkipKyc ? dedupeResult.previousKyc.kycMethod : state.kycMethod;
   const [currentMethod, setCurrentMethod] = useState(prevMethod || null);
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -1139,7 +1143,40 @@ const KycVerificationScreen = ({ navigation }) => {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
         {/* ── Method Selection ── */}
-        {!kycCompleted && !kycFailed && !sessionExpired && !currentMethod && !detailsReviewStep && (
+        {/* KYC Skip Banner for active loan holders */}
+        {canSkipKyc && !kycCompleted && !kycFailed && (
+          <Card accent={colors.teal}>
+            <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+              <Text style={{ fontSize: 28, marginBottom: 8 }}>✅</Text>
+              <Text style={[styles.sectionTitle, { color: colors.teal, textAlign: 'center', marginBottom: 4 }]}>
+                KYC Already Verified
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
+                You have an active loan on record. Your KYC from the previous application will be reused. No additional verification needed.
+              </Text>
+              <Button
+                title="Use Previous KYC & Continue"
+                onPress={() => {
+                  const prevKycData = dedupeResult.previousKyc.kycData;
+                  const prevKycMethod = dedupeResult.previousKyc.kycMethod;
+                  dispatch({ type: 'SET_KYC_DATA', payload: { ...prevKycData, method: prevKycMethod, reusedFromApp: dedupeResult.previousKyc.applicationId } });
+                  dispatch({ type: 'SET_KYC_METHOD', payload: prevKycMethod });
+                  dispatch({ type: 'SET_STEP', payload: 4 });
+                  setKycCompleted(true);
+                  setSuccessModalVisible(true);
+                }}
+              />
+              <Button
+                title="Verify Again"
+                variant="outline"
+                onPress={() => {}}
+                style={{ marginTop: 8 }}
+              />
+            </View>
+          </Card>
+        )}
+
+        {!kycCompleted && !kycFailed && !sessionExpired && !currentMethod && !detailsReviewStep && !canSkipKyc && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Choose KYC Method</Text>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
