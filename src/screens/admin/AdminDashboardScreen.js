@@ -200,6 +200,19 @@ const AdminDashboardScreen = ({ navigation }) => {
           />
         </Card>
 
+        {/* Vendor Configuration (BCP) */}
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Vendor Configuration</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>
+            Switch between primary and alternate API/SMS vendors. Enable failover for business continuity.
+          </Text>
+          <Button
+            title="Manage Vendors (BCP)"
+            onPress={() => navigation.navigate('VendorConfig')}
+            variant="outline"
+          />
+        </Card>
+
         {/* User Management */}
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Staff Management</Text>
