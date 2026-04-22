@@ -68,7 +68,7 @@ export async function disableStaffUser(identifier, disabledBy) {
     disabledAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  console.log('[userService] Disabled user:', phone);
+  console.log('[userService] Disabled user:', identifier);
 }
 
 /**
