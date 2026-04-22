@@ -11,6 +11,7 @@ import InfoRow from '../../components/common/InfoRow';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
+import { computeCustomerRiskSegment } from '../../utils/riskSegment';
 import { smsService } from '../../services/smsService';
 import { loadAllRawData } from '../../services/applicationDbService';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -436,6 +437,54 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         <InfoRow label="Assigned To" value={(application.assignedTo || 'N/A').charAt(0).toUpperCase() + (application.assignedTo || '').slice(1)} />
         {application.disbursementDate && <InfoRow label="Disbursed On" value={formatDate(application.disbursementDate)} />}
       </Card>
+
+      {/* Customer Risk Segment */}
+      {(() => {
+        const riskSeg = computeCustomerRiskSegment(application._rawState || application);
+        const segColor = riskSeg.color === 'teal' ? colors.teal : riskSeg.color === 'error' ? colors.error : colors.warning;
+        return (
+          <Card accent={segColor}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>Customer Risk Profile</Text>
+              <View style={{ backgroundColor: `${segColor}20`, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: segColor }}>
+                <Text style={{ color: segColor, fontSize: 12, fontWeight: '800' }}>{riskSeg.segment} Risk</Text>
+              </View>
+            </View>
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{riskSeg.reason}</Text>
+          </Card>
+        );
+      })()}
+
+      {/* Rejection / Non-Eligibility Details */}
+      {application.eligibilityResult?.eligible === false && (
+        <Card accent={colors.error}>
+          <Text style={[styles.sectionTitle, { color: colors.error }]}>Rejection Details</Text>
+          {application.eligibilityResult.foir ? (
+            <InfoRow label="FOIR" value={`${application.eligibilityResult.foir}%`} />
+          ) : null}
+          {application.eligibilityResult.emiCapacity != null ? (
+            <InfoRow label="EMI Capacity" value={formatCurrency(application.eligibilityResult.emiCapacity)} />
+          ) : null}
+          {application.eligibilityResult.requestedEmi != null ? (
+            <InfoRow label="Requested EMI" value={formatCurrency(application.eligibilityResult.requestedEmi)} />
+          ) : null}
+          {application.eligibilityResult.retryAfter ? (
+            <InfoRow label="Retry After" value={application.eligibilityResult.retryAfter} />
+          ) : null}
+          {Array.isArray(application.eligibilityResult.rejectionReasons) && application.eligibilityResult.rejectionReasons.length > 0 && (
+            <>
+              <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 13, marginTop: 8, marginBottom: 4 }}>
+                Rejection Reasons
+              </Text>
+              {application.eligibilityResult.rejectionReasons.map((reason, idx) => (
+                <Text key={idx} style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 4 }}>
+                  {idx + 1}. {reason}
+                </Text>
+              ))}
+            </>
+          )}
+        </Card>
+      )}
 
       {/* Customer Details */}
       <Card>
