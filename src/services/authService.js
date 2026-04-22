@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { smsService } from './smsService';
 import { getStaffUserByPhone, getStaffUserByEmail } from './userService';
+import { saveUserProfile } from './userProfileService';
 import { isFirebaseConfigured } from '../config/firebase';
 
 const USER_PROFILES_KEY = 'finz_user_profiles';
@@ -110,8 +111,9 @@ export const authService = {
       };
     }
 
-    // Persist profile
+    // Persist profile locally + to Firestore
     await saveProfile(mobile, user);
+    saveUserProfile(user); // fire-and-forget to Firestore
 
     const response = {
       token: 'jwt_' + stableId + '_' + Date.now(),

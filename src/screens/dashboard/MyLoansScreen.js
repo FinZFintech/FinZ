@@ -8,13 +8,14 @@ import { useTheme } from '../../store/ThemeContext';
 import { useAuth } from '../../store/AuthContext';
 import { useLoan } from '../../store/LoanContext';
 import { loanService } from '../../services/loanService';
+import { getLoansForGuardian } from '../../services/userProfileService';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 
 const TABS = ['All', 'Active', 'Pending', 'Closed'];
 
 const MyLoansScreen = ({ navigation }) => {
   const { colors } = useTheme();
-  const { linkedWards } = useAuth();
+  const { linkedWards, user: authUser } = useAuth();
   const { hasSavedApplication, savedApplications, getResumeInfoForApp, switchApplication, discardApplication } = useLoan();
   const [activeTab, setActiveTab] = useState('All');
   const [loans, setLoans] = useState([]);
@@ -44,22 +45,36 @@ const MyLoansScreen = ({ navigation }) => {
 
   const loadWardLoans = async () => {
     try {
+      // Load real loans from Firestore via guardian links
+      const phone = authUser?.phone || '';
+      if (phone) {
+        const firestoreLoans = await getLoansForGuardian(phone);
+        if (firestoreLoans.length > 0) {
+          setWardLoans(firestoreLoans.map((app) => ({
+            id: app.applicationId,
+            type: app.loanType || 'education',
+            instituteName: app.instituteDetails?.name || '',
+            amount: app.studentDetails?.balanceFee || 0,
+            emi: 0,
+            status: app.status,
+            nextEmiDate: null,
+            tenure: app.selectedTenure || 0,
+            wardName: app.borrowerDetails?.name || app.studentDetails?.studentName || '',
+            wardRelation: app.borrowerDetails?.relation || 'Ward',
+          })));
+          return;
+        }
+      }
+      // Fallback to API
       const allWardLoans = [];
       for (const ward of linkedWards) {
-        const data = await loanService.getLoans({ userId: ward.userId, status: activeTab === 'All' ? undefined : activeTab.toLowerCase() });
+        const data = await loanService.getLoans({ userId: ward.userId });
         const loans = (data.loans || []).map(l => ({ ...l, wardName: ward.name, wardRelation: ward.relation }));
         allWardLoans.push(...loans);
       }
       setWardLoans(allWardLoans);
     } catch {
-      // Mock ward loans for demo
-      if (linkedWards.length > 0) {
-        setWardLoans(linkedWards.map((ward, i) => ({
-          id: `WL00${i + 1}`, type: 'education', instituteName: 'Demo Institute',
-          amount: 200000, emi: 18000, status: 'active', nextEmiDate: '2026-04-10', tenure: 12,
-          wardName: ward.name, wardRelation: ward.relation,
-        })));
-      }
+      setWardLoans([]);
     }
   };
 
