@@ -5,35 +5,47 @@ const CONFIG_DOC = 'vendor_config';
 const CONFIG_COLLECTION = 'settings';
 
 /**
- * Vendor Configuration
+ * Per-API Vendor Configuration
  *
- * Two vendor pairs:
- *   API calls:  Signzy (primary) ↔ Digitap (alternate)
- *   SMS/OTP:    mTalkz (primary) ↔ Aisensy (alternate)
+ * Every API operation has its own vendor toggle so admin can mix
+ * vendors at the individual API level:
+ *   e.g. use Signzy for PAN but Digitap for employment check
  *
- * At least one vendor per pair must be active at all times.
- * When both are active, the router tries the primary first and
- * falls back to the alternate on failure.
+ * Each entry: { signzy: true/false, digitap: true/false }
+ * At least one must be true per API. When both are true, the
+ * router tries signzy first and falls back to digitap on failure.
+ *
+ * SMS operations similarly toggle between mtalkz and aisensy.
  */
 
 const DEFAULT_CONFIG = {
-  api: {
-    signzy: { active: true, label: 'Signzy', type: 'primary' },
-    digitap: { active: false, label: 'Digitap', type: 'alternate' },
+  apis: {
+    panVerification:    { label: 'PAN Verification',          signzy: true, digitap: false },
+    phonePrefill:       { label: 'Phone Prefill',             signzy: true, digitap: false },
+    emailValidation:    { label: 'Email Validation',          signzy: true, digitap: false },
+    fraudShield:        { label: 'FraudShield Lite',          signzy: true, digitap: false },
+    employmentBasic:    { label: 'Employment (UAN Basic)',     signzy: true, digitap: false },
+    bankIfscSearch:     { label: 'Bank IFSC Search',          signzy: true, digitap: false },
+    bankVerification:   { label: 'Bank Account Verification', signzy: true, digitap: false },
+    digilocker:         { label: 'DigiLocker KYC',            signzy: true, digitap: false },
+    liveness:           { label: 'Liveness & Face Match',     signzy: true, digitap: false },
+    gstPanToGstn:       { label: 'GST (PAN to GSTIN)',        signzy: true, digitap: false },
+    gstDetailed:        { label: 'GSTIN Detailed',            signzy: true, digitap: false },
+    itrPull:            { label: 'ITR Pull',                  signzy: true, digitap: false },
+    form26AS:           { label: 'Form 26AS Pull',            signzy: true, digitap: false },
+    phoneIntelligence:  { label: 'Phone Intelligence',        signzy: true, digitap: false },
+    vkyc:               { label: 'Video KYC',                 signzy: false, digitap: true },
   },
   sms: {
-    mtalkz: { active: true, label: 'mTalkz', type: 'primary' },
-    aisensy: { active: false, label: 'Aisensy', type: 'alternate' },
+    loginOtp:           { label: 'Login OTP',                 mtalkz: true, aisensy: false },
+    transactionalSms:   { label: 'Transactional SMS',         mtalkz: true, aisensy: false },
   },
 };
 
 let cachedConfig = null;
 let cacheTime = 0;
-const CACHE_TTL = 60000; // 1 minute
+const CACHE_TTL = 60000;
 
-/**
- * Load vendor config from Firestore (with 1-minute cache).
- */
 export async function getVendorConfig() {
   if (cachedConfig && Date.now() - cacheTime < CACHE_TTL) {
     return cachedConfig;
@@ -49,11 +61,15 @@ export async function getVendorConfig() {
     const ref = doc(db, CONFIG_COLLECTION, CONFIG_DOC);
     const snap = await getDoc(ref);
     if (snap.exists()) {
-      cachedConfig = snap.data();
+      // Merge with defaults so new APIs added in code don't disappear
+      const stored = snap.data();
+      cachedConfig = {
+        apis: { ...DEFAULT_CONFIG.apis, ...stored.apis },
+        sms: { ...DEFAULT_CONFIG.sms, ...stored.sms },
+      };
       cacheTime = Date.now();
       return cachedConfig;
     }
-    // First time — seed with defaults
     await setDoc(ref, { ...DEFAULT_CONFIG, _updatedAt: serverTimestamp() });
     cachedConfig = DEFAULT_CONFIG;
     cacheTime = Date.now();
@@ -64,16 +80,18 @@ export async function getVendorConfig() {
   }
 }
 
-/**
- * Update vendor config in Firestore.
- * Validates that at least one vendor per pair remains active.
- */
 export async function updateVendorConfig(newConfig, updatedBy) {
-  // Validate: at least one active per pair
-  const apiActive = Object.values(newConfig.api || {}).some((v) => v.active);
-  const smsActive = Object.values(newConfig.sms || {}).some((v) => v.active);
-  if (!apiActive) throw new Error('At least one API vendor (Signzy or Digitap) must be active.');
-  if (!smsActive) throw new Error('At least one SMS vendor (mTalkz or Aisensy) must be active.');
+  // Validate: every API must have at least one vendor active
+  for (const [key, val] of Object.entries(newConfig.apis || {})) {
+    if (!val.signzy && !val.digitap) {
+      throw new Error(`At least one vendor must be active for "${val.label || key}".`);
+    }
+  }
+  for (const [key, val] of Object.entries(newConfig.sms || {})) {
+    if (!val.mtalkz && !val.aisensy) {
+      throw new Error(`At least one vendor must be active for "${val.label || key}".`);
+    }
+  }
 
   if (!isFirebaseConfigured()) {
     cachedConfig = newConfig;
@@ -98,27 +116,47 @@ export async function updateVendorConfig(newConfig, updatedBy) {
 }
 
 /**
- * Check if a specific vendor is active.
+ * Get the ordered list of active vendors for a specific API operation.
+ * Primary vendor (signzy for API, mtalkz for SMS) comes first.
+ *
+ * @param {string} apiKey  Key from the config (e.g. 'panVerification')
+ * @param {string} [category='apis']  'apis' or 'sms'
+ * @returns {Promise<string[]>}  e.g. ['signzy', 'digitap'] or ['signzy']
  */
-export async function isVendorActive(pair, vendorKey) {
+export async function getActiveVendorsForApi(apiKey, category = 'apis') {
   const config = await getVendorConfig();
-  return config?.[pair]?.[vendorKey]?.active ?? false;
-}
+  const entry = config?.[category]?.[apiKey];
+  if (!entry) {
+    // Unknown API — default to primary vendor only
+    return category === 'apis' ? ['signzy'] : ['mtalkz'];
+  }
 
-/**
- * Get the ordered list of active vendors for a pair.
- * Primary first, then alternate.
- */
-export async function getActiveVendors(pair) {
-  const config = await getVendorConfig();
-  const vendors = config?.[pair] || {};
   const active = [];
-  // Primary first
-  for (const [key, val] of Object.entries(vendors)) {
-    if (val.active && val.type === 'primary') active.unshift(key);
-    else if (val.active) active.push(key);
+  if (category === 'apis') {
+    if (entry.signzy) active.push('signzy');
+    if (entry.digitap) active.push('digitap');
+  } else {
+    if (entry.mtalkz) active.push('mtalkz');
+    if (entry.aisensy) active.push('aisensy');
   }
   return active;
+}
+
+// Legacy compat — used by vendorRouter
+export async function getActiveVendors(pair) {
+  if (pair === 'sms') {
+    // Aggregate: if any SMS operation has a vendor active, include it
+    const config = await getVendorConfig();
+    const smsEntries = Object.values(config?.sms || {});
+    const hasMtalkz = smsEntries.some((e) => e.mtalkz);
+    const hasAisensy = smsEntries.some((e) => e.aisensy);
+    const active = [];
+    if (hasMtalkz) active.push('mtalkz');
+    if (hasAisensy) active.push('aisensy');
+    return active.length ? active : ['mtalkz'];
+  }
+  // For generic 'api' pair, return primary
+  return ['signzy'];
 }
 
 export function clearVendorConfigCache() {

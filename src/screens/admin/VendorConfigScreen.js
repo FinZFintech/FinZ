@@ -21,8 +21,8 @@ const VendorConfigScreen = ({ navigation }) => {
     clearVendorConfigCache();
     try {
       const c = await getVendorConfig();
-      setConfig(JSON.parse(JSON.stringify(c))); // deep clone
-    } catch (err) {
+      setConfig(JSON.parse(JSON.stringify(c)));
+    } catch {
       Alert.alert('Error', 'Failed to load vendor config.');
     } finally {
       setLoading(false);
@@ -37,20 +37,50 @@ const VendorConfigScreen = ({ navigation }) => {
     setRefreshing(false);
   }, [loadConfig]);
 
-  const toggleVendor = (pair, vendorKey) => {
+  const toggleApiVendor = (apiKey, vendor) => {
     setConfig((prev) => {
       const next = JSON.parse(JSON.stringify(prev));
-      const current = next[pair][vendorKey];
-      const otherActive = Object.entries(next[pair])
-        .filter(([k]) => k !== vendorKey)
-        .some(([, v]) => v.active);
-
-      if (current.active && !otherActive) {
-        Alert.alert('Cannot Disable', 'At least one vendor must remain active. Enable the alternate vendor first.');
+      const entry = next.apis[apiKey];
+      const other = vendor === 'signzy' ? 'digitap' : 'signzy';
+      if (entry[vendor] && !entry[other]) {
+        Alert.alert('Cannot Disable', 'At least one vendor must be active. Enable the other vendor first.');
         return prev;
       }
+      next.apis[apiKey][vendor] = !entry[vendor];
+      return next;
+    });
+  };
 
-      next[pair][vendorKey].active = !current.active;
+  const toggleSmsVendor = (smsKey, vendor) => {
+    setConfig((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      const entry = next.sms[smsKey];
+      const other = vendor === 'mtalkz' ? 'aisensy' : 'mtalkz';
+      if (entry[vendor] && !entry[other]) {
+        Alert.alert('Cannot Disable', 'At least one vendor must be active. Enable the other vendor first.');
+        return prev;
+      }
+      next.sms[smsKey][vendor] = !entry[vendor];
+      return next;
+    });
+  };
+
+  const enableAllSignzy = () => {
+    setConfig((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      for (const key of Object.keys(next.apis)) {
+        next.apis[key].signzy = true;
+      }
+      return next;
+    });
+  };
+
+  const enableAllDigitap = () => {
+    setConfig((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      for (const key of Object.keys(next.apis)) {
+        next.apis[key].digitap = true;
+      }
       return next;
     });
   };
@@ -67,60 +97,7 @@ const VendorConfigScreen = ({ navigation }) => {
     }
   };
 
-  const renderVendorPair = (pair, title, description) => {
-    if (!config?.[pair]) return null;
-    const vendors = Object.entries(config[pair]);
-    const bothActive = vendors.every(([, v]) => v.active);
-
-    return (
-      <Card style={{ marginBottom: 12 }}>
-        <Text style={[styles.pairTitle, { color: colors.textPrimary }]}>{title}</Text>
-        <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{description}</Text>
-
-        {bothActive && (
-          <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
-            <Text style={{ color: colors.teal, fontSize: 12 }}>
-              Both vendors active — automatic failover enabled. If the primary fails, the alternate will be tried automatically.
-            </Text>
-          </View>
-        )}
-
-        {vendors.map(([key, vendor]) => (
-          <View key={key} style={[styles.vendorRow, { borderBottomColor: colors.border }]}>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>
-                  {vendor.label}
-                </Text>
-                <View style={{
-                  marginLeft: 8, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10,
-                  backgroundColor: vendor.type === 'primary' ? `${colors.teal}14` : `${colors.warning}14`,
-                }}>
-                  <Text style={{
-                    color: vendor.type === 'primary' ? colors.teal : colors.warning,
-                    fontSize: 10, fontWeight: '700', textTransform: 'uppercase',
-                  }}>
-                    {vendor.type}
-                  </Text>
-                </View>
-              </View>
-              <Text style={{ color: vendor.active ? colors.teal : colors.error, fontSize: 11, marginTop: 4 }}>
-                {vendor.active ? '● Active' : '○ Inactive'}
-              </Text>
-            </View>
-            <Switch
-              value={vendor.active}
-              onValueChange={() => toggleVendor(pair, key)}
-              trackColor={{ false: colors.border, true: `${colors.teal}60` }}
-              thumbColor={vendor.active ? colors.teal : colors.textSecondary}
-            />
-          </View>
-        ))}
-      </Card>
-    );
-  };
-
-  if (loading) {
+  if (loading || !config) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Header title="Vendor Configuration" onBack={() => navigation.goBack()} />
@@ -131,9 +108,13 @@ const VendorConfigScreen = ({ navigation }) => {
     );
   }
 
+  const apiEntries = Object.entries(config.apis || {});
+  const smsEntries = Object.entries(config.sms || {});
+  const apisBothActive = apiEntries.filter(([, v]) => v.signzy && v.digitap).length;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Vendor Configuration (BCP)" onBack={() => navigation.goBack()} />
+      <Header title="Vendor Config (BCP)" onBack={() => navigation.goBack()} />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
@@ -141,30 +122,114 @@ const VendorConfigScreen = ({ navigation }) => {
       >
         <View style={{ backgroundColor: `${colors.warning}14`, padding: 12, borderRadius: 8, marginBottom: 12 }}>
           <Text style={{ color: colors.warning, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>
-            Business Continuity Plan (BCP)
+            Business Continuity Plan (BCP) — Per-API Control
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 18 }}>
-            Configure primary and alternate vendors for all API and SMS services. When both vendors are active, the system automatically fails over to the alternate if the primary fails. At least one vendor per category must remain active.
+            Toggle vendors independently for each API. When both vendors are enabled for an API, automatic failover kicks in — if the primary fails, the alternate is tried automatically.
           </Text>
         </View>
 
-        {renderVendorPair(
-          'api',
-          'API Services (KYC / Verification / Identity)',
-          'Used for PAN verification, CKYC, employment check, phone prefill, FraudShield, GST, ITR, bank IFSC, face match, liveness, and all other identity/verification APIs.',
+        {/* Quick actions */}
+        <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+          <Button title="Enable All Signzy" onPress={enableAllSignzy} variant="outline" style={{ flex: 1, marginRight: 6 }} />
+          <Button title="Enable All Digitap" onPress={enableAllDigitap} variant="outline" style={{ flex: 1, marginLeft: 6 }} />
+        </View>
+
+        {apisBothActive > 0 && (
+          <View style={{ backgroundColor: `${colors.teal}14`, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+            <Text style={{ color: colors.teal, fontSize: 12 }}>
+              {apisBothActive} API(s) have dual-vendor failover enabled.
+            </Text>
+          </View>
         )}
 
-        {renderVendorPair(
-          'sms',
-          'SMS / OTP Services',
-          'Used for sending OTP during login, phone verification, and transactional notifications.',
-        )}
+        {/* API Services — per-API toggles */}
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            API Services ({apiEntries.length})
+          </Text>
+          <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.headerLabel, { color: colors.textSecondary, flex: 1 }]}>API</Text>
+            <Text style={[styles.headerLabel, { color: colors.teal, width: 70, textAlign: 'center' }]}>Signzy</Text>
+            <Text style={[styles.headerLabel, { color: colors.warning, width: 70, textAlign: 'center' }]}>Digitap</Text>
+          </View>
+
+          {apiEntries.map(([key, val]) => (
+            <View key={key} style={[styles.apiRow, { borderBottomColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: '500' }}>{val.label}</Text>
+                {val.signzy && val.digitap && (
+                  <Text style={{ color: colors.teal, fontSize: 9, fontWeight: '600' }}>FAILOVER</Text>
+                )}
+              </View>
+              <View style={{ width: 70, alignItems: 'center' }}>
+                <Switch
+                  value={val.signzy}
+                  onValueChange={() => toggleApiVendor(key, 'signzy')}
+                  trackColor={{ false: colors.border, true: `${colors.teal}60` }}
+                  thumbColor={val.signzy ? colors.teal : colors.textSecondary}
+                  style={{ transform: [{ scale: 0.8 }] }}
+                />
+              </View>
+              <View style={{ width: 70, alignItems: 'center' }}>
+                <Switch
+                  value={val.digitap}
+                  onValueChange={() => toggleApiVendor(key, 'digitap')}
+                  trackColor={{ false: colors.border, true: `${colors.warning}60` }}
+                  thumbColor={val.digitap ? colors.warning : colors.textSecondary}
+                  style={{ transform: [{ scale: 0.8 }] }}
+                />
+              </View>
+            </View>
+          ))}
+        </Card>
+
+        {/* SMS Services */}
+        <Card style={{ marginTop: 12 }}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            SMS / OTP Services ({smsEntries.length})
+          </Text>
+          <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.headerLabel, { color: colors.textSecondary, flex: 1 }]}>Service</Text>
+            <Text style={[styles.headerLabel, { color: colors.teal, width: 70, textAlign: 'center' }]}>mTalkz</Text>
+            <Text style={[styles.headerLabel, { color: colors.warning, width: 70, textAlign: 'center' }]}>Aisensy</Text>
+          </View>
+
+          {smsEntries.map(([key, val]) => (
+            <View key={key} style={[styles.apiRow, { borderBottomColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: '500' }}>{val.label}</Text>
+                {val.mtalkz && val.aisensy && (
+                  <Text style={{ color: colors.teal, fontSize: 9, fontWeight: '600' }}>FAILOVER</Text>
+                )}
+              </View>
+              <View style={{ width: 70, alignItems: 'center' }}>
+                <Switch
+                  value={val.mtalkz}
+                  onValueChange={() => toggleSmsVendor(key, 'mtalkz')}
+                  trackColor={{ false: colors.border, true: `${colors.teal}60` }}
+                  thumbColor={val.mtalkz ? colors.teal : colors.textSecondary}
+                  style={{ transform: [{ scale: 0.8 }] }}
+                />
+              </View>
+              <View style={{ width: 70, alignItems: 'center' }}>
+                <Switch
+                  value={val.aisensy}
+                  onValueChange={() => toggleSmsVendor(key, 'aisensy')}
+                  trackColor={{ false: colors.border, true: `${colors.warning}60` }}
+                  thumbColor={val.aisensy ? colors.warning : colors.textSecondary}
+                  style={{ transform: [{ scale: 0.8 }] }}
+                />
+              </View>
+            </View>
+          ))}
+        </Card>
 
         <Button
           title={saving ? 'Saving...' : 'Save Configuration'}
           onPress={handleSave}
           disabled={saving}
-          style={{ marginTop: 8 }}
+          style={{ marginTop: 16 }}
         />
       </ScrollView>
     </View>
@@ -175,9 +240,14 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 80 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  pairTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  vendorRow: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
+  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  headerRow: {
+    flexDirection: 'row', alignItems: 'center', paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth, marginBottom: 4,
+  },
+  headerLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  apiRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });
