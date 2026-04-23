@@ -8,7 +8,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../store/ThemeContext';
 import { useLoan } from '../../store/LoanContext';
 import { useAuth } from '../../store/AuthContext';
-import { getMessage, detectInputType, LANGUAGES, FBOT_STEPS } from './FBotEngine';
+import {
+  getMessage, detectInputType, LANGUAGES, FBOT_STEPS,
+  getProgress, getProgressLabel, getPreviousStep,
+} from './FBotEngine';
 import { useFBot } from './FBotContext';
 
 const { height: SCREEN_H } = Dimensions.get('window');
