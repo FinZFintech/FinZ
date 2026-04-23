@@ -98,6 +98,8 @@ function quickRepliesForStep(step, lang) {
         ...base,
       ];
     case 'askEmployerConfirm':
+    case 'askKycConfirm':
+    case 'askStudentConfirm':
       return [
         { label: L('yes', lg), value: 'yes' },
         { label: L('no', lg), value: 'no' },
@@ -178,9 +180,28 @@ const dispatchLoanUpdate = (dispatch, action) => {
     case 'VERIFY_PAN':
       dispatch({ type: 'SET_PAN', payload: { panNumber: action.value, verified: true } });
       return;
-    case 'SET_OCCUPATION':
+    case 'SET_OCCUPATION': {
+      // IncomeVerification reads occupationCategory + occupation from
+      // state.bankDetails, not borrowerDetails. Write to both so the
+      // staff view and the screen form both see the bot's answer.
+      //
+      // value 'salaried_private' / 'self_employed_business' etc. are
+      // the OCCUPATION_CATEGORIES ids. For those we also map to a
+      // category label the screen expects (e.g. "Salaried – Private
+      // Sector").
+      const CATEGORY_LABELS = {
+        salaried_private: 'Salaried – Private Sector',
+        salaried_govt: 'Salaried – Government / PSU',
+        self_employed_business: 'Self-Employed – Business Owner',
+      };
+      const catLabel = CATEGORY_LABELS[action.value] || null;
       dispatch({ type: 'SET_BORROWER_DETAILS', payload: { occupation: action.value } });
+      dispatch({ type: 'SET_BANK_DETAILS', payload: {
+        occupationCategory: catLabel || action.value,
+        occupation: action.value,
+      }});
       return;
+    }
     case 'SET_EMPLOYER':
       dispatch({ type: 'SET_BORROWER_DETAILS', payload: { employer: action.value } });
       return;
@@ -531,43 +552,54 @@ const FBot = () => {
   // collect institute + student details directly.
   const nextStepFromState = () => {
     if (!state.loanType) return 'askStart';
+
+    // Phase 1: Institute + Student (mirrors InstituteSelection →
+    // StudentDetails screens).
     if (!state.instituteDetails && state.loanType === 'education') return 'askInstitute';
     if (!state.studentDetails && state.loanType === 'education') return 'askRegNo';
 
-    // Borrower type gates the rest — without it we don't know whether
-    // the loan is student-self or parent/guardian. Education loans only.
+    // Phase 2: Loan product — amount + tenure — BEFORE asking for PAN
+    // / income. This matches BorrowerSelection where product + tenure
+    // are picked right after student details; the bot was previously
+    // asking for these much later, so the balance fee was surfaced
+    // out of order.
+    if (!state.selectedProduct?.requestedAmount) return 'askLoanAmount';
+    if (!state.selectedTenure) return 'askTenure';
+
+    // Phase 3: Borrower type (self / parent + relationship).
     if (state.loanType === 'education' && !state.borrowerType) return 'askBorrowerType';
     if (state.loanType === 'education' && state.borrowerType === 'parent' && !state.borrowerDetails?.relationship) {
       return 'askRelationship';
     }
 
+    // Phase 4: Borrower identity — name, phone + OTP, PAN.
     const b = state.borrowerDetails || {};
     if (!b.name) return 'askName';
     // DOB is not chat-collected — it's auto-fetched when the PAN API
     // resolves during PAN verification, so we skip it in the bot flow.
     if (!b.phone) return 'askPhone';
-
     if (!state.panDetails?.panNumber) return 'askPan';
-    // If EPFO already pre-filled occupation + employer we don't need to
-    // ask separately; just confirm monthly income.
+
+    // Phase 5: Income — occupation + employer + monthly income
+    // (EPFO may pre-fill the first two).
     if (!b.occupation) return 'askOccupation';
     if (!b.employer) return 'askEmployer';
     if (!state.incomeData?.monthlyIncome && !b.monthlyIncome) return 'askMonthlyIncome';
-    if (!state.selectedProduct?.requestedAmount) return 'askLoanAmount';
-    if (!state.selectedTenure) return 'askTenure';
+
+    // Phase 6: Bank — IFSC + account number + penny drop.
     if (!state.bankDetails?.ifsc) return 'askBankDetails';
     if (!state.bankDetails?.accountNumber) return 'askAccountNumber';
 
     if (!state.kycData || !state.kycMethod) return 'kycStart';
 
-    // Loan amount decides selfie vs vkyc. Bot's job stops at selfie — VKYC
-    // happens inside the EnachEsign screen which the user must reach via
-    // the normal flow.
+    // Loan amount decides selfie vs VKYC. >= 60k → VKYC on EnachEsign,
+    // no selfie needed. < 60k → selfie liveness handled in chat.
     const amt = state.selectedProduct?.requestedAmount
       || state.selectedProduct?.amount
       || state.studentDetails?.balanceFee
       || 0;
-    if (amt < 60000 && !state.selfieData?.matched) return 'selfieStart';
+    const needsSelfie = amt < 60000 && !state.selfieData?.matched;
+    if (needsSelfie) return 'selfieStart';
 
     return 'applicationComplete';
   };
@@ -1020,8 +1052,10 @@ const FBot = () => {
 
       case 'askStudentConfirm': {
         if (detected.type === 'confirm') {
-          // Continue into the existing funnel — borrower type next.
-          advanceTo('askBorrowerType');
+          // Now loan amount — keep flow in sync with the actual app
+          // screens (BorrowerSelection picks product + tenure right
+          // after student details).
+          advanceTo('askLoanAmount');
           return;
         }
         if (detected.type === 'deny') {
@@ -1205,6 +1239,14 @@ const FBot = () => {
         const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
 
         kycService.fetchPanByMobile(phoneForOtp, firstName, lastName).then((res) => {
+          // Record the raw API call on signzyVerifications so the staff
+          // detail / credit / ops views see the same audit trail a
+          // user-initiated application would produce.
+          dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+            key: 'phoneToPan',
+            status: res.panNumber ? 'success' : 'no_match',
+            result: res,
+          }});
           const prefill = {
             pan: res.panNumber || '',
             dob: res.dateOfBirth || '',
@@ -1286,6 +1328,13 @@ const FBot = () => {
 
         // Actually verify the PAN with Signzy instead of pretending.
         kycService.validatePan(pan).then((res) => {
+          // Persist the raw Signzy PAN fetch on signzyVerifications
+          // (same key the screen flow uses).
+          dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+            key: 'panFetch',
+            status: 'success',
+            result: res,
+          }});
           const valid = res?.isValid !== false && res?.status !== 'INVALID';
           if (!valid) {
             addBotMessage(l === 'hi'
@@ -1322,6 +1371,13 @@ const FBot = () => {
             const phoneForEpfo = state.borrowerDetails?.phone || recall('userPhone') || '';
             if (!phoneForEpfo) { advanceTo('askOccupation'); return; }
             signzyService.getCurrentEmployer(phoneForEpfo, pan).then((epfo) => {
+              // Audit trail: staff view + credit dashboard read this
+              // the same way they do for screen-initiated applications.
+              dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+                key: 'employmentBasic',
+                status: epfo?.isEmployed ? 'success' : 'not_employed',
+                result: epfo,
+              }});
               const employer = epfo?.recentEmployer?.establishmentName || '';
               const isEmployed = !!epfo?.isEmployed;
               if (employer && isEmployed) {
@@ -1403,7 +1459,9 @@ const FBot = () => {
           // tenure detection can swallow small numbers; accept either here
           const income = detected.value;
           onAction?.({ type: 'SET_MONTHLY_INCOME', value: income });
-          advanceTo('askLoanAmount');
+          // Loan amount + tenure are now captured earlier (right after
+          // student details), so after income → straight to bank details.
+          advanceTo('askBankDetails');
         } else {
           addBotMessage(invalid('invalidAmount'));
         }
@@ -1472,7 +1530,10 @@ const FBot = () => {
                   ];
             addBotMessage(lines.join('\n'));
           }
-          advanceTo('askBankDetails');
+          // Real app flow: after product/tenure pick (BorrowerSelection)
+          // the user confirms who the borrower is. Then identity → PAN →
+          // income → bank.
+          advanceTo('askBorrowerType');
         } else {
           addBotMessage(invalid('invalidTenure'));
         }
@@ -1513,6 +1574,13 @@ const FBot = () => {
           mobile: phoneForPd,
         }).then((pd) => {
           dispatch({ type: 'SET_PENNY_DROP', payload: pd });
+          // Audit: log the Signzy bank-verification call the same way
+          // the IncomeVerification screen does.
+          dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+            key: 'bankVerification',
+            status: pd?.verified ? 'success' : 'failed',
+            result: pd,
+          }});
           onAction?.({ type: 'VERIFY_BANK' });
           if (pd?.verified) {
             addBotMessage(l === 'hi'
@@ -1630,9 +1698,34 @@ const FBot = () => {
           // selfie liveness step see the same data the real KYC flow
           // would produce.
           dispatch({ type: 'SET_KYC_DATA', payload: kyc });
+          // Audit trail mirroring the KYC screen: keep the raw
+          // gateway response on signzyVerifications so staff can
+          // inspect it later.
+          dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+            key: 'ckyc',
+            status: 'success',
+            result: kyc,
+          }});
           ckycRef.current = { requestId: '', referenceNo: '' };
           addBotMessage(getMessage('kycDone', l));
-          advanceTo('selfieStart');
+          // Show fetched CKYC details back to the user for verification
+          // before moving on — mirrors the "review details" step on the
+          // KYC screen. Keep this in chat; don't auto-advance.
+          const lines = [];
+          if (kyc.name) lines.push(l === 'hi' ? `नाम: ${kyc.name}` : `Name: ${kyc.name}`);
+          if (kyc.fatherName) lines.push(l === 'hi' ? `पिता: ${kyc.fatherName}` : `Father: ${kyc.fatherName}`);
+          if (kyc.dob) lines.push(l === 'hi' ? `जन्मतिथि: ${kyc.dob}` : `DOB: ${kyc.dob}`);
+          if (kyc.gender) lines.push(l === 'hi' ? `लिंग: ${kyc.gender}` : `Gender: ${kyc.gender}`);
+          if (kyc.address) lines.push(l === 'hi' ? `पता: ${kyc.address}` : `Address: ${kyc.address}`);
+          else if (kyc.addressLine) lines.push(l === 'hi' ? `पता: ${kyc.addressLine}` : `Address: ${kyc.addressLine}`);
+          if (kyc.pincode) lines.push(l === 'hi' ? `पिनकोड: ${kyc.pincode}` : `Pincode: ${kyc.pincode}`);
+          const intro = l === 'hi'
+            ? `आपकी KYC से ये जानकारी मिली:\n${lines.join('\n')}\n\nक्या सब कुछ सही है?`
+            : l === 'en'
+              ? `Here's what I got from your KYC:\n${lines.join('\n')}\n\nIs everything correct?`
+              : `KYC se ye mila:\n${lines.join('\n')}\n\nKya sab sahi hai?`;
+          setTimeout(() => addBotMessage(intro), 400);
+          setCurrentStep('askKycConfirm');
         }).catch((err) => {
           console.log('[FBot] verifyCkycOtp failed:', err?.message);
           addBotMessage(l === 'hi'
@@ -1641,6 +1734,45 @@ const FBot = () => {
               ? `CKYC OTP failed: ${err?.message || 'try again'}`
               : `CKYC OTP galat: ${err?.message || 'dobara try karein'}`);
         });
+        break;
+      }
+
+      case 'askKycConfirm': {
+        if (detected.type === 'confirm') {
+          // KYC details verified. Next step depends on loan amount —
+          // >= 60k means VKYC handles identity inside EnachEsign, so
+          // selfie is skipped. < 60k still needs a selfie liveness.
+          const amt = state.selectedProduct?.requestedAmount
+            || state.studentDetails?.balanceFee || 0;
+          if (amt >= 60000) {
+            const msg = l === 'hi'
+              ? `इस ऋण राशि (₹${amt.toLocaleString('en-IN')}) के लिए वीडियो KYC (VKYC) अनिवार्य है — सेल्फी की ज़रूरत नहीं। अगला चरण eNACH / eSign स्क्रीन पर VKYC होगा।`
+              : l === 'en'
+                ? `For this loan amount (₹${amt.toLocaleString('en-IN')}) a video-KYC (VKYC) is required — no separate selfie needed. Next up: VKYC on the eNACH / eSign screen.`
+                : `Is loan amount (₹${amt.toLocaleString('en-IN')}) ke liye VKYC mandatory hai — selfie nahi chahiye. Agla step: VKYC EnachEsign screen pe.`;
+            addBotMessage(msg);
+            addBotMessage(getMessage('applicationComplete', l));
+            setCurrentStep('applicationComplete');
+            safeNavigate('EnachEsign');
+          } else {
+            advanceTo('selfieStart');
+          }
+          return;
+        }
+        if (detected.type === 'deny') {
+          // User says KYC details are wrong — route them to the KYC
+          // screen where they can raise an address correction request.
+          addBotMessage(l === 'hi'
+            ? 'ठीक है — आपको KYC स्क्रीन पर ले जा रहा हूँ ताकि आप विवरण में बदलाव का अनुरोध कर सकें।'
+            : l === 'en'
+              ? "Okay — taking you to the KYC screen so you can raise a correction."
+              : 'Theek hai — KYC screen pe le jaa raha hoon correction raise karne ke liye.');
+          safeNavigate('KycVerification');
+          setCurrentStep('welcome');
+          return;
+        }
+        addBotMessage(l === 'hi' ? 'कृपया "हाँ" या "नहीं" बताएं।'
+          : 'Please reply with "yes" or "no".');
         break;
       }
 
