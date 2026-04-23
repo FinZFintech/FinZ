@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity,
   TextInput, ScrollView, Alert, Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
@@ -64,7 +65,10 @@ const LoanQueueScreen = ({ route, navigation }) => {
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Re-fetch whenever the queue comes into focus so status changes made
+  // on the detail screen (approve / reject / reassign) reflect in the
+  // list + counts without requiring a pull-to-refresh.
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

@@ -9,6 +9,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
+import { useFocusEffect } from '@react-navigation/native';
 import { loadRealApplications } from '../../utils/loadApplications';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
@@ -43,13 +44,16 @@ const SalesDashboardScreen = ({ navigation }) => {
   const [customerName, setCustomerName] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  useEffect(() => { loadApplications(); }, []);
-
   const loadApplications = useCallback(async () => {
     const allApps = await loadRealApplications();
     console.log('[SalesDashboard] Apps loaded:', allApps.length);
     setApplications(allApps);
   }, []);
+
+  // Reload on focus so status transitions made elsewhere (staff detail
+  // approve / reject, customer flow progress) show up on this dashboard
+  // without requiring a pull-to-refresh.
+  useFocusEffect(useCallback(() => { loadApplications(); }, [loadApplications]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -63,12 +67,19 @@ const SalesDashboardScreen = ({ navigation }) => {
     navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
+  // Statuses that don't belong in the "In Progress" bucket — rejected /
+  // discarded / completed applications are over and shouldn't inflate
+  // the active workload count for sales. Keep in sync with stats.inProgress.
+  const IN_PROGRESS_EXCLUDED = new Set([
+    'draft', 'submitted', 'disbursed', 'active', 'closed',
+    'credit_check_failed', 'not_eligible', 'kyc_failed', 'discarded',
+  ]);
   const getFilteredApps = () => {
     if (activeFilter === 'All') return applications;
     if (activeFilter === 'Draft') return applications.filter(a => a.status === 'draft');
     if (activeFilter === 'Submitted') return applications.filter(a => a.status === 'submitted' || a.status === 'disbursed');
-    // In Progress = everything else
-    return applications.filter(a => a.status !== 'draft' && a.status !== 'submitted' && a.status !== 'disbursed');
+    // In Progress = alive + actively being worked on
+    return applications.filter(a => !IN_PROGRESS_EXCLUDED.has(a.status));
   };
 
   const handleInitiateApplication = () => {
@@ -116,7 +127,7 @@ const SalesDashboardScreen = ({ navigation }) => {
   const stats = {
     total: applications.length,
     draft: applications.filter(a => a.status === 'draft').length,
-    inProgress: applications.filter(a => a.status !== 'draft' && a.status !== 'submitted' && a.status !== 'disbursed').length,
+    inProgress: applications.filter(a => !IN_PROGRESS_EXCLUDED.has(a.status)).length,
     submitted: applications.filter(a => a.status === 'submitted' || a.status === 'disbursed').length,
   };
 

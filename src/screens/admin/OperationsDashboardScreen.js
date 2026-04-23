@@ -3,43 +3,33 @@ import {
   View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity,
   Modal, Alert, TextInput,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
+import { loadRealApplications } from '../../utils/loadApplications';
+import { saveApplicationToDb } from '../../services/applicationDbService';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { navigationRef } from '../../navigation/navigationRef';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 
-// Mock applications in operations bucket
-const MOCK_OPS_APPS = [
-  {
-    id: 'APP_O001', customerName: 'Rahul Sharma', customerPhone: '9876543210',
-    instituteName: 'IIT Bombay', amount: 250000, status: 'fully_eligible',
-    task: 'eNACH Setup', taskStatus: 'pending',
-    appliedDate: '2026-03-28', disbursementDate: null,
-  },
-  {
-    id: 'APP_O002', customerName: 'Priya Singh', customerPhone: '9876543211',
-    instituteName: 'BITS Pilani', amount: 180000, status: 'enach_done',
-    task: 'eSign Pending', taskStatus: 'pending',
-    appliedDate: '2026-03-27', disbursementDate: null,
-  },
-  {
-    id: 'APP_O003', customerName: 'Amit Kumar', customerPhone: '9876543212',
-    instituteName: 'VIT Vellore', amount: 120000, status: 'esign_done',
-    task: 'Disbursement', taskStatus: 'pending',
-    appliedDate: '2026-03-26', disbursementDate: null,
-  },
-  {
-    id: 'APP_O004', customerName: 'Sneha Patel', customerPhone: '9876543213',
-    instituteName: 'NIT Trichy', amount: 350000, status: 'disbursed',
-    task: 'Post-Disbursement Check', taskStatus: 'completed',
-    appliedDate: '2026-03-20', disbursementDate: '2026-03-29',
-  },
-];
+// Operations bucket — which statuses belong here and what task is pending.
+// Drives the 'task' + 'taskStatus' columns we render on real applications
+// so we don't have to ship hand-rolled mocks any more.
+const OPS_TASK_BY_STATUS = {
+  fully_eligible:      { task: 'eNACH Setup',           taskStatus: 'pending' },
+  partially_eligible:  { task: 'eNACH Setup',           taskStatus: 'pending' },
+  enach_done:          { task: 'eSign Pending',         taskStatus: 'pending' },
+  vkyc_done:           { task: 'eSign Pending',         taskStatus: 'pending' },
+  esign_done:          { task: 'Disbursement',          taskStatus: 'pending' },
+  submitted:           { task: 'Disbursement',          taskStatus: 'pending' },
+  disbursed:           { task: 'Post-Disbursement Check', taskStatus: 'completed' },
+  active:              { task: 'Post-Disbursement Check', taskStatus: 'completed' },
+  closed:              { task: 'Closed',                taskStatus: 'completed' },
+};
 
 const FILTERS = ['All', 'Pending Tasks', 'Disbursement', 'Completed'];
 
@@ -55,11 +45,21 @@ const OperationsDashboardScreen = ({ navigation }) => {
   const [remarks, setRemarks] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  useEffect(() => { loadApplications(); }, []);
-
   const loadApplications = useCallback(async () => {
-    setApplications(MOCK_OPS_APPS);
+    const allApps = await loadRealApplications();
+    // Operations bucket is only eligible → disbursed / active / closed.
+    // Anything still in the customer / credit stages is not on their plate.
+    const opsApps = allApps
+      .filter((a) => OPS_TASK_BY_STATUS[a.status])
+      .map((a) => ({ ...a, ...OPS_TASK_BY_STATUS[a.status] }));
+    console.log('[OperationsDashboard] Apps loaded:', opsApps.length);
+    setApplications(opsApps);
   }, []);
+
+  // Re-load whenever the screen comes into focus so status changes from
+  // the staff-detail screen (approve / reject / disburse) show up without
+  // the user having to pull-to-refresh.
+  useFocusEffect(useCallback(() => { loadApplications(); }, [loadApplications]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -88,7 +88,7 @@ const OperationsDashboardScreen = ({ navigation }) => {
     setShowActionModal(true);
   };
 
-  const handleAction = () => {
+  const handleAction = async () => {
     let updates = {};
     if (actionType === 'complete_task') {
       updates = { taskStatus: 'completed' };
@@ -98,10 +98,33 @@ const OperationsDashboardScreen = ({ navigation }) => {
       updates = { taskStatus: 'on_hold' };
     }
 
+    // Optimistic local update → card jumps to the new bucket immediately.
     setApplications(prev =>
       prev.map(a => a.id === selectedApp.id ? { ...a, ...updates, remarks: remarks.trim() || a.remarks } : a)
     );
     setShowActionModal(false);
+
+    // Persist to Firestore for disburse (status transition) so the change
+    // survives refresh + is visible to other roles. taskStatus is an ops-
+    // internal flag; we only ship it if we also touched `status`.
+    if (selectedApp?._rawState && updates.status) {
+      try {
+        await saveApplicationToDb({
+          ...selectedApp._rawState,
+          status: updates.status,
+          disbursementDate: updates.disbursementDate,
+          opsAction: {
+            action: actionType,
+            by: user?.name || user?.phone || 'operations',
+            comment: remarks.trim(),
+            at: new Date().toISOString(),
+          },
+          lastUpdated: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.log('[OperationsDashboard] persist failed:', err?.message);
+      }
+    }
 
     const actionLabels = {
       complete_task: 'Task marked as completed',

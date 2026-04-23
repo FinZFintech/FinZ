@@ -8,6 +8,7 @@ import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
+import { useFocusEffect } from '@react-navigation/native';
 import { loadRealApplications } from '../../utils/loadApplications';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
@@ -30,7 +31,10 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [remarks, setRemarks] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  useEffect(() => { loadData(); }, []);
+  // Reload every time the screen comes into focus so status changes
+  // made on the staff-detail screen (approve / reject) are reflected
+  // without a manual pull-to-refresh.
+  useFocusEffect(useCallback(() => { loadData(); }, []));
 
   const loadData = useCallback(async () => {
     try {
@@ -46,7 +50,7 @@ const AdminDashboardScreen = ({ navigation }) => {
     setStats({
       totalApplications: allApps.length,
       pendingReview: allApps.filter(a => a.status === 'manual_review').length,
-      inProgress: allApps.filter(a => !['draft', 'disbursed', 'credit_check_failed', 'not_eligible', 'discarded'].includes(a.status)).length,
+      inProgress: allApps.filter(a => !['draft', 'disbursed', 'active', 'closed', 'credit_check_failed', 'not_eligible', 'kyc_failed', 'discarded', 'submitted'].includes(a.status)).length,
       disbursed: allApps.filter(a => a.status === 'disbursed').length,
       rejected: allApps.filter(a => a.status === 'credit_check_failed' || a.status === 'not_eligible').length,
       discarded: allApps.filter(a => a.status === 'discarded').length,
