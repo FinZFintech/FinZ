@@ -26,8 +26,16 @@ function getCollection() {
  * Upload a base64 image to Firebase Storage and return the download URL.
  * Path: applications/{appId}/images/{filename}
  */
+// Once we've seen a CORS / preflight failure from Firebase Storage we
+// know the bucket policy isn't set (see scripts/README-storage-cors.md).
+// Keep uploading anyway so the first failure path still logs — but
+// suppress the stacks after that so the console isn't spammed during
+// KYC / selfie uploads and surface a single actionable message.
+let storageBlockedByCors = false;
+
 async function uploadImageToStorage(appId, filename, base64Data, contentType = 'image/jpeg') {
   if (!storage || !base64Data || base64Data.length < 100) return null;
+  if (storageBlockedByCors) return null;
   try {
     const storageRef = ref(storage, `applications/${appId}/images/${filename}`);
     // Handle both raw base64 and data URI formats
@@ -40,7 +48,21 @@ async function uploadImageToStorage(appId, filename, base64Data, contentType = '
     const url = await getDownloadURL(storageRef);
     return url;
   } catch (err) {
-    console.log('[applicationDb] Image upload failed:', filename, err?.message);
+    const msg = err?.message || '';
+    const isCors = err?.code === 'storage/unknown'
+      || /preflight|CORS|cors/i.test(msg)
+      || err?.serverResponse === undefined && err?.status === undefined;
+    if (isCors && !storageBlockedByCors) {
+      storageBlockedByCors = true;
+      console.warn(
+        '[applicationDb] Firebase Storage uploads blocked by CORS. ' +
+        'Apply the bucket policy with:\n' +
+        '  gsutil cors set scripts/storage-cors.json gs://finz-2e9dc.firebasestorage.app\n' +
+        'See scripts/README-storage-cors.md for details. Continuing without image uploads.',
+      );
+    } else if (!isCors) {
+      console.log('[applicationDb] Image upload failed:', filename, msg);
+    }
     return null;
   }
 }
