@@ -404,20 +404,138 @@ const FBot = () => {
   // True if the user has an application in progress we can resume into.
   const hasActiveApplication = () => !!(state.loanType || state.instituteDetails || state.borrowerDetails);
 
+  // Inspect the live loan state and return the bot step that corresponds
+  // to the first piece of data still missing. Mirrors the real loan-screen
+  // flow so the bot doesn't ask for things the user has already provided.
+  // Special returns:
+  //   'needsInstitute' → navigate the user to InstituteSelection instead
+  //                      of chat-collecting; that screen has to be used.
+  //   'needsStudent'   → same for StudentDetails (education loans).
+  //   'applicationComplete' → nothing left to ask.
+  const nextStepFromState = () => {
+    if (!state.loanType) return 'askStart';
+    if (!state.instituteDetails && state.loanType === 'education') return 'needsInstitute';
+    if (!state.studentDetails && state.loanType === 'education') return 'needsStudent';
+
+    const b = state.borrowerDetails || {};
+    if (!b.name) return 'askName';
+    if (!b.dob) return 'askDob';
+    if (!b.phone) return 'askPhone';
+
+    if (!state.panDetails?.panNumber) return 'askPan';
+    if (!b.occupation) return 'askOccupation';
+    if (!b.employer) return 'askEmployer';
+    if (!state.incomeData?.monthlyIncome) return 'askMonthlyIncome';
+    if (!state.selectedProduct?.requestedAmount) return 'askLoanAmount';
+    if (!state.selectedTenure) return 'askTenure';
+    if (!state.bankDetails?.ifsc) return 'askBankDetails';
+    if (!state.bankDetails?.accountNumber) return 'askAccountNumber';
+
+    if (!state.kycData || !state.kycMethod) return 'kycStart';
+
+    // Loan amount decides selfie vs vkyc. Bot's job stops at selfie — VKYC
+    // happens inside the EnachEsign screen which the user must reach via
+    // the normal flow.
+    const amt = state.selectedProduct?.requestedAmount
+      || state.selectedProduct?.amount
+      || state.studentDetails?.balanceFee
+      || 0;
+    if (amt < 60000 && !state.selfieData?.matched) return 'selfieStart';
+
+    return 'applicationComplete';
+  };
+
+  // A one-liner that tells the user what's already done and what's next.
+  // Shown when resuming a returning user into their application.
+  const progressSummary = (l) => {
+    const done = [];
+    if (state.instituteDetails) done.push(l === 'hi' ? 'संस्थान' : l === 'en' ? 'institute' : 'institute');
+    if (state.borrowerDetails?.name) done.push(l === 'hi' ? 'नाम' : l === 'en' ? 'name' : 'naam');
+    if (state.panDetails?.panNumber) done.push('PAN');
+    if (state.incomeData) done.push(l === 'hi' ? 'आय' : l === 'en' ? 'income' : 'income');
+    if (state.bankDetails?.ifsc) done.push(l === 'hi' ? 'बैंक' : l === 'en' ? 'bank' : 'bank');
+    if (state.kycData) done.push('KYC');
+    if (state.selfieData?.matched) done.push(l === 'hi' ? 'सेल्फी' : l === 'en' ? 'selfie' : 'selfie');
+    if (done.length === 0) return '';
+    if (l === 'hi') return `आपने अब तक ${done.join(', ')} पूरा किया है। ✅`;
+    if (l === 'en') return `You've already completed: ${done.join(', ')}. ✅`;
+    return `Aapne ab tak complete kiya: ${done.join(', ')}. ✅`;
+  };
+
+  // Resume an existing application by jumping the conversation to the
+  // first truly-missing field. Summarizes what's already done so the user
+  // has context, then either asks for the next field or hands the user to
+  // a screen (institute / student details) that can't be chat-collected.
+  const resumeFromState = () => {
+    const l = lang || 'en';
+    const summary = progressSummary(l);
+    if (summary) addBotMessage(summary);
+
+    const next = nextStepFromState();
+
+    // Institute and student details are screen-only — tell the user and
+    // navigate them there. The screens already auto-forward to the next
+    // stage on completion, so flow continues without the bot.
+    if (next === 'needsInstitute') {
+      const msg = {
+        en: "First, please pick your institute — I'll open that screen for you now.",
+        hinglish: "Pehle apna institute select karein — main screen open karta hoon.",
+        hi: "पहले अपना संस्थान चुनें — मैं स्क्रीन खोल रहा हूँ।",
+      };
+      addBotMessage(msg[l] || msg.hinglish);
+      setTimeout(() => safeNavigate('ApplyTab'), 600);
+      setCurrentStep('welcome');
+      return;
+    }
+    if (next === 'needsStudent') {
+      const msg = {
+        en: "Let's fill in the student details — opening that screen.",
+        hinglish: "Student details bharte hain — screen open kar raha hoon.",
+        hi: "छात्र की जानकारी भरते हैं — स्क्रीन खोल रहा हूँ।",
+      };
+      addBotMessage(msg[l] || msg.hinglish);
+      setTimeout(() => safeNavigate('StudentDetails'), 600);
+      setCurrentStep('welcome');
+      return;
+    }
+    if (next === 'applicationComplete') {
+      addBotMessage(getMessage('applicationComplete', l));
+      setCurrentStep('applicationComplete');
+      return;
+    }
+
+    // Normal resumption: jump to the missing step and ask for it.
+    setCurrentStep(next);
+    const prefillName = state.borrowerDetails?.name || user?.name || recall('userName') || '';
+    const prompt = next === 'askName' && prefillName
+      ? getMessage('askName', l, { prefillName })
+      : getMessage(next, l);
+    setTimeout(() => addBotMessage(prompt), 500);
+    const targetScreen = screenForStep(next);
+    if (targetScreen) safeNavigate(targetScreen);
+  };
+
   // Kick off a new application on the user's behalf: pick a default loan
-  // type, dispatch it, and navigate to the Apply tab so the flow begins.
+  // type, dispatch it, announce it, then hand the user to InstituteSelection
+  // so they can pick their institute. Everything else in the funnel is
+  // chat-collectable, but institute / student details need their own screens.
   const startNewApplication = () => {
     const l = lang || 'en';
     onAction({ type: 'SET_LOAN_TYPE', value: 'education' });
     addBotMessage(tr('startedApp'));
-    safeNavigate('ApplyTab');
+    const msg = {
+      en: "First, please pick your institute — I'll open that screen for you.",
+      hinglish: "Pehle apna institute select karein — main screen open karta hoon.",
+      hi: "पहले अपना संस्थान चुनें — मैं स्क्रीन खोल रहा हूँ।",
+    };
     setTimeout(() => {
-      const prefillName = state.borrowerDetails?.name || user?.name || '';
-      addBotMessage(prefillName
-        ? getMessage('askName', l, { prefillName })
-        : getMessage('askNameFresh', l));
-      setCurrentStep('askName');
-    }, 1200);
+      addBotMessage(msg[l] || msg.hinglish);
+      safeNavigate('ApplyTab');
+      // Mark the bot as waiting — once the user completes institute /
+      // student details and comes back (or navigates here), resumeFromState
+      // will pick up where things are.
+      setCurrentStep('welcome');
+    }, 1000);
   };
 
   // Personalized welcome-back line used when memory remembers the user.
@@ -580,13 +698,7 @@ const FBot = () => {
       case 'askStart':
         if (detected.type === 'confirm' || detected.type === 'text') {
           if (hasActiveApplication()) {
-            // Resume the existing application from where it left off.
-            const prefillName = state.borrowerDetails?.name || user?.name || '';
-            addBotMessage(prefillName
-              ? getMessage('askName', l, { prefillName })
-              : getMessage('askNameFresh', l));
-            setCurrentStep('askName');
-            safeNavigate(screenForStep('askName'));
+            resumeFromState();
           } else {
             startNewApplication();
           }
@@ -779,6 +891,14 @@ const FBot = () => {
         break;
 
       default:
+        // When we've been parked at 'welcome' / 'applicationComplete' and
+        // the user types something, re-check the application state and
+        // resume from the first missing field if there's a draft to
+        // continue. Falls back to help for truly idle chat.
+        if ((currentStep === 'welcome' || currentStep === 'applicationComplete') && hasActiveApplication()) {
+          resumeFromState();
+          return;
+        }
         addBotMessage(getMessage('help', l));
     }
   };
