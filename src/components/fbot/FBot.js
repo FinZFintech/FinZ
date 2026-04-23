@@ -38,6 +38,15 @@ const CHIP_LABELS = {
   restart: { en: 'Restart', hi: 'फिर से',  hinglish: 'Restart' },
   salaried:     { en: 'Salaried',      hi: 'वेतनभोगी',  hinglish: 'Salaried' },
   selfEmployed: { en: 'Self-employed', hi: 'स्व-नियोजित', hinglish: 'Self-employed' },
+  continueApp:  { en: 'Continue',      hi: 'जारी रखें',  hinglish: 'Continue' },
+  startNew:     { en: 'Start new',     hi: 'नई शुरू करें', hinglish: 'Nayi start' },
+  somethingElse:{ en: 'Something else', hi: 'कुछ और',     hinglish: 'Kuch aur' },
+  resendOtp:    { en: 'Resend OTP',    hi: 'OTP फिर भेजें', hinglish: 'Resend OTP' },
+  student:      { en: 'Student',       hi: 'छात्र',      hinglish: 'Student' },
+  parent:       { en: 'Parent / Guardian', hi: 'माता-पिता', hinglish: 'Parent' },
+  father:       { en: 'Father',        hi: 'पिता',       hinglish: 'Father' },
+  mother:       { en: 'Mother',        hi: 'माता',       hinglish: 'Mother' },
+  guardian:     { en: 'Guardian',      hi: 'संरक्षक',    hinglish: 'Guardian' },
 };
 const L = (key, lang) => CHIP_LABELS[key]?.[lang] || CHIP_LABELS[key]?.en || key;
 
@@ -52,10 +61,31 @@ function quickRepliesForStep(step, lang) {
   switch (step) {
     case 'askStart':
       return [
-        { label: L('yes', lg), value: 'yes' },
-        { label: L('no', lg), value: 'no' },
+        { label: L('continueApp', lg), value: 'continue' },
+        { label: L('startNew', lg), value: 'start new' },
+        { label: L('somethingElse', lg), value: 'something else' },
         { label: L('help', lg), value: 'help' },
-        { label: L('restart', lg), value: 'restart' },
+      ];
+    case 'askBorrowerType':
+      return [
+        { label: L('student', lg), value: 'student' },
+        { label: L('parent', lg), value: 'parent' },
+        { label: L('help', lg), value: 'help' },
+        { label: L('back', lg), value: 'back' },
+      ];
+    case 'askRelationship':
+      return [
+        { label: L('father', lg), value: 'father' },
+        { label: L('mother', lg), value: 'mother' },
+        { label: L('guardian', lg), value: 'guardian' },
+        { label: L('back', lg), value: 'back' },
+      ];
+    case 'askOtp':
+    case 'kycOtp':
+      return [
+        { label: L('resendOtp', lg), value: 'resend otp' },
+        { label: L('help', lg), value: 'help' },
+        { label: L('back', lg), value: 'back' },
       ];
     case 'welcome':
     case 'askName':
@@ -198,6 +228,8 @@ const HOME_STACK_SCREENS = new Set([
 // step begins (e.g. when we reach askPan, open the PAN screen).
 const screenForStep = (step) => {
   switch (step) {
+    case 'askBorrowerType':
+    case 'askRelationship':
     case 'askName':
     case 'askPhone':
     case 'askOtp':
@@ -418,6 +450,13 @@ const FBot = () => {
     if (!state.instituteDetails && state.loanType === 'education') return 'needsInstitute';
     if (!state.studentDetails && state.loanType === 'education') return 'needsStudent';
 
+    // Borrower type gates the rest — without it we don't know whether
+    // the loan is student-self or parent/guardian. Education loans only.
+    if (state.loanType === 'education' && !state.borrowerType) return 'askBorrowerType';
+    if (state.loanType === 'education' && state.borrowerType === 'parent' && !state.borrowerDetails?.relationship) {
+      return 'askRelationship';
+    }
+
     const b = state.borrowerDetails || {};
     if (!b.name) return 'askName';
     // DOB is not chat-collected — it's auto-fetched when the PAN API
@@ -574,14 +613,16 @@ const FBot = () => {
       addBotMessage(getMessage('welcome', langCode));
     }
     setTimeout(() => {
-      // Always enter askStart — the chips adapt based on whether an
-      // application already exists (Resume / Start-new / No).
+      // Always enter askStart. For returning users we show three
+      // choices (continue / start-new / help); new users just get
+      // the start prompt. The chip set for askStart below mirrors
+      // these options so the user can tap rather than type.
       const lg = langCode;
       const promptLines = hasActiveApplication()
         ? {
-            en: "You have an application in progress. Would you like me to continue where you left off?",
-            hinglish: "Aapki ek application chal rahi hai. Kya main wahan se continue karoon jahan aap chhoda tha?",
-            hi: "आपकी एक एप्लीकेशन चल रही है। क्या मैं वहीं से आगे बढ़ूँ जहाँ आपने छोड़ा था?",
+            en: "You have an application in progress. Would you like to continue it, start a new one, or get help with something else?",
+            hinglish: "Aapki ek application chal rahi hai. Continue karein, nayi start karein, ya kuch aur madad chahiye?",
+            hi: "आपकी एक एप्लीकेशन चल रही है। क्या उसे जारी रखें, नई शुरू करें, या कुछ और मदद चाहिए?",
           }
         : {
             en: "I can help you start a new loan application — shall we begin?",
@@ -751,17 +792,87 @@ const FBot = () => {
     const detected = coerceForStep(detectedRaw, rawText, currentStep);
 
     switch (currentStep) {
-      case 'askStart':
-        if (detected.type === 'confirm' || detected.type === 'text') {
-          if (hasActiveApplication()) {
-            resumeFromState();
-          } else {
-            startNewApplication();
-          }
-        } else if (detected.type === 'deny') {
-          addBotMessage(tr('noThanks'));
+      case 'askStart': {
+        // Three meaningful intents here: continue existing, start new
+        // (discarding the current draft), or something else / FAQ.
+        const lower = (rawText || '').toLowerCase();
+        const wantsContinue = /continue|resume|continu|jari|जारी|পরিচালিত|chalu|आगे/.test(lower)
+          || (detected.type === 'confirm' && hasActiveApplication());
+        const wantsNew = /new|fresh|start new|start fresh|naya|नया|नई|pehle se|discard|restart/.test(lower);
+        const wantsElse = /something else|else|question|madad|help|सहायता|query/.test(lower);
+
+        if (wantsContinue && hasActiveApplication()) {
+          resumeFromState();
+          return;
         }
+        if (wantsNew) {
+          // If there's a draft, mark it as discarded first so the user
+          // doesn't end up editing two applications in parallel.
+          if (state.applicationId) {
+            try { dispatch({ type: 'RESET' }); } catch (_) {}
+          }
+          startNewApplication();
+          return;
+        }
+        if (wantsElse) {
+          addBotMessage(getMessage('help', l));
+          return;
+        }
+        // Plain yes with no app → start new. Plain no → politely back off.
+        if (detected.type === 'confirm') {
+          startNewApplication();
+          return;
+        }
+        if (detected.type === 'deny') {
+          addBotMessage(tr('noThanks'));
+          return;
+        }
+        // Fall back to help if we couldn't parse the intent.
+        addBotMessage(getMessage('help', l));
         break;
+      }
+
+      case 'askBorrowerType': {
+        const lower = (rawText || '').toLowerCase();
+        const isStudent = /student|khud|self|स्वयं|छात्र|मैं/.test(lower);
+        const isParent = /parent|father|mother|guardian|pita|mata|माता|पिता|संरक्षक/.test(lower);
+        if (isStudent) {
+          dispatch({ type: 'SET_BORROWER_TYPE', payload: 'self' });
+          // borrower = student, no further relationship needed.
+          advanceTo('askName');
+          return;
+        }
+        if (isParent) {
+          dispatch({ type: 'SET_BORROWER_TYPE', payload: 'parent' });
+          advanceTo('askRelationship');
+          return;
+        }
+        addBotMessage(l === 'hi'
+          ? 'कृपया "छात्र" या "माता-पिता" में से चुनें।'
+          : l === 'en'
+            ? 'Please choose "student" or "parent".'
+            : 'Please "student" ya "parent" mein se choose karein.');
+        break;
+      }
+
+      case 'askRelationship': {
+        const lower = (rawText || '').toLowerCase();
+        let rel = null;
+        if (/father|pita|पिता|dad|daddy/.test(lower)) rel = 'father';
+        else if (/mother|mata|माता|mom|mummy/.test(lower)) rel = 'mother';
+        else if (/guardian|sanrakshak|संरक्षक|uncle|grandfather|grandmother|चाचा|दादा|नाना/.test(lower)) rel = 'guardian';
+        if (rel) {
+          dispatch({ type: 'SET_BORROWER_DETAILS', payload: { relationship: rel } });
+          advanceTo('askName');
+          return;
+        }
+        addBotMessage(l === 'hi'
+          ? 'कृपया "पिता", "माता" या "संरक्षक" बताएं।'
+          : l === 'en'
+            ? 'Please tell me: father, mother, or guardian?'
+            : 'Please bataiye: father, mother, ya guardian?');
+        break;
+      }
 
       case 'askName':
         if (detected.type === 'confirm') {
@@ -803,12 +914,43 @@ const FBot = () => {
         break;
 
       case 'askOtp': {
+        const phoneForOtp = state.borrowerDetails?.phone || recall('userPhone') || '';
+        const looksLikeResend = detected.type === 'text'
+          && /resend|re send|re-send|phir bhejo|dobara|फिर भेजो|नया otp|new otp/i.test(rawText || '');
+        if (looksLikeResend) {
+          if (!phoneForOtp) {
+            setCurrentStep('askPhone');
+            addBotMessage(l === 'hi'
+              ? 'फोन नंबर नहीं मिला — कृपया फिर से फोन नंबर दर्ज करें।'
+              : 'Phone number missing — please re-enter your phone number.');
+            break;
+          }
+          addBotMessage(getMessage('waiting', l));
+          smsService.sendOtp(phoneForOtp).then(() => {
+            addBotMessage(l === 'hi'
+              ? 'नया OTP आपके फोन पर भेज दिया है। 6 अंकों का OTP बताइए।'
+              : l === 'en'
+                ? 'A new OTP has been sent to your phone. Please share the 6-digit OTP.'
+                : 'Naya OTP bhej diya hai. 6-digit OTP share karein.');
+          }).catch((err) => {
+            addBotMessage(l === 'hi'
+              ? `OTP भेजने में दिक्कत: ${err?.message || 'कृपया पुनः प्रयास करें'}`
+              : `Couldn't resend OTP: ${err?.message || 'please try again'}`);
+          });
+          break;
+        }
         if (detected.type !== 'otp') {
           addBotMessage(invalid('invalidOtp'));
+          // Remind the user that resend is an option if they just keep
+          // typing garbage at this step.
+          addBotMessage(l === 'hi'
+            ? "OTP नहीं मिला? 'resend otp' टाइप करें।"
+            : l === 'en'
+              ? "Didn't receive it? Type 'resend otp' to get a new one."
+              : "OTP nahi mila? 'resend otp' type karein.");
           break;
         }
         addBotMessage(getMessage('waiting', l));
-        const phoneForOtp = state.borrowerDetails?.phone || recall('userPhone') || '';
         if (!phoneForOtp) {
           addBotMessage(l === 'hi'
             ? 'फोन नंबर नहीं मिला — कृपया फिर से फोन नंबर दर्ज करें।'
@@ -818,15 +960,25 @@ const FBot = () => {
         }
         // Real verification. Wrong OTP now produces an error message and
         // keeps us on askOtp — previously the bot always said "Phone
-        // verified" after 1.4s regardless of what the user typed.
+        // verified" after 1.4s regardless of what the user typed. Expired
+        // / too-many-attempts errors suggest a resend.
         try {
           smsService.verifyOtp(phoneForOtp, detected.value);
         } catch (err) {
+          const msg = err?.message || '';
+          const stale = /expired|too many|not found/i.test(msg);
           addBotMessage(l === 'hi'
-            ? `गलत OTP: ${err?.message || 'कृपया पुनः प्रयास करें'}`
+            ? `गलत OTP: ${msg || 'कृपया पुनः प्रयास करें'}`
             : l === 'en'
-              ? `Wrong OTP: ${err?.message || 'please try again'}`
-              : `Galat OTP: ${err?.message || 'dobara try karein'}`);
+              ? `Wrong OTP: ${msg || 'please try again'}`
+              : `Galat OTP: ${msg || 'dobara try karein'}`);
+          if (stale) {
+            addBotMessage(l === 'hi'
+              ? "'resend otp' टाइप करके नया OTP पाएँ।"
+              : l === 'en'
+                ? "Type 'resend otp' to get a fresh one."
+                : "'resend otp' type karein naya OTP ke liye.");
+          }
           break;
         }
         // Also fire the screen-side verify so the form updates.
