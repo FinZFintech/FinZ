@@ -1586,7 +1586,7 @@ const FBot = () => {
           console.log('[FBot] itrForgetPassword failed:', err?.message);
           addBotMessage(l === 'hi'
             ? `ITR OTP ट्रिगर विफल: ${err?.message || 'मैन्युअल बताएं'}`
-            : `Couldn't trigger ITR OTP: ${err?.message || 'I'll ask manually'}`);
+            : `Couldn't trigger ITR OTP: ${err?.message || 'will ask manually'}`);
           dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
             key: 'itrPull',
             status: 'failed',
