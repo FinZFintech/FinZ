@@ -209,7 +209,17 @@ const dispatchLoanUpdate = (dispatch, action) => {
       dispatch({ type: 'SET_INCOME', payload: { monthlyIncome: action.value } });
       return;
     case 'SET_LOAN_AMOUNT':
-      dispatch({ type: 'SET_PRODUCT', payload: { requestedAmount: action.value } });
+      // Full product payload so the BorrowerSelection / IncomeVerification /
+      // EnachEsign screens can render EMI, interest rate, processing fee
+      // and the product label — previously the bot only set
+      // requestedAmount and the EMI column showed '—' in the loan app.
+      dispatch({ type: 'SET_PRODUCT', payload: {
+        requestedAmount: action.value,
+        id: 'prod_emi',
+        name: 'Education Loan - EMI',
+        interestRate: 14,
+        processingFee: '2% + GST',
+      }});
       return;
     case 'SET_TENURE':
       dispatch({ type: 'SET_TENURE', payload: action.value });
