@@ -1,6 +1,28 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LOAN_STATUS } from '../config/constants';
+import { LOAN_STATUS, VKYC_AMOUNT_THRESHOLD } from '../config/constants';
+
+// ─── Helper: derive the requested loan amount from state ─────────────────────
+// Looks through all the places an amount might live (product, tenure variants,
+// borrowerDetails) so consumer screens don't have to duplicate this logic.
+function getRequestedAmount(state) {
+  if (!state) return 0;
+  return (
+    state.selectedProduct?.requestedAmount ||
+    state.selectedProduct?.amount ||
+    state.selectedProduct?.loanAmount ||
+    state.selectedTenure?.amount ||
+    state.borrowerDetails?.requestedAmount ||
+    0
+  );
+}
+
+// ─── Helper: does this application need VKYC instead of selfie? ─────────────
+// Loans >= threshold skip the selfie screen entirely and verify identity
+// through a live video-KYC call that also handles selfie liveness.
+function requiresVkyc(state) {
+  return getRequestedAmount(state) >= VKYC_AMOUNT_THRESHOLD;
+}
 import { saveApplicationToDb } from '../services/applicationDbService';
 
 const LoanContext = createContext(null);
@@ -79,7 +101,10 @@ function computeStatus(state) {
 
 // ─── Map status → the NEXT screen the customer should land on ────────────────
 // Key rule: status X means "X is DONE", so resume goes to X+1.
-function getResumeScreen(status) {
+// When state is provided, KYC_COMPLETED branches on loan amount: >= threshold
+// skips selfie entirely and goes straight to EnachEsign (VKYC is handled there).
+function getResumeScreen(status, state) {
+  const skipSelfie = state ? requiresVkyc(state) : false;
   switch (status) {
     // Nothing done → start from scratch
     case LOAN_STATUS.DRAFT:
@@ -120,9 +145,10 @@ function getResumeScreen(status) {
     case LOAN_STATUS.KYC_ADDRESS_REVIEW:
       return 'KycVerification';
 
-    // KYC done → need selfie next (or EnachEsign for >=60k, handled at screen level)
+    // KYC done → if loan >= 60k skip selfie (VKYC inside EnachEsign handles
+    // liveness); otherwise go to SelfieVerification.
     case LOAN_STATUS.KYC_COMPLETED:
-      return 'SelfieVerification';
+      return skipSelfie ? 'EnachEsign' : 'SelfieVerification';
 
     // Selfie done → need eNACH/eSign
     case LOAN_STATUS.SELFIE_VERIFIED:
@@ -592,7 +618,7 @@ export const LoanProvider = ({ children }) => {
       return null;
     }
     return {
-      screen: getResumeScreen(state.status),
+      screen: getResumeScreen(state.status, state),
       status: state.status,
       statusLabel: getStatusLabel(state.status),
       applicationId: state.applicationId,
@@ -601,6 +627,7 @@ export const LoanProvider = ({ children }) => {
       lastUpdated: state.lastUpdated,
       instituteName: state.instituteDetails?.name || state.instituteDetails?.instituteName || null,
       loanType: state.loanType,
+      requiresVkyc: requiresVkyc(state),
     };
   }, [state]);
 
@@ -610,7 +637,7 @@ export const LoanProvider = ({ children }) => {
       return null;
     }
     return {
-      screen: getResumeScreen(app.status),
+      screen: getResumeScreen(app.status, app),
       status: app.status,
       statusLabel: getStatusLabel(app.status),
       applicationId: app.applicationId,
@@ -618,6 +645,7 @@ export const LoanProvider = ({ children }) => {
       createdAt: app.createdAt,
       lastUpdated: app.lastUpdated,
       instituteName: app.instituteDetails?.name || app.instituteDetails?.instituteName || null,
+      requiresVkyc: requiresVkyc(app),
       loanType: app.loanType,
     };
   }, []);
@@ -686,4 +714,13 @@ export const useLoan = () => {
   return context;
 };
 
-export { computeStatus, getResumeScreen, getStepFromStatus, getStatusLabel, REJECTED_STATUSES, TERMINAL_STATUSES };
+export {
+  computeStatus,
+  getResumeScreen,
+  getStepFromStatus,
+  getStatusLabel,
+  getRequestedAmount,
+  requiresVkyc,
+  REJECTED_STATUSES,
+  TERMINAL_STATUSES,
+};

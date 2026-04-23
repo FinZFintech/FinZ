@@ -44,6 +44,15 @@ const PanVerificationScreen = ({ navigation }) => {
     if (!prevPan?.panNumber) fetchPanByMobile();
   }, []);
 
+  // If PAN + credit are already done for this application, don't make the
+  // customer repeat the step — forward them to income verification.
+  useEffect(() => {
+    const creditOk = state.creditScore && (state.creditScore.gatingPassed || (state.creditScore.cibilScore || state.creditScore.score) >= 500);
+    if (state.panDetails?.panNumber && creditOk) {
+      navigation.replace('IncomeVerification');
+    }
+  }, []);
+
   // PAN format: 5 letters + 4 digits + 1 letter (e.g. ABCDE1234F)
   const sanitizePanInput = (text) => {
     const upper = text.toUpperCase();
@@ -247,6 +256,65 @@ const PanVerificationScreen = ({ navigation }) => {
   const handleRetryDifferentBorrower = () => {
     dispatch({ type: 'RESET' });
     navigation.navigate('InstituteSelection');
+  };
+
+  /**
+   * Simulate a credit bureau response. The real bureau integration is
+   * not wired up yet, so these buttons let the team exercise the
+   * downstream flow (pass / fail / thin file) without calling any
+   * external API.
+   *
+   * outcome:
+   *   'pass'   — CIBIL 720, gatingPassed=true (standard approve)
+   *   'fail'   — CIBIL 480, gatingPassed=false (rejection path)
+   *   'thin'   — no file / -1, gatingPassed=false (new-to-credit path)
+   */
+  const handleSimulateCreditBureau = (outcome = 'pass') => {
+    const mockPan = state.panDetails?.panNumber || pan || 'ABCDE1234F';
+    const mockName = (state.panDetails?.name || state.borrowerDetails?.name || panName || 'RAHUL SHARMA').toUpperCase();
+    const mockPanDetails = {
+      isValid: true,
+      name: mockName,
+      panStatus: 'E',
+      panStatusLabel: 'Existing and Valid',
+      isIndividual: true,
+      typeOfHolder: 'Individual',
+      aadhaarSeedingStatus: 'Y',
+      individualTaxComplianceStatus: 'Compliant',
+    };
+    let mockCreditResult;
+    if (outcome === 'fail') {
+      mockCreditResult = { score: 480, cibilScore: 480, gatingPassed: false, reason: 'Low CIBIL score' };
+    } else if (outcome === 'thin') {
+      mockCreditResult = { score: -1, cibilScore: -1, gatingPassed: false, reason: 'No credit history (new-to-credit)' };
+    } else {
+      mockCreditResult = { score: 720, cibilScore: 720, gatingPassed: true };
+    }
+
+    setPan(mockPan);
+    setPanName(mockName);
+    setPanFetched(true);
+    setPanVerified(true);
+    setPanDetails(mockPanDetails);
+    setCreditPassed(mockCreditResult.gatingPassed);
+
+    dispatch({
+      type: 'SET_PAN',
+      payload: {
+        panNumber: mockPan,
+        name: mockName,
+        panStatus: 'E',
+        isIndividual: true,
+        aadhaarSeedingStatus: 'Y',
+      },
+    });
+    dispatch({ type: 'SET_CREDIT_SCORE', payload: mockCreditResult });
+    dispatch({
+      type: 'SET_STATUS',
+      payload: mockCreditResult.gatingPassed ? 'credit_check_passed' : 'credit_check_failed',
+    });
+    if (mockCreditResult.gatingPassed) dispatch({ type: 'SET_STEP', payload: 2 });
+    feedCreditBureauData(mockCreditResult);
   };
 
   const handleSkipWithTestData = () => {
@@ -515,6 +583,37 @@ const PanVerificationScreen = ({ navigation }) => {
           </TouchableOpacity>
         )}
 
+        {/* Credit Bureau Simulator — exposed because the real bureau API
+            isn't integrated yet. Lets QA / devs exercise each branch. */}
+        {!panVerified && (
+          <Card style={[styles.simCard, { borderColor: colors.teal }]}>
+            <Text style={[styles.simTitle, { color: colors.teal }]}>🧪 Credit Bureau Simulator</Text>
+            <Text style={[styles.simHint, { color: colors.textSecondary }]}>
+              Simulate a bureau response (real API not yet integrated).
+            </Text>
+            <View style={styles.simRow}>
+              <TouchableOpacity
+                style={[styles.simBtn, { backgroundColor: `${colors.teal}22`, borderColor: colors.teal }]}
+                onPress={() => handleSimulateCreditBureau('pass')}
+              >
+                <Text style={[styles.simBtnText, { color: colors.teal }]}>✓ Pass (CIBIL 720)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.simBtn, { backgroundColor: `${colors.error || '#E53E3E'}18`, borderColor: colors.error || '#E53E3E' }]}
+                onPress={() => handleSimulateCreditBureau('fail')}
+              >
+                <Text style={[styles.simBtnText, { color: colors.error || '#E53E3E' }]}>✕ Fail (CIBIL 480)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.simBtn, { backgroundColor: `${colors.warning || '#F5B731'}22`, borderColor: colors.warning || '#F5B731' }]}
+                onPress={() => handleSimulateCreditBureau('thin')}
+              >
+                <Text style={[styles.simBtnText, { color: colors.warning || '#F5B731' }]}>⊘ Thin file</Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
+        )}
+
         {/* PAN Verification Error */}
         {panError && (
           <Card style={styles.errorCard}>
@@ -750,6 +849,16 @@ const getStyles = (colors) => StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 4,
   },
+  simCard: { marginTop: 12, padding: 14, borderWidth: 1, borderRadius: 12 },
+  simTitle: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
+  simHint: { fontSize: 11, marginBottom: 10 },
+  simRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  simBtn: {
+    flexGrow: 1, flexBasis: '30%',
+    paddingVertical: 9, paddingHorizontal: 8, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', marginVertical: 4, marginHorizontal: 2,
+  },
+  simBtnText: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
   bottomSpacer: { height: 100 },
 });
 

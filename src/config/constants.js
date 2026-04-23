@@ -193,6 +193,10 @@ export const LOAN_TYPES = {
   EMPLOYEE: 'employee',
 };
 
+// Loans at or above this amount require a VKYC call in place of a selfie.
+// Loans below this amount complete with selfie-only liveness.
+export const VKYC_AMOUNT_THRESHOLD = 60000;
+
 export const LOAN_STATUS = {
   DRAFT: 'draft',
   INSTITUTE_VERIFIED: 'institute_verified',
