@@ -408,7 +408,11 @@ export function detectInputType(text) {
   }
 
   // Amount with lakh / L / cr suffix: "5L", "5 lakh", "5.5L", "10cr"
-  const amtMatch = trimmed.match(/^₹?\s*(\d+(?:\.\d+)?)\s*(l|lakh|lakhs|लाख|cr|crore|crores|करोड़|k|thousand|हज़ार)?$/i);
+  // Critical: we ONLY accept pure-digit amounts up to 7 digits (≤ 99 lakh).
+  // Longer pure-digit strings are almost always account numbers, so we let
+  // them fall through to the account-number / tenure rules below.
+  const amtMatch = trimmed.match(/^₹?\s*(\d+(?:\.\d+)?)\s*(l|lakh|lakhs|लाख|cr|crore|crores|करोड़|k|thousand|हज़ार)$/i);
+  const plainAmount = /^₹?\s*(\d+(?:\.\d+)?)$/.test(trimmed);
   if (amtMatch) {
     const n = parseFloat(amtMatch[1]);
     const suf = (amtMatch[2] || '').toLowerCase();
@@ -417,9 +421,16 @@ export function detectInputType(text) {
     else if (/^cr|crore/.test(suf) || suf === 'करोड़') rupees = n * 10000000;
     else if (/^k|thousand/.test(suf) || suf === 'हज़ार') rupees = n * 1000;
     if (rupees >= 1000) return { type: 'amount', value: Math.round(rupees) };
+  } else if (plainAmount) {
+    const digits = trimmed.replace(/[^\d.]/g, '');
+    // Pure digits, 4-7 long, interpreted as rupees — unambiguous loan amount.
+    if (digits.length >= 4 && digits.length <= 7) {
+      const rupees = parseInt(digits, 10);
+      if (rupees >= 1000) return { type: 'amount', value: rupees };
+    }
   }
 
-  // Tenure in months/years: "24", "24 months", "2 years", "2 saal"
+  // Tenure in months/years: always has a suffix OR is 1-3 digits.
   const tenMatch = trimmed.match(/^(\d{1,3})\s*(m|mo|month|months|mahine|महीने|y|yr|year|years|saal|साल|वर्ष)?$/i);
   if (tenMatch) {
     const n = parseInt(tenMatch[1], 10);
@@ -429,7 +440,9 @@ export function detectInputType(text) {
     if (months >= 6 && months <= 84) return { type: 'tenure', value: months };
   }
 
-  // Account number: 8-18 digits
+  // Account number: 8-18 digits (checked after amount/tenure so a 24/36/60
+  // that really means "months" isn't misclassified — but 8+ pure digits
+  // win because amount match above required a suffix or ≤7 digits).
   if (/^\d{8,18}$/.test(trimmed)) return { type: 'accountNumber', value: trimmed };
 
   // Yes/No/Confirm (expanded for more languages)
@@ -485,7 +498,6 @@ export function detectInputType(text) {
 export const FBOT_STEPS = [
   'welcome',
   'askName',
-  'askDob',
   'askPhone',
   'askOtp',
   'askPan',

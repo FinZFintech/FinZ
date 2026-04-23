@@ -197,7 +197,6 @@ const HOME_STACK_SCREENS = new Set([
 const screenForStep = (step) => {
   switch (step) {
     case 'askName':
-    case 'askDob':
     case 'askPhone':
     case 'askOtp':
       return 'BorrowerSelection';
@@ -419,7 +418,8 @@ const FBot = () => {
 
     const b = state.borrowerDetails || {};
     if (!b.name) return 'askName';
-    if (!b.dob) return 'askDob';
+    // DOB is not chat-collected — it's auto-fetched when the PAN API
+    // resolves during PAN verification, so we skip it in the bot flow.
     if (!b.phone) return 'askPhone';
 
     if (!state.panDetails?.panNumber) return 'askPan';
@@ -499,7 +499,16 @@ const FBot = () => {
       return;
     }
     if (next === 'applicationComplete') {
-      addBotMessage(getMessage('applicationComplete', l));
+      // Everything the bot can collect is done. Don't re-run the generic
+      // summary (which would be wrong post-completion and then follow with
+      // an empty prompt). Offer the most useful follow-ups: check status,
+      // get help, start a fresh application.
+      const done = {
+        en: "Your application is complete — nothing more to fill. 🎉 Would you like to check status, talk to support, or start a new application?",
+        hinglish: "Aapki application complete hai — ab kuch nahi bharna hai. 🎉 Status check karna ho, support se baat karna ho, ya nayi application start karna ho?",
+        hi: "आपकी एप्लीकेशन पूरी हो चुकी है — अब कुछ नहीं भरना। 🎉 स्थिति देखें, सहायता से बात करें, या नई एप्लीकेशन शुरू करें?",
+      };
+      addBotMessage(done[l] || done.hinglish);
       setCurrentStep('applicationComplete');
       return;
     }
@@ -510,7 +519,7 @@ const FBot = () => {
     const prompt = next === 'askName' && prefillName
       ? getMessage('askName', l, { prefillName })
       : getMessage(next, l);
-    setTimeout(() => addBotMessage(prompt), 500);
+    if (prompt) setTimeout(() => addBotMessage(prompt), 500);
     const targetScreen = screenForStep(next);
     if (targetScreen) safeNavigate(targetScreen);
   };
@@ -691,8 +700,53 @@ const FBot = () => {
     setTimeout(() => addBotMessage(getMessage(next, lang || 'en')), extra ? 1100 : 500);
   };
 
-  const processStep = (detected, rawText) => {
+  // Re-interpret a generic detection in light of the step the bot is
+  // expecting. Without this, a 6-digit "500000" looks like an OTP and a
+  // 14-digit account number can look like an amount — both misclassified
+  // before they reach the step handler.
+  const coerceForStep = (detected, rawText, step) => {
+    if (!detected) return detected;
+    const pure = /^\d+$/.test((rawText || '').trim());
+    const digits = (rawText || '').trim();
+
+    if (step === 'askLoanAmount') {
+      if (detected.type === 'otp' && pure) {
+        // "500000" — treat as rupees, not OTP
+        return { type: 'amount', value: parseInt(digits, 10) };
+      }
+      if (detected.type === 'tenure' && pure && digits.length >= 4) {
+        return { type: 'amount', value: parseInt(digits, 10) };
+      }
+      if (detected.type === 'accountNumber' && pure && digits.length <= 9) {
+        return { type: 'amount', value: parseInt(digits, 10) };
+      }
+    }
+    if (step === 'askMonthlyIncome') {
+      if ((detected.type === 'otp' || detected.type === 'tenure') && pure) {
+        return { type: 'amount', value: parseInt(digits, 10) };
+      }
+    }
+    if (step === 'askAccountNumber') {
+      // Any pure-digit input 8-18 long is an account number regardless of
+      // what the generic detector labelled it.
+      if (pure && digits.length >= 8 && digits.length <= 18) {
+        return { type: 'accountNumber', value: digits };
+      }
+    }
+    if (step === 'askTenure') {
+      // Accept plain 2-digit numbers even if the detector thought they
+      // were something else.
+      if (pure && digits.length >= 1 && digits.length <= 2) {
+        const n = parseInt(digits, 10);
+        if (n >= 6 && n <= 84) return { type: 'tenure', value: n };
+      }
+    }
+    return detected;
+  };
+
+  const processStep = (detectedRaw, rawText) => {
     const l = lang || 'en';
+    const detected = coerceForStep(detectedRaw, rawText, currentStep);
 
     switch (currentStep) {
       case 'askStart':
@@ -711,23 +765,14 @@ const FBot = () => {
         if (detected.type === 'confirm') {
           const name = state.borrowerDetails?.name || user?.name || recall('userName') || '';
           onAction?.({ type: 'SET_NAME', value: name });
-          advanceTo('askDob');
+          advanceTo('askPhone');
         } else if (detected.type === 'deny') {
           addBotMessage(getMessage('askNameFresh', l));
         } else if (detected.type === 'text') {
           // User corrected the prefilled name — remember it for next time.
           rememberCorrection('askName', detected.value);
           onAction?.({ type: 'SET_NAME', value: detected.value });
-          advanceTo('askDob');
-        }
-        break;
-
-      case 'askDob':
-        if (detected.type === 'dob') {
-          onAction?.({ type: 'SET_DOB', value: detected.value });
           advanceTo('askPhone');
-        } else {
-          addBotMessage(invalid('invalidDob'));
         }
         break;
 
@@ -891,11 +936,13 @@ const FBot = () => {
         break;
 
       default:
-        // When we've been parked at 'welcome' / 'applicationComplete' and
-        // the user types something, re-check the application state and
-        // resume from the first missing field if there's a draft to
-        // continue. Falls back to help for truly idle chat.
-        if ((currentStep === 'welcome' || currentStep === 'applicationComplete') && hasActiveApplication()) {
+        // When we've been parked at 'welcome' and the user types something,
+        // re-check the application state and resume from the first missing
+        // field if there's a draft to continue. 'applicationComplete' is
+        // intentionally excluded — re-entering resumeFromState there just
+        // repeats the "nothing more to fill" message; intent-matching or
+        // help is a better fit.
+        if (currentStep === 'welcome' && hasActiveApplication()) {
           resumeFromState();
           return;
         }
