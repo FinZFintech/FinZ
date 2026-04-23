@@ -10,6 +10,10 @@ import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadRealApplications } from '../../utils/loadApplications';
+import {
+  PENDING_REVIEW_STATUSES, REJECTED_STATUSES,
+  DISCARDED_STATUSES, isInProgress,
+} from '../../utils/statusBuckets';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { adminService } from '../../services/adminService';
@@ -49,11 +53,11 @@ const AdminDashboardScreen = ({ navigation }) => {
 
     setStats({
       totalApplications: allApps.length,
-      pendingReview: allApps.filter(a => a.status === 'manual_review').length,
-      inProgress: allApps.filter(a => !['draft', 'disbursed', 'active', 'closed', 'credit_check_failed', 'not_eligible', 'kyc_failed', 'discarded', 'submitted'].includes(a.status)).length,
+      pendingReview: allApps.filter(a => PENDING_REVIEW_STATUSES.has(a.status)).length,
+      inProgress: allApps.filter(a => isInProgress(a.status)).length,
       disbursed: allApps.filter(a => a.status === 'disbursed').length,
-      rejected: allApps.filter(a => a.status === 'credit_check_failed' || a.status === 'not_eligible').length,
-      discarded: allApps.filter(a => a.status === 'discarded').length,
+      rejected: allApps.filter(a => REJECTED_STATUSES.has(a.status)).length,
+      discarded: allApps.filter(a => DISCARDED_STATUSES.has(a.status)).length,
       totalDisbursedAmount: allApps.filter(a => a.status === 'disbursed').reduce((sum, a) => sum + (a.amount || 0), 0),
     });
   }, []);
