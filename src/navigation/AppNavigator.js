@@ -61,6 +61,7 @@ import AuditTrailViewerScreen from '../screens/admin/AuditTrailViewerScreen';
 import StaffApplicationDetailScreen from '../screens/admin/StaffApplicationDetailScreen';
 import UserManagementScreen from '../screens/admin/UserManagementScreen';
 import VendorConfigScreen from '../screens/admin/VendorConfigScreen';
+import FBot from '../components/fbot/FBot';
 
 const RootStack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -183,64 +184,67 @@ const CustomerTabs = () => {
   };
 
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle,
-        tabBarShowLabel: false,
-      }}
-    >
-      <Tab.Screen
-        name="Home"
-        component={HomeStack}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon label="Home" icon="🏠" focused={focused} colors={colors} />,
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle,
+          tabBarShowLabel: false,
         }}
-      />
-      <Tab.Screen
-        name="LoansTab"
-        component={LoansStack}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon label="Loans" icon="📋" focused={focused} colors={colors} />,
-        }}
-      />
-      <Tab.Screen
-        name="ApplyTab"
-        component={InstituteSelectionScreen}
-        options={{
-          tabBarIcon: () => (
-            <View
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 28,
-                backgroundColor: colors.teal,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginTop: -20,
-                elevation: 4,
-              }}
-            >
-              <Text style={{ fontSize: 28, color: colors.background }}>+</Text>
-            </View>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="EngageTab"
-        component={DailyCheckInScreen}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon label="Engage" icon="🔥" focused={focused} colors={colors} />,
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileStack}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon label="Profile" icon="👤" focused={focused} colors={colors} />,
-        }}
-      />
-    </Tab.Navigator>
+      >
+        <Tab.Screen
+          name="Home"
+          component={HomeStack}
+          options={{
+            tabBarIcon: ({ focused }) => <TabIcon label="Home" icon="🏠" focused={focused} colors={colors} />,
+          }}
+        />
+        <Tab.Screen
+          name="LoansTab"
+          component={LoansStack}
+          options={{
+            tabBarIcon: ({ focused }) => <TabIcon label="Loans" icon="📋" focused={focused} colors={colors} />,
+          }}
+        />
+        <Tab.Screen
+          name="ApplyTab"
+          component={InstituteSelectionScreen}
+          options={{
+            tabBarIcon: () => (
+              <View
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  backgroundColor: colors.teal,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginTop: -20,
+                  elevation: 4,
+                }}
+              >
+                <Text style={{ fontSize: 28, color: colors.background }}>+</Text>
+              </View>
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="EngageTab"
+          component={DailyCheckInScreen}
+          options={{
+            tabBarIcon: ({ focused }) => <TabIcon label="Engage" icon="🔥" focused={focused} colors={colors} />,
+          }}
+        />
+        <Tab.Screen
+          name="ProfileTab"
+          component={ProfileStack}
+          options={{
+            tabBarIcon: ({ focused }) => <TabIcon label="Profile" icon="👤" focused={focused} colors={colors} />,
+          }}
+        />
+      </Tab.Navigator>
+      <FBot />
+    </View>
   );
 };
 

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
+import { saveGuardianLink, saveUserProfile } from '../services/userProfileService';
 
 const AuthContext = createContext(null);
 const GUARDIANS_KEY = 'finz_guardians';
@@ -70,14 +71,14 @@ export const AuthProvider = ({ children }) => {
   const updateUser = async (userData) => {
     setUser(userData);
     await authService.updateUser(userData);
+    saveUserProfile(userData); // sync to Firestore
   };
 
   const addGuardian = async (guardian) => {
     const updated = [...guardians, { ...guardian, id: `guardian_${Date.now()}`, addedAt: new Date().toISOString() }];
     setGuardians(updated);
-    // Key by phone (stable)
     await AsyncStorage.setItem(`${GUARDIANS_KEY}_${user.phone}`, JSON.stringify(updated));
-    // Link this user as a ward under the guardian's phone
+    // Link in AsyncStorage (local)
     const wardKey = `${LINKED_WARDS_KEY}_${guardian.phone}`;
     try {
       const existing = await AsyncStorage.getItem(wardKey);
@@ -94,6 +95,15 @@ export const AuthProvider = ({ children }) => {
         await AsyncStorage.setItem(wardKey, JSON.stringify(wards));
       }
     } catch { /* ignore */ }
+    // Save to Firestore so guardian can see student's loans from any device
+    saveGuardianLink({
+      studentPhone: user.phone,
+      studentName: user.name,
+      guardianPhone: guardian.phone,
+      guardianName: guardian.name,
+      relation: guardian.relation,
+      addedBy: user.phone,
+    });
   };
 
   const removeGuardian = async (guardianId) => {
