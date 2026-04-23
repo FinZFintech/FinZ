@@ -14,6 +14,11 @@ import {
   getProgress, getProgressLabel, getPreviousStep,
 } from './FBotEngine';
 import { useFBot } from './FBotContext';
+import {
+  loadMemory, remember, recall, rememberCorrection, recallCorrection,
+  logChipTap, reorderChipsByTaps, logIntent, intentFrequency, clearMemory,
+} from './FBotMemory';
+import { matchIntent, intentAnswer } from './FBotIntents';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const BOT_AVATAR = '🤖';
@@ -78,7 +83,11 @@ function quickRepliesForStep(step, lang) {
 }
 
 const renderQuickReplies = ({ currentStep, lang, onPress, colors }) => {
-  const chips = quickRepliesForStep(currentStep, lang);
+  // Reorder the default chip set so chips this user taps more often
+  // appear first. Stable for untapped chips — no learning-induced
+  // flicker on fresh installs.
+  const defaultChips = quickRepliesForStep(currentStep, lang);
+  const chips = reorderChipsByTaps(currentStep, defaultChips);
   return (
     <View style={{ height: 44, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface }}>
       <ScrollView
@@ -89,7 +98,7 @@ const renderQuickReplies = ({ currentStep, lang, onPress, colors }) => {
         {chips.map((c) => (
           <TouchableOpacity
             key={c.value}
-            onPress={() => onPress(c.value)}
+            onPress={() => { logChipTap(currentStep, c.value); onPress(c.value); }}
             style={{
               paddingHorizontal: 12,
               paddingVertical: 6,
@@ -162,6 +171,26 @@ const dispatchLoanUpdate = (dispatch, action) => {
   }
 };
 
+// Screens nested inside HomeStack (see AppNavigator). Navigating to these
+// from a different tab requires going through the 'Home' tab first, i.e.
+// navigation.navigate('Home', { screen: 'PanVerification' }). Using a bare
+// navigate('PanVerification') from e.g. ApplyTab silently fails and the
+// screen never mounts — so the bot's listener never fires and APIs are
+// never called.
+const HOME_STACK_SCREENS = new Set([
+  'InstituteSelection',
+  'StudentDetails',
+  'BorrowerSelection',
+  'PanVerification',
+  'IncomeVerification',
+  'KycVerification',
+  'SelfieVerification',
+  'BankDetails',
+  'VkycScreen',
+  'EnachEsign',
+  'LoanSuccess',
+]);
+
 // Route an FBot step to the customer-facing screen that collects that step's
 // data. Used so the bot can navigate the user to the right screen when a
 // step begins (e.g. when we reach askPan, open the PAN screen).
@@ -201,24 +230,40 @@ const FBot = () => {
   const { user } = useAuth();
   const navigation = useNavigation();
 
-  // Every FBot action: (1) update persistent loan state and (2) notify any
-  // mounted screen listener so it can auto-fill and auto-submit its form.
+  // Every FBot action: (1) update persistent loan state, (2) notify any
+  // mounted screen listener so it can auto-fill/auto-submit, and (3) pipe
+  // the key facts into memory so the bot can pre-fill them next session.
   const onAction = useCallback((action) => {
     dispatchLoanUpdate(dispatch, action);
     postAction(action);
+    switch (action?.type) {
+      case 'SET_NAME':        if (action.value) remember('userName', action.value); break;
+      case 'SET_DOB':         if (action.value) remember('userDob', action.value); break;
+      case 'SET_PHONE':       if (action.value) remember('userPhone', action.value); break;
+      case 'SET_OCCUPATION':  if (action.value) remember('userOccupation', action.value); break;
+      case 'SET_EMPLOYER':    if (action.value) remember('userEmployer', action.value); break;
+      case 'SET_MONTHLY_INCOME': if (action.value) remember('userMonthlyIncome', action.value); break;
+      case 'SET_IFSC':        if (action.value) remember('userIfsc', action.value); break;
+    }
   }, [dispatch, postAction]);
 
-  // Attempt to navigate to a screen. Works from any tab — if the target
-  // lives inside a sub-stack, we try the stack's screen name directly
-  // (the tab navigator resolves the right stack).
+  // Navigate to a screen robustly across tabs. Loan-flow screens live
+  // inside the Home tab's stack; from any other tab, the correct call is
+  // navigate('Home', { screen: X }). Plain navigate(X) silently fails
+  // there, which is why bot listeners weren't firing and APIs weren't
+  // being triggered when the user chatted from another tab.
   const safeNavigate = useCallback((screen) => {
     if (!screen || !navigation?.navigate) return;
+    if (HOME_STACK_SCREENS.has(screen)) {
+      try {
+        navigation.navigate('Home', { screen });
+        return;
+      } catch (_) { /* fall through */ }
+    }
     try {
       navigation.navigate(screen);
     } catch (_) {
-      // Best-effort — if the user is on a tab that doesn't expose this
-      // screen, fall back to the Apply tab which owns the loan stack.
-      try { navigation.navigate('ApplyTab'); } catch (_) {}
+      try { navigation.navigate('Home', { screen }); } catch (_) {}
     }
   }, [navigation]);
   const [visible, setVisible] = useState(false);
@@ -239,7 +284,10 @@ const FBot = () => {
 
   // ─── Persistence: load saved state on mount ────────────────────────────
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
+    Promise.all([
+      AsyncStorage.getItem(STORAGE_KEY),
+      loadMemory(),
+    ]).then(([raw, mem]) => {
       if (raw) {
         try {
           const saved = JSON.parse(raw);
@@ -248,9 +296,19 @@ const FBot = () => {
           if (saved.currentStep) setCurrentStep(saved.currentStep);
         } catch (_) { /* ignore */ }
       }
+      // If we don't have a language in the session snapshot but memory
+      // remembers one from a past session, adopt it so the user doesn't
+      // have to re-pick it.
+      if (!mem) { /* memory unavailable */ }
       setHydrated(true);
     }).catch(() => setHydrated(true));
   }, []);
+
+  // Remember language every time it changes so a fresh install /
+  // cleared session restores it.
+  useEffect(() => {
+    if (lang) remember('preferredLanguage', lang);
+  }, [lang]);
 
   // Persist on change (after hydration, to avoid overwriting with defaults)
   useEffect(() => {
@@ -303,10 +361,15 @@ const FBot = () => {
     }).start();
   }, [visible]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom whenever messages change, on typing updates, and
+  // — importantly — after the panel opens from a collapsed state with
+  // hydrated history, so the user sees the last message, not the first.
   useEffect(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-  }, [messages, typing]);
+    if (!visible || minimized) return;
+    const t1 = setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 50);
+    const t2 = setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 250);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [messages, typing, visible, minimized, hydrated]);
 
   // Start conversation when language is selected
   // Static translations for bot prompts that aren't in the engine's MESSAGES
@@ -357,34 +420,47 @@ const FBot = () => {
     }, 1200);
   };
 
+  // Personalized welcome-back line used when memory remembers the user.
+  // Kept inline (not in MESSAGES) to avoid shuttling user names through
+  // the translation layer.
+  const welcomeBackLine = (langCode, name) => {
+    const lines = {
+      en: `Welcome back${name ? ', ' + name : ''}! 👋 How can I help you today?`,
+      hinglish: `Wapas aane ke liye shukriya${name ? ', ' + name : ''}! 👋 Aaj main kaise madad karoon?`,
+      hi: `वापस आने के लिए स्वागत है${name ? ', ' + name : ''}! 👋 आज मैं कैसे मदद करूँ?`,
+    };
+    return lines[langCode] || lines.hinglish;
+  };
+
   const selectLanguage = (langCode, { greet = true } = {}) => {
     setLang(langCode);
     setShowLangSwitcher(false);
     if (!greet) return;
-    addBotMessage(getMessage('welcome', langCode));
+
+    // Returning user? Greet by name instead of the generic welcome.
+    const rememberedName = recall('userName');
+    if (rememberedName) {
+      addBotMessage(welcomeBackLine(langCode, rememberedName));
+    } else {
+      addBotMessage(getMessage('welcome', langCode));
+    }
     setTimeout(() => {
-      // If no application is in progress, offer to start one. Otherwise
-      // resume by asking for the name (prefilled when we already have it).
-      if (!hasActiveApplication()) {
-        // Inline the ask-start prompt; handleDetected/processStep react via
-        // the 'askStart' step below.
-        const lg = langCode;
-        const lines = {
-          en: "I can help you start a new loan application — shall we begin?",
-          hinglish: "Main ek nayi loan application start karne mein madad kar sakta hoon — shuru karein?",
-          hi: "मैं एक नई लोन एप्लीकेशन शुरू करने में मदद कर सकता हूँ — शुरू करें?",
-        };
-        addBotMessage(lines[lg] || lines.hinglish);
-        setCurrentStep('askStart');
-        return;
-      }
-      const prefillName = state.borrowerDetails?.name || user?.name || '';
-      if (prefillName) {
-        addBotMessage(getMessage('askName', langCode, { prefillName }));
-      } else {
-        addBotMessage(getMessage('askNameFresh', langCode));
-      }
-      setCurrentStep('askName');
+      // Always enter askStart — the chips adapt based on whether an
+      // application already exists (Resume / Start-new / No).
+      const lg = langCode;
+      const promptLines = hasActiveApplication()
+        ? {
+            en: "You have an application in progress. Would you like me to continue where you left off?",
+            hinglish: "Aapki ek application chal rahi hai. Kya main wahan se continue karoon jahan aap chhoda tha?",
+            hi: "आपकी एक एप्लीकेशन चल रही है। क्या मैं वहीं से आगे बढ़ूँ जहाँ आपने छोड़ा था?",
+          }
+        : {
+            en: "I can help you start a new loan application — shall we begin?",
+            hinglish: "Main ek nayi loan application start karne mein madad kar sakta hoon — shuru karein?",
+            hi: "मैं एक नई लोन एप्लीकेशन शुरू करने में मदद कर सकता हूँ — शुरू करें?",
+          };
+      addBotMessage(promptLines[lg] || promptLines.hinglish);
+      setCurrentStep('askStart');
     }, 1200);
   };
 
@@ -401,6 +477,7 @@ const FBot = () => {
         ? getMessage('askName', l, { prefillName })
         : getMessage('askNameFresh', l));
       setCurrentStep('askName');
+      safeNavigate(screenForStep('askName'));
     }, 800);
   };
 
@@ -449,6 +526,40 @@ const FBot = () => {
       return;
     }
 
+    // ── Intent matching ───────────────────────────────────────────────
+    // For open-ended free text (not a recognized form field), try to
+    // match an FAQ intent. If confidence is high enough, answer it
+    // without disrupting the current flow. Intents can also navigate
+    // (e.g. "my status" → MyLoans screen).
+    //
+    // Skipped when the step is actively collecting text data (askName,
+    // askEmployer) — in those cases the user is meant to provide a
+    // value, not ask a question.
+    const stepWantsText = ['askName', 'askEmployer'].includes(currentStep);
+    if (detected.type === 'text' && !stepWantsText) {
+      const match = matchIntent(rawText);
+      if (match) {
+        const answer = intentAnswer(match.intent, l);
+        if (answer) addBotMessage(answer);
+        logIntent(match.intent.id, rawText);
+        if (match.intent.action?.type === 'navigate') {
+          setTimeout(() => safeNavigate(match.intent.action.screen), 600);
+        }
+        // If we've seen this intent many times, the user is clearly
+        // confused — nudge them toward human support.
+        if (intentFrequency(match.intent.id) >= 3) {
+          setTimeout(() => addBotMessage(
+            l === 'hi'
+              ? "आप यह कई बार पूछ रहे हैं — क्या मैं आपको सहायता टीम से जोड़ूँ?"
+              : l === 'en'
+                ? "You've asked this a few times — would you like me to connect you with the support team?"
+                : "Aap ye baar-baar pooch rahe hain — kya main aapko support team se connect karoon?"
+          ), 1200);
+        }
+        return;
+      }
+    }
+
     processStep(detected, rawText);
   };
 
@@ -468,7 +579,17 @@ const FBot = () => {
     switch (currentStep) {
       case 'askStart':
         if (detected.type === 'confirm' || detected.type === 'text') {
-          startNewApplication();
+          if (hasActiveApplication()) {
+            // Resume the existing application from where it left off.
+            const prefillName = state.borrowerDetails?.name || user?.name || '';
+            addBotMessage(prefillName
+              ? getMessage('askName', l, { prefillName })
+              : getMessage('askNameFresh', l));
+            setCurrentStep('askName');
+            safeNavigate(screenForStep('askName'));
+          } else {
+            startNewApplication();
+          }
         } else if (detected.type === 'deny') {
           addBotMessage(tr('noThanks'));
         }
@@ -476,12 +597,14 @@ const FBot = () => {
 
       case 'askName':
         if (detected.type === 'confirm') {
-          const name = state.borrowerDetails?.name || user?.name || '';
+          const name = state.borrowerDetails?.name || user?.name || recall('userName') || '';
           onAction?.({ type: 'SET_NAME', value: name });
           advanceTo('askDob');
         } else if (detected.type === 'deny') {
           addBotMessage(getMessage('askNameFresh', l));
         } else if (detected.type === 'text') {
+          // User corrected the prefilled name — remember it for next time.
+          rememberCorrection('askName', detected.value);
           onAction?.({ type: 'SET_NAME', value: detected.value });
           advanceTo('askDob');
         }
@@ -803,6 +926,8 @@ const FBot = () => {
             renderItem={renderMessage}
             contentContainerStyle={styles.messageList}
             showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
             ListFooterComponent={typing ? (
               <View style={[styles.msgRow, styles.msgRowBot]}>
                 <Text style={styles.avatar}>{BOT_AVATAR}</Text>
