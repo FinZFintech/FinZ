@@ -23,6 +23,15 @@ const firebaseConfig = {
   measurementId: 'G-REGJP0CEV4',
 };
 
+// Firebase Cloud Storage requires the Blaze (paid) plan since late 2024.
+// Until the project is upgraded, there's no bucket to write to, so flip
+// this to false — the app then skips all image upload attempts and
+// strips large base64 blobs out of the Firestore payload too (docs are
+// capped at 1 MB). Flip to true after running
+//   gsutil cors set scripts/storage-cors.json gs://<bucket>
+// on a Blaze-enabled project.
+export const STORAGE_UPLOADS_ENABLED = false;
+
 if (!firebaseConfig.apiKey) {
   console.warn(
     '[Firebase] Not configured — set firebaseConfig in src/config/firebase.js. ' +
@@ -38,7 +47,12 @@ try {
   if (firebaseConfig.apiKey) {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
-    storage = getStorage(app);
+    // Only initialise Cloud Storage when uploads are explicitly enabled.
+    // Otherwise even importing getStorage() sets up the XHR plumbing that
+    // triggers the CORS preflight on every upload attempt.
+    if (STORAGE_UPLOADS_ENABLED) {
+      storage = getStorage(app);
+    }
   }
 } catch (err) {
   console.warn('[Firebase] Init failed:', err?.message);

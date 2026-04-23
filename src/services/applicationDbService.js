@@ -10,7 +10,46 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { db, storage, isFirebaseConfigured } from '../config/firebase';
+import { db, storage, isFirebaseConfigured, STORAGE_UPLOADS_ENABLED } from '../config/firebase';
+
+// When Cloud Storage uploads are disabled (no Blaze plan, etc.) we must
+// also strip base64 image blobs out of the Firestore payload — otherwise
+// the application doc can blow past Firestore's 1 MB per-doc limit the
+// moment a CKYC response comes in. Kept close to stripHeavyBlobs in
+// LoanContext so we don't drift.
+function stripImagesForFirestore(payload) {
+  if (!payload || typeof payload !== 'object') return payload;
+  const out = { ...payload };
+  if (out.kycData) {
+    const kyc = { ...out.kycData };
+    if (Array.isArray(kyc.images)) {
+      kyc.images = kyc.images.map((img) => {
+        if (!img?.data) return img;
+        if (typeof img.data === 'string' && (img.data.startsWith('http') || img.data.startsWith('['))) {
+          return img;
+        }
+        return { ...img, data: '[storage-disabled]' };
+      });
+    }
+    if (typeof kyc.photo === 'string' && kyc.photo.length > 1000 && !kyc.photo.startsWith('http')) {
+      kyc.photo = '[storage-disabled]';
+    }
+    if (typeof kyc.signature === 'string' && kyc.signature.length > 1000 && !kyc.signature.startsWith('http')) {
+      kyc.signature = '[storage-disabled]';
+    }
+    out.kycData = kyc;
+  }
+  if (out.selfieData) {
+    const s = { ...out.selfieData };
+    for (const k of ['image', 'selfieImage', 'liveImage']) {
+      if (typeof s[k] === 'string' && s[k].length > 1000 && !s[k].startsWith('http')) {
+        s[k] = '[storage-disabled]';
+      }
+    }
+    out.selfieData = s;
+  }
+  return out;
+}
 
 const COLLECTION = 'applications';
 const RAW_DATA_SUBCOLLECTION = 'rawData';
@@ -57,6 +96,7 @@ export function resetStorageCorsFlag() {
 }
 
 async function uploadImageToStorage(appId, filename, base64Data, contentType = 'image/jpeg') {
+  if (!STORAGE_UPLOADS_ENABLED) return null;
   if (!storage || !base64Data || base64Data.length < 100) return null;
   if (storageBlockedByCors) return null;
   try {
@@ -99,6 +139,7 @@ async function uploadImageToStorage(appId, filename, base64Data, contentType = '
  * to Firebase Storage, replacing base64 data with download URLs.
  */
 async function uploadAllImages(appId, payload) {
+  if (!STORAGE_UPLOADS_ENABLED) return payload;
   if (!storage) return payload;
   // Bail early when we already know Storage is blocked by CORS, so we
   // don't even try to dispatch the batch — the previous parallel
@@ -193,8 +234,16 @@ export async function saveApplicationToDb(state) {
     let payload = { ...state };
     delete payload._rawState;
 
-    // ── Upload images to Firebase Storage ──
-    payload = await uploadAllImages(appId, payload);
+    // ── Upload images to Firebase Storage (or strip them) ──
+    if (STORAGE_UPLOADS_ENABLED) {
+      payload = await uploadAllImages(appId, payload);
+    } else {
+      // No Blaze plan → no Cloud Storage. Strip base64 images so the
+      // Firestore doc doesn't blow past the 1 MB per-doc limit on a
+      // CKYC-complete application. Staff tools will show a placeholder
+      // where images would have been.
+      payload = stripImagesForFirestore(payload);
+    }
 
     // ── Move raw responses to subcollection ──
     const rawDataPromises = [];
