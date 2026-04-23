@@ -11,6 +11,7 @@ import { useLoan } from '../../store/LoanContext';
 import { useAuth } from '../../store/AuthContext';
 import { smsService } from '../../services/smsService';
 import { kycService } from '../../services/kycService';
+import { signzyService } from '../../services/signzyService';
 import {
   getMessage, detectInputType, LANGUAGES, FBOT_STEPS,
   getProgress, getProgressLabel, getPreviousStep,
@@ -89,6 +90,12 @@ function quickRepliesForStep(step, lang) {
       ];
     case 'welcome':
     case 'askName':
+      return [
+        { label: L('yes', lg), value: 'yes' },
+        { label: L('no', lg), value: 'no' },
+        ...base,
+      ];
+    case 'askEmployerConfirm':
       return [
         { label: L('yes', lg), value: 'yes' },
         { label: L('no', lg), value: 'no' },
@@ -236,6 +243,7 @@ const screenForStep = (step) => {
       return 'BorrowerSelection';
     case 'askPan':
       return 'PanVerification';
+    case 'askEmployerConfirm':
     case 'askOccupation':
     case 'askEmployer':
     case 'askMonthlyIncome':
@@ -357,11 +365,13 @@ const FBot = () => {
   const addBotMessage = useCallback((text, options = {}) => {
     setTyping(true);
     setTimeout(() => {
+      const now = Date.now();
       setMessages((prev) => [...prev, {
-        id: `bot_${Date.now()}_${Math.random()}`,
+        id: `bot_${now}_${Math.random()}`,
         from: 'bot',
         text,
-        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        at: now,
+        time: new Date(now).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
         ...options,
       }]);
       setTyping(false);
@@ -376,11 +386,13 @@ const FBot = () => {
   }, [visible, minimized]);
 
   const addUserMessage = useCallback((text) => {
+    const now = Date.now();
     setMessages((prev) => [...prev, {
-      id: `user_${Date.now()}`,
+      id: `user_${now}`,
       from: 'user',
       text,
-      time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      at: now,
+      time: new Date(now).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     }]);
   }, []);
 
@@ -394,19 +406,37 @@ const FBot = () => {
     }).start();
   }, [visible]);
 
-  // Every time the panel opens after hydration, offer the continue / start
-  // new / help choice if the user has a persisted step and there's either
-  // an active application OR none. Without this the user gets stuck at
-  // whatever step was persisted from the last session with no way to say
-  // "actually, start over". Only fires once per panel-open so we don't
-  // pester a user mid-reply.
+  // Every time the panel opens after hydration, offer the continue /
+  // start-new / help choice — but only when the conversation is
+  // genuinely idle. If the user is mid-flow (asked for loan amount,
+  // OTP, bank details etc.) dropping a "welcome back" banner on them
+  // is disruptive, so we gate on:
+  //   - currentStep is a resting state (welcome / askStart / applicationComplete), OR
+  //   - no prior messages, OR
+  //   - last message is older than IDLE_PROMPT_MS (10 minutes)
+  // Fires at most once per panel open thanks to openPromptRef.
+  const IDLE_PROMPT_MS = 10 * 60 * 1000;
   const openPromptRef = useRef(false);
   useEffect(() => {
     if (!visible || !hydrated || !lang) { openPromptRef.current = false; return; }
     if (openPromptRef.current) return;
     openPromptRef.current = true;
-    // Don't interrupt if the user is on askStart already or hasn't started.
-    if (currentStep === 'askStart' || currentStep === 'welcome') return;
+
+    const restingSteps = new Set(['welcome', 'askStart', 'applicationComplete']);
+    const restingStep = restingSteps.has(currentStep);
+    let lastAt = 0;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]?.at || messages[i]?.time) {
+        // messages[].time is a display string — use Date.now() as a
+        // fallback; we primarily track freshness via message count /
+        // resting-step for persisted conversations.
+        lastAt = messages[i].at || 0;
+        break;
+      }
+    }
+    const stale = !lastAt || (Date.now() - lastAt) > IDLE_PROMPT_MS;
+    if (!restingStep && !stale && messages.length > 0) return;
+
     const lg = lang;
     const prompt = hasActiveApplication()
       ? {
@@ -493,9 +523,11 @@ const FBot = () => {
     if (!b.phone) return 'askPhone';
 
     if (!state.panDetails?.panNumber) return 'askPan';
+    // If EPFO already pre-filled occupation + employer we don't need to
+    // ask separately; just confirm monthly income.
     if (!b.occupation) return 'askOccupation';
     if (!b.employer) return 'askEmployer';
-    if (!state.incomeData?.monthlyIncome) return 'askMonthlyIncome';
+    if (!state.incomeData?.monthlyIncome && !b.monthlyIncome) return 'askMonthlyIncome';
     if (!state.selectedProduct?.requestedAmount) return 'askLoanAmount';
     if (!state.selectedTenure) return 'askTenure';
     if (!state.bankDetails?.ifsc) return 'askBankDetails';
@@ -769,7 +801,21 @@ const FBot = () => {
     const targetScreen = screenForStep(next);
     if (targetScreen) safeNavigate(targetScreen);
     if (extra) setTimeout(() => addBotMessage(extra), 400);
-    setTimeout(() => addBotMessage(getMessage(next, lang || 'en')), extra ? 1100 : 500);
+
+    // Step-specific prompt resolution. Some steps (askName) embed
+    // placeholders that must be substituted at the advance site, and
+    // some have a "fresh" variant when no prefill is available.
+    const lg = lang || 'en';
+    let prompt = '';
+    if (next === 'askName') {
+      const prefillName = state.borrowerDetails?.name || user?.name || recall('userName') || '';
+      prompt = prefillName
+        ? getMessage('askName', lg, { prefillName })
+        : getMessage('askNameFresh', lg);
+    } else {
+      prompt = getMessage(next, lg);
+    }
+    if (prompt) setTimeout(() => addBotMessage(prompt), extra ? 1100 : 500);
   };
 
   // Re-interpret a generic detection in light of the step the bot is
@@ -1136,7 +1182,42 @@ const FBot = () => {
           // assuming pass (PanVerification screen offers a simulator).
           setTimeout(() => {
             addBotMessage(getMessage('creditPassed', l));
-            advanceTo('askOccupation');
+            // EPFO / UAN lookup runs the same way the IncomeVerification
+            // screen does it — takes (phone, pan) and returns the
+            // applicant's current employer + UAN history. If we get a
+            // hit, prefill employer + salary into state and ask the user
+            // to confirm instead of typing it all. Graceful fallback:
+            // just advance to askOccupation if the API fails or no UAN.
+            const phoneForEpfo = state.borrowerDetails?.phone || recall('userPhone') || '';
+            if (!phoneForEpfo) { advanceTo('askOccupation'); return; }
+            signzyService.getCurrentEmployer(phoneForEpfo, pan).then((epfo) => {
+              const employer = epfo?.recentEmployer?.establishmentName || '';
+              const isEmployed = !!epfo?.isEmployed;
+              if (employer && isEmployed) {
+                // Mark as salaried and save employer on borrowerDetails.
+                dispatch({ type: 'SET_BORROWER_DETAILS', payload: {
+                  occupation: 'salaried_private',
+                  employer,
+                  uan: epfo?.recentEmployer?.matchingUan || '',
+                }});
+                remember('userEmployer', employer);
+                remember('userOccupation', 'salaried_private');
+
+                const msg = l === 'hi'
+                  ? `आपके EPFO रिकॉर्ड से मिली जानकारी:\nनियोक्ता: ${employer}\nरोजगार: सक्रिय ✅\n\nक्या ये सही है?`
+                  : l === 'en'
+                    ? `I found this from your EPFO record:\nEmployer: ${employer}\nEmployment: Active ✅\n\nIs this correct?`
+                    : `EPFO record se mila:\nEmployer: ${employer}\nEmployment: Active ✅\n\nKya ye sahi hai?`;
+                addBotMessage(msg);
+                setCurrentStep('askEmployerConfirm');
+                safeNavigate('IncomeVerification');
+              } else {
+                advanceTo('askOccupation');
+              }
+            }).catch((err) => {
+              console.log('[FBot] EPFO lookup failed:', err?.message);
+              advanceTo('askOccupation');
+            });
           }, 1600);
         }).catch((err) => {
           console.log('[FBot] PAN validate failed:', err?.message);
@@ -1148,6 +1229,28 @@ const FBot = () => {
         });
         break;
       }
+
+      case 'askEmployerConfirm':
+        // We showed the user the EPFO-prefilled employer earlier. Now
+        // handle their yes/no response. Yes → skip directly past
+        // askOccupation + askEmployer + askMonthlyIncome (EPFO doesn't
+        // expose net salary, so still ask income). No → clear the
+        // prefilled fields and ask occupation manually.
+        if (detected.type === 'confirm') {
+          advanceTo('askMonthlyIncome');
+        } else if (detected.type === 'deny') {
+          dispatch({ type: 'SET_BORROWER_DETAILS', payload: {
+            occupation: null, employer: null, uan: null,
+          }});
+          advanceTo('askOccupation');
+        } else {
+          addBotMessage(l === 'hi'
+            ? 'कृपया "हाँ" या "नहीं" बताएं।'
+            : l === 'en'
+              ? 'Please reply with "yes" or "no".'
+              : 'Please "yes" ya "no" mein reply karein.');
+        }
+        break;
 
       case 'askOccupation':
         if (detected.type === 'occupation' || detected.type === 'text') {
