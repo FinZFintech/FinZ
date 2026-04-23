@@ -981,8 +981,13 @@ const FBot = () => {
           }
           break;
         }
-        // Also fire the screen-side verify so the form updates.
-        onAction?.({ type: 'VERIFY_OTP', value: detected.value });
+        // Bot already verified via smsService.verifyOtp above — if we
+        // posted VERIFY_OTP to the screen listener it would call
+        // smsService.verifyOtp again, hit "OTP not found" (the OTP was
+        // already consumed), and throw a false "OTP expired" error at
+        // the user. Post a PHONE_VERIFIED signal instead so the screen
+        // can sync its form state without re-verifying.
+        onAction?.({ type: 'PHONE_VERIFIED', value: detected.value });
         addBotMessage(getMessage('phoneVerified', l));
 
         // Phone is verified — now pull PAN + name + DOB via Signzy's
@@ -1011,20 +1016,38 @@ const FBot = () => {
             // can read it and the confirm-flow can use it.
             dispatch({ type: 'SET_BORROWER_DETAILS', payload: { pan: prefill.pan } });
 
-            addBotMessage(l === 'hi'
-              ? `आपके नंबर से जुड़ी ये जानकारी मिली:\nनाम: ${res.name || '—'}\nPAN: ${prefill.pan}${prefill.dob ? '\nजन्मतिथि: ' + prefill.dob : ''}\n\nक्या ये सही है?`
+            const lines = [];
+            if (res.name) lines.push(l === 'hi' ? `नाम: ${res.name}` : l === 'en' ? `Name: ${res.name}` : `Naam: ${res.name}`);
+            lines.push(l === 'hi' ? `PAN: ${prefill.pan}` : `PAN: ${prefill.pan}`);
+            if (prefill.dob) lines.push(l === 'hi' ? `जन्मतिथि: ${prefill.dob}` : l === 'en' ? `DOB: ${prefill.dob}` : `DOB: ${prefill.dob}`);
+            if (prefill.gender) lines.push(l === 'hi' ? `लिंग: ${prefill.gender}` : l === 'en' ? `Gender: ${prefill.gender}` : `Gender: ${prefill.gender}`);
+
+            const intro = l === 'hi'
+              ? `आपके नंबर से जुड़ी ये जानकारी मिली:\n${lines.join('\n')}\n\nक्या ये सही है?`
               : l === 'en'
-                ? `I found these details linked to your number:\nName: ${res.name || '—'}\nPAN: ${prefill.pan}${prefill.dob ? '\nDOB: ' + prefill.dob : ''}\n\nIs this correct?`
-                : `Aapke number se linked details mili:\nNaam: ${res.name || '—'}\nPAN: ${prefill.pan}${prefill.dob ? '\nDOB: ' + prefill.dob : ''}\n\nKya ye sahi hai?`);
+                ? `I found these details linked to your number:\n${lines.join('\n')}\n\nIs this correct?`
+                : `Aapke number se linked details mili:\n${lines.join('\n')}\n\nKya ye sahi hai?`;
+            addBotMessage(intro);
             setCurrentStep('askPan');
           } else {
-            addBotMessage(getMessage('askPan', l));
+            // Phone-to-PAN API returned no PAN for this number — be
+            // explicit so the user knows why we're asking manually.
+            addBotMessage(l === 'hi'
+              ? "आपके नंबर से PAN नहीं मिल पाया — कृपया स्वयं अपना PAN साझा करें।"
+              : l === 'en'
+                ? "I couldn't find a PAN linked to your number automatically — please share your PAN."
+                : "Aapke number se PAN auto-fill nahi ho paaya — kripya apna PAN share karein.");
             setCurrentStep('askPan');
           }
           safeNavigate('PanVerification');
         }).catch((err) => {
           console.log('[FBot] phone-to-PAN failed:', err?.message);
-          // Non-fatal — just ask for PAN manually.
+          // Non-fatal — let the user know prefill failed and ask manually.
+          addBotMessage(l === 'hi'
+            ? `PAN ऑटो-फेच नहीं हो सका (${err?.message || 'सेवा अनुपलब्ध'})। कृपया स्वयं अपना PAN दर्ज करें।`
+            : l === 'en'
+              ? `Couldn't auto-fetch PAN (${err?.message || 'service unavailable'}). Please enter your PAN.`
+              : `PAN auto-fetch fail ho gaya (${err?.message || 'service down'}). Kripya apna PAN enter karein.`);
           addBotMessage(getMessage('askPan', l));
           setCurrentStep('askPan');
           safeNavigate('PanVerification');
