@@ -216,13 +216,154 @@ const MESSAGES = {
   },
 };
 
+// ─── Extended translations for additional Indic scripts ──────────────────────
+// Kept out of the main MESSAGES block to keep diffs readable. Any keys not
+// translated here fall through the FALLBACK_CHAIN below (typically → Hindi).
+const EXTENDED_TRANSLATIONS = {
+  bn: {
+    askNameFresh: "আপনার PAN কার্ডে যেমন আছে, সম্পূর্ণ নামটি কি জানাতে পারবেন?",
+    askPhone: "যাচাইয়ের জন্য আপনার মোবাইল নম্বর লাগবে। ভালো হয় যদি এই নম্বরটি আপনার PAN এবং ব্যাংক অ্যাকাউন্টের সঙ্গে লিঙ্কড থাকে।",
+    askOtp: "আপনার মোবাইলে একটি ৬ সংখ্যার OTP পাঠানো হয়েছে। দয়া করে সেটি শেয়ার করুন।",
+    askPan: "এখন পরিচয় যাচাইয়ের জন্য আপনার ১০ অক্ষরের PAN নম্বর প্রয়োজন।",
+    panVerified: "PAN যাচাই হয়েছে! ✅ ক্রেডিট চেক চলছে, কিছুক্ষণ অপেক্ষা করুন।",
+    creditPassed: "দারুণ খবর! আপনার ক্রেডিট চেক পাস হয়েছে। ✅ এখন আয় যাচাই করা যাক।",
+    askOccupation: "আপনার পেশা কী? আপনি কি বেতনভোগী নাকি স্বনিযুক্ত?",
+    askBankDetails: "অনুগ্রহ করে আপনার ব্যাংকের IFSC কোড এবং অ্যাকাউন্ট নম্বর শেয়ার করুন।",
+    kycStart: "এখন KYC করা যাক। আমি CKYC সুপারিশ করছি — এটাই সবচেয়ে দ্রুত। শুরু করব?",
+    kycOtp: "আপনার CKYC রেজিস্টার্ড মোবাইলে OTP পাঠানো হয়েছে। দয়া করে সেটি শেয়ার করুন।",
+    kycDone: "KYC সফল হয়েছে! ✅ পরবর্তী ধাপে যাওয়া যাক।",
+    selfieStart: "এখন ফেস যাচাইয়ের জন্য একটি স্পষ্ট সেলফি তুলুন।",
+    applicationComplete: "অভিনন্দন! 🎉 আপনার আবেদন সম্পূর্ণ হয়েছে।",
+    waiting: "একটু অপেক্ষা করুন, প্রসেস হচ্ছে... ⏳",
+    error: "কিছু ভুল হয়েছে। আবার চেষ্টা করুন অথবা 'help' লিখুন।",
+    invalidPhone: "দয়া করে ৬-৯ দিয়ে শুরু হওয়া ১০ অঙ্কের মোবাইল নম্বর দিন।",
+    invalidOtp: "দয়া করে আপনার মোবাইলে পাঠানো ৬ অঙ্কের OTP দিন।",
+    invalidPan: "দয়া করে একটি বৈধ PAN নম্বর দিন (যেমন ABCDE1234F)।",
+  },
+  ta: {
+    askNameFresh: "உங்கள் PAN அட்டையில் உள்ள முழுப் பெயரை சொல்ல முடியுமா?",
+    askPhone: "சரிபார்ப்புக்காக உங்கள் மொபைல் எண் தேவை. PAN மற்றும் வங்கிக் கணக்குடன் இணைக்கப்பட்ட எண் இருந்தால் சிறந்தது.",
+    askOtp: "உங்கள் மொபைலுக்கு 6-இலக்க OTP அனுப்பப்பட்டுள்ளது. தயவுசெய்து அதைப் பகிருங்கள்.",
+    askPan: "இப்போது அடையாள சரிபார்ப்புக்கு உங்கள் 10-எழுத்து PAN எண் தேவை.",
+    panVerified: "PAN சரிபார்க்கப்பட்டது! ✅ கிரெடிட் சரிபார்ப்பு நடக்கிறது, சில வினாடிகள் காத்திருக்கவும்.",
+    creditPassed: "நல்ல செய்தி! கிரெடிட் சரிபார்ப்பு வெற்றி பெற்றது. ✅ இப்போது வருமான சரிபார்ப்புக்கு செல்வோம்.",
+    askOccupation: "உங்கள் தொழில் என்ன? நீங்கள் சம்பளதாரரா அல்லது சுய-வேலையா?",
+    askBankDetails: "தயவுசெய்து உங்கள் வங்கி IFSC குறியீடு மற்றும் கணக்கு எண்ணைப் பகிரவும்.",
+    kycStart: "இப்போது KYC செய்வோம். CKYC பரிந்துரைக்கிறேன் — இதுவே வேகமானது. தொடங்கலாமா?",
+    kycOtp: "உங்கள் CKYC பதிவுசெய்த மொபைலுக்கு OTP அனுப்பப்பட்டுள்ளது. பகிரவும்.",
+    kycDone: "KYC வெற்றிகரமாக முடிந்தது! ✅ அடுத்த படிக்கு செல்வோம்.",
+    selfieStart: "இப்போது முக சரிபார்ப்புக்காக ஒரு தெளிவான செல்ஃபி எடுங்கள்.",
+    applicationComplete: "வாழ்த்துக்கள்! 🎉 உங்கள் விண்ணப்பம் முடிந்தது.",
+    waiting: "சிறிது காத்திருங்கள், செயலாக்கப்படுகிறது... ⏳",
+    error: "ஏதோ தவறு நடந்துவிட்டது. மீண்டும் முயற்சிக்கவும் அல்லது 'help' என தட்டச்சு செய்யவும்.",
+    invalidPhone: "6-9 வரையிலான எண்ணில் தொடங்கும் 10-இலக்க மொபைல் எண்ணை உள்ளிடவும்.",
+    invalidOtp: "உங்கள் மொபைலுக்கு அனுப்பப்பட்ட 6-இலக்க OTP உள்ளிடவும்.",
+    invalidPan: "சரியான PAN எண்ணை உள்ளிடவும் (உதா. ABCDE1234F).",
+  },
+  te: {
+    askNameFresh: "మీ PAN కార్డులో ఉన్నట్లుగా మీ పూర్తి పేరు చెప్పగలరా?",
+    askPhone: "వెరిఫికేషన్ కోసం మీ మొబైల్ నంబర్ అవసరం. PAN మరియు బ్యాంక్ ఖాతాతో లింక్ చేయబడిన నంబర్ అయితే ఉత్తమం.",
+    askOtp: "మీ మొబైల్‌కు 6-అంకెల OTP పంపబడింది. దయచేసి దానిని పంచుకోండి.",
+    askPan: "ఇప్పుడు గుర్తింపు ధృవీకరణ కోసం మీ 10-అక్షరాల PAN నంబర్ అవసరం.",
+    panVerified: "PAN ధృవీకరించబడింది! ✅ క్రెడిట్ చెక్ జరుగుతోంది, కొన్ని సెకన్లు వేచి ఉండండి.",
+    creditPassed: "శుభవార్త! మీ క్రెడిట్ చెక్ పాస్ అయింది. ✅ ఇప్పుడు ఆదాయ ధృవీకరణకు వెళ్దాం.",
+    askOccupation: "మీ వృత్తి ఏమిటి? మీరు జీతం పొందేవారా లేదా స్వ-ఉపాధి పొందేవారా?",
+    askBankDetails: "దయచేసి మీ బ్యాంక్ IFSC కోడ్ మరియు ఖాతా నంబర్ పంచుకోండి.",
+    kycStart: "ఇప్పుడు KYC చేద్దాం. నేను CKYC సిఫార్సు చేస్తున్నాను — ఇదే అత్యంత వేగవంతమైనది. ప్రారంభిద్దామా?",
+    kycOtp: "మీ CKYC నమోదిత మొబైల్‌కు OTP పంపబడింది. పంచుకోండి.",
+    kycDone: "KYC విజయవంతంగా పూర్తయింది! ✅ తదుపరి దశకు వెళ్దాం.",
+    selfieStart: "ఇప్పుడు ముఖ ధృవీకరణ కోసం స్పష్టమైన సెల్ఫీ తీసుకోండి.",
+    applicationComplete: "అభినందనలు! 🎉 మీ దరఖాస్తు పూర్తయింది.",
+    waiting: "దయచేసి వేచి ఉండండి, ప్రాసెస్ అవుతోంది... ⏳",
+    error: "ఏదో తప్పు జరిగింది. మళ్ళీ ప్రయత్నించండి లేదా 'help' టైప్ చేయండి.",
+    invalidPhone: "6-9 తో ప్రారంభమయ్యే 10-అంకెల మొబైల్ నంబర్ నమోదు చేయండి.",
+    invalidOtp: "మీ మొబైల్‌కు పంపబడిన 6-అంకెల OTP నమోదు చేయండి.",
+    invalidPan: "సరైన PAN నంబర్ నమోదు చేయండి (ఉదా. ABCDE1234F).",
+  },
+  mr: {
+    askNameFresh: "तुमच्या PAN कार्डवर असलेले तुमचे पूर्ण नाव सांगाल का?",
+    askPhone: "पडताळणीसाठी तुमचा मोबाइल नंबर हवा आहे. PAN आणि बँक खात्याशी लिंक केलेला नंबर असेल तर उत्तम.",
+    askOtp: "तुमच्या मोबाइलवर 6 अंकी OTP पाठवला आहे. कृपया तो शेअर करा.",
+    askPan: "आता ओळख पडताळणीसाठी तुमचा 10 अक्षरी PAN नंबर हवा.",
+    panVerified: "PAN पडताळला! ✅ क्रेडिट चेक चालू आहे, काही क्षण थांबा.",
+    creditPassed: "छान बातमी! तुमचा क्रेडिट चेक पास झाला. ✅ आता उत्पन्न पडताळणीकडे जाऊ.",
+    askOccupation: "तुमचा व्यवसाय काय आहे? तुम्ही पगारदार आहात की स्वयंरोजगार?",
+    askBankDetails: "कृपया तुमचा बँकेचा IFSC कोड आणि खाते क्रमांक शेअर करा.",
+    kycStart: "आता KYC करू. मी CKYC सुचवतो — हा सर्वात जलद मार्ग आहे. सुरू करू का?",
+    kycOtp: "तुमच्या CKYC नोंदणीकृत मोबाइलवर OTP पाठवला आहे. शेअर करा.",
+    kycDone: "KYC यशस्वी! ✅ पुढील टप्प्याकडे जाऊ.",
+    selfieStart: "आता चेहरा पडताळणीसाठी स्पष्ट सेल्फी घ्या.",
+    applicationComplete: "अभिनंदन! 🎉 तुमचा अर्ज पूर्ण झाला.",
+    waiting: "कृपया थांबा, प्रक्रिया सुरू आहे... ⏳",
+    error: "काहीतरी चुकले. कृपया पुन्हा प्रयत्न करा किंवा 'help' टाइप करा.",
+    invalidPhone: "कृपया 6-9 ने सुरू होणारा 10 अंकी मोबाइल नंबर टाका.",
+    invalidOtp: "कृपया तुमच्या मोबाइलवर पाठवलेला 6 अंकी OTP टाका.",
+    invalidPan: "कृपया वैध PAN नंबर टाका (उदा. ABCDE1234F).",
+  },
+  gu: {
+    askNameFresh: "તમારા PAN કાર્ડ પર જે નામ છે તે પૂરું નામ જણાવશો?",
+    askPhone: "વેરિફિકેશન માટે તમારો મોબાઈલ નંબર જોઈશે. PAN અને બેંક ખાતા સાથે લિંક કરેલ નંબર હોય તો સારું.",
+    askOtp: "તમારા મોબાઈલ પર 6-અંકનો OTP મોકલ્યો છે. કૃપા કરીને તે શેર કરો.",
+    askPan: "હવે ઓળખ વેરિફિકેશન માટે તમારો 10-અક્ષરનો PAN નંબર જોઈએ.",
+    panVerified: "PAN વેરિફાઈ થયો! ✅ ક્રેડિટ ચેક ચાલુ છે, થોડીવાર રાહ જુઓ.",
+    creditPassed: "સરસ સમાચાર! તમારો ક્રેડિટ ચેક પાસ થયો. ✅ હવે આવક વેરિફિકેશન કરીએ.",
+    askOccupation: "તમારો વ્યવસાય શું છે? તમે પગારદાર છો કે સ્વ-રોજગાર?",
+    askBankDetails: "કૃપા કરીને તમારો બેંક IFSC કોડ અને ખાતા નંબર શેર કરો.",
+    kycStart: "હવે KYC કરીએ. હું CKYC ની ભલામણ કરું છું — તે સૌથી ઝડપી છે. શરૂ કરું?",
+    kycOtp: "તમારા CKYC રજિસ્ટર્ડ મોબાઈલ પર OTP મોકલ્યો છે. શેર કરો.",
+    kycDone: "KYC સફળતાપૂર્વક પૂર્ણ! ✅ આગળના પગલા પર જઈએ.",
+    selfieStart: "હવે ફેસ વેરિફિકેશન માટે સ્પષ્ટ સેલ્ફી લો.",
+    applicationComplete: "અભિનંદન! 🎉 તમારી અરજી પૂર્ણ થઈ.",
+    waiting: "કૃપા કરીને રાહ જુઓ, પ્રોસેસ થઈ રહ્યું છે... ⏳",
+    error: "કંઈક ખોટું થયું. કૃપા કરીને ફરી પ્રયાસ કરો અથવા 'help' લખો.",
+    invalidPhone: "કૃપા કરીને 6-9 થી શરૂ થતો 10-અંકનો મોબાઈલ નંબર દાખલ કરો.",
+    invalidOtp: "કૃપા કરીને તમારા મોબાઈલ પર મોકલેલ 6-અંકનો OTP દાખલ કરો.",
+    invalidPan: "કૃપા કરીને માન્ય PAN નંબર દાખલ કરો (જેમ કે ABCDE1234F).",
+  },
+};
+
+// Merge extended translations into MESSAGES (idempotent at import-time)
+for (const [lang, entries] of Object.entries(EXTENDED_TRANSLATIONS)) {
+  for (const [key, translation] of Object.entries(entries)) {
+    if (!MESSAGES[key]) MESSAGES[key] = {};
+    MESSAGES[key][lang] = translation;
+  }
+}
+
+// Per-language fallback chain. For Indic-script languages we prefer Hindi
+// over Hinglish because Devanagari / Bengali / Tamil / etc. readers are
+// much more likely to read Hindi than romanized Hinglish. Hinglish / en
+// users keep their existing chain.
+const FALLBACK_CHAIN = {
+  en:       ['en'],
+  hinglish: ['hinglish', 'en'],
+  hi:       ['hi', 'hinglish', 'en'],
+  bn:       ['bn', 'hi', 'hinglish', 'en'],
+  gu:       ['gu', 'hi', 'hinglish', 'en'],
+  kn:       ['kn', 'hi', 'hinglish', 'en'],
+  ml:       ['ml', 'hi', 'hinglish', 'en'],
+  mr:       ['mr', 'hi', 'hinglish', 'en'],
+  or:       ['or', 'hi', 'hinglish', 'en'],
+  pa:       ['pa', 'hi', 'hinglish', 'en'],
+  ta:       ['ta', 'hi', 'hinglish', 'en'],
+  te:       ['te', 'hi', 'hinglish', 'en'],
+  as:       ['as', 'bn', 'hi', 'hinglish', 'en'],
+};
+
 /**
- * Get a message in the selected language, with fallback to hinglish → en.
+ * Get a message in the selected language, walking a language-specific
+ * fallback chain. Previously every missing translation fell straight to
+ * Hinglish, which was confusing for users who picked a native Indic
+ * script — they now get Hindi before Hinglish.
  */
 export function getMessage(key, lang = 'en', replacements = {}) {
   const msgs = MESSAGES[key];
   if (!msgs) return '';
-  let msg = msgs[lang] || msgs.hinglish || msgs.en || '';
+  const chain = FALLBACK_CHAIN[lang] || ['en'];
+  let msg = '';
+  for (const code of chain) {
+    if (msgs[code]) { msg = msgs[code]; break; }
+  }
   for (const [k, v] of Object.entries(replacements)) {
     msg = msg.replace(`{${k}}`, v || '');
   }

@@ -162,6 +162,26 @@ const dispatchLoanUpdate = (dispatch, action) => {
   }
 };
 
+// Screens nested inside HomeStack (see AppNavigator). Navigating to these
+// from a different tab requires going through the 'Home' tab first, i.e.
+// navigation.navigate('Home', { screen: 'PanVerification' }). Using a bare
+// navigate('PanVerification') from e.g. ApplyTab silently fails and the
+// screen never mounts — so the bot's listener never fires and APIs are
+// never called.
+const HOME_STACK_SCREENS = new Set([
+  'InstituteSelection',
+  'StudentDetails',
+  'BorrowerSelection',
+  'PanVerification',
+  'IncomeVerification',
+  'KycVerification',
+  'SelfieVerification',
+  'BankDetails',
+  'VkycScreen',
+  'EnachEsign',
+  'LoanSuccess',
+]);
+
 // Route an FBot step to the customer-facing screen that collects that step's
 // data. Used so the bot can navigate the user to the right screen when a
 // step begins (e.g. when we reach askPan, open the PAN screen).
@@ -208,17 +228,23 @@ const FBot = () => {
     postAction(action);
   }, [dispatch, postAction]);
 
-  // Attempt to navigate to a screen. Works from any tab — if the target
-  // lives inside a sub-stack, we try the stack's screen name directly
-  // (the tab navigator resolves the right stack).
+  // Navigate to a screen robustly across tabs. Loan-flow screens live
+  // inside the Home tab's stack; from any other tab, the correct call is
+  // navigate('Home', { screen: X }). Plain navigate(X) silently fails
+  // there, which is why bot listeners weren't firing and APIs weren't
+  // being triggered when the user chatted from another tab.
   const safeNavigate = useCallback((screen) => {
     if (!screen || !navigation?.navigate) return;
+    if (HOME_STACK_SCREENS.has(screen)) {
+      try {
+        navigation.navigate('Home', { screen });
+        return;
+      } catch (_) { /* fall through */ }
+    }
     try {
       navigation.navigate(screen);
     } catch (_) {
-      // Best-effort — if the user is on a tab that doesn't expose this
-      // screen, fall back to the Apply tab which owns the loan stack.
-      try { navigation.navigate('ApplyTab'); } catch (_) {}
+      try { navigation.navigate('Home', { screen }); } catch (_) {}
     }
   }, [navigation]);
   const [visible, setVisible] = useState(false);
@@ -368,28 +394,22 @@ const FBot = () => {
     if (!greet) return;
     addBotMessage(getMessage('welcome', langCode));
     setTimeout(() => {
-      // If no application is in progress, offer to start one. Otherwise
-      // resume by asking for the name (prefilled when we already have it).
-      if (!hasActiveApplication()) {
-        // Inline the ask-start prompt; handleDetected/processStep react via
-        // the 'askStart' step below.
-        const lg = langCode;
-        const lines = {
-          en: "I can help you start a new loan application — shall we begin?",
-          hinglish: "Main ek nayi loan application start karne mein madad kar sakta hoon — shuru karein?",
-          hi: "मैं एक नई लोन एप्लीकेशन शुरू करने में मदद कर सकता हूँ — शुरू करें?",
-        };
-        addBotMessage(lines[lg] || lines.hinglish);
-        setCurrentStep('askStart');
-        return;
-      }
-      const prefillName = state.borrowerDetails?.name || user?.name || '';
-      if (prefillName) {
-        addBotMessage(getMessage('askName', langCode, { prefillName }));
-      } else {
-        addBotMessage(getMessage('askNameFresh', langCode));
-      }
-      setCurrentStep('askName');
+      // Always enter askStart — the chips adapt based on whether an
+      // application already exists (Resume / Start-new / No).
+      const lg = langCode;
+      const promptLines = hasActiveApplication()
+        ? {
+            en: "You have an application in progress. Would you like me to continue where you left off?",
+            hinglish: "Aapki ek application chal rahi hai. Kya main wahan se continue karoon jahan aap chhoda tha?",
+            hi: "आपकी एक एप्लीकेशन चल रही है। क्या मैं वहीं से आगे बढ़ूँ जहाँ आपने छोड़ा था?",
+          }
+        : {
+            en: "I can help you start a new loan application — shall we begin?",
+            hinglish: "Main ek nayi loan application start karne mein madad kar sakta hoon — shuru karein?",
+            hi: "मैं एक नई लोन एप्लीकेशन शुरू करने में मदद कर सकता हूँ — शुरू करें?",
+          };
+      addBotMessage(promptLines[lg] || promptLines.hinglish);
+      setCurrentStep('askStart');
     }, 1200);
   };
 
@@ -406,6 +426,7 @@ const FBot = () => {
         ? getMessage('askName', l, { prefillName })
         : getMessage('askNameFresh', l));
       setCurrentStep('askName');
+      safeNavigate(screenForStep('askName'));
     }, 800);
   };
 
@@ -473,7 +494,17 @@ const FBot = () => {
     switch (currentStep) {
       case 'askStart':
         if (detected.type === 'confirm' || detected.type === 'text') {
-          startNewApplication();
+          if (hasActiveApplication()) {
+            // Resume the existing application from where it left off.
+            const prefillName = state.borrowerDetails?.name || user?.name || '';
+            addBotMessage(prefillName
+              ? getMessage('askName', l, { prefillName })
+              : getMessage('askNameFresh', l));
+            setCurrentStep('askName');
+            safeNavigate(screenForStep('askName'));
+          } else {
+            startNewApplication();
+          }
         } else if (detected.type === 'deny') {
           addBotMessage(tr('noThanks'));
         }
