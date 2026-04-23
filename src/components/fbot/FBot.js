@@ -12,6 +12,7 @@ import { useAuth } from '../../store/AuthContext';
 import { smsService } from '../../services/smsService';
 import { kycService } from '../../services/kycService';
 import { signzyService } from '../../services/signzyService';
+import { bankService } from '../../services/bankService';
 import {
   getMessage, detectInputType, LANGUAGES, FBOT_STEPS,
   getProgress, getProgressLabel, getPreviousStep,
@@ -315,6 +316,11 @@ const FBot = () => {
   const [typing, setTyping] = useState(false);
   const slideAnim = useRef(new Animated.Value(SCREEN_H)).current;
   const flatListRef = useRef(null);
+  // Holds CKYC initiation handles between kycStart (sendOtp) and kycOtp
+  // (validateOtp). Stored on a ref rather than state so React doesn't
+  // re-render on every mutation and so stale-closure issues around the
+  // async OTP flow don't drop the requestId.
+  const ckycRef = useRef({ requestId: '', referenceNo: '' });
   const [minimized, setMinimized] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [unread, setUnread] = useState(0);
@@ -493,8 +499,20 @@ const FBot = () => {
     return lines[key]?.[lg] || lines[key]?.hinglish || lines[key]?.en || '';
   };
 
-  // True if the user has an application in progress we can resume into.
-  const hasActiveApplication = () => !!(state.loanType || state.instituteDetails || state.borrowerDetails);
+  // True if the user has an application the bot can resume into. Excludes
+  // terminal (submitted / disbursed / closed), rejected (credit_check_failed /
+  // kyc_failed / not_eligible) and explicitly-discarded drafts so that a
+  // user who's wiped their last app gets offered "start new" rather than
+  // a broken "continue".
+  const hasActiveApplication = () => {
+    const dead = new Set([
+      'submitted', 'disbursed', 'active', 'closed',
+      'credit_check_failed', 'kyc_failed', 'not_eligible',
+      'discarded',
+    ]);
+    if (state.status && dead.has(state.status)) return false;
+    return !!(state.loanType || state.instituteDetails || state.borrowerDetails);
+  };
 
   // Inspect the live loan state and return the bot step that corresponds
   // to the first piece of data still missing. Mirrors the real loan-screen
@@ -1312,39 +1330,155 @@ const FBot = () => {
         }
         break;
 
-      case 'askAccountNumber':
-        if (detected.type === 'accountNumber') {
-          onAction?.({ type: 'SET_ACCOUNT', value: detected.value });
+      case 'askAccountNumber': {
+        if (detected.type !== 'accountNumber') break;
+        onAction?.({ type: 'SET_ACCOUNT', value: detected.value });
+        addBotMessage(getMessage('waiting', l));
+        // Run the real Signzy hybrid penny drop against the account the
+        // user just typed, using the verified name on state. If the
+        // account passes, dispatch SET_PENNY_DROP with the result so the
+        // downstream screens (IncomeVerification etc.) see it just like
+        // they would from their own flow.
+        const ifscForPd = state.bankDetails?.ifsc || '';
+        const nameForPd = state.panDetails?.name || state.borrowerDetails?.name || '';
+        const phoneForPd = state.borrowerDetails?.phone || '';
+        bankService.pennyDrop({
+          accountNumber: detected.value,
+          ifsc: ifscForPd,
+          name: nameForPd,
+          mobile: phoneForPd,
+        }).then((pd) => {
+          dispatch({ type: 'SET_PENNY_DROP', payload: pd });
           onAction?.({ type: 'VERIFY_BANK' });
+          if (pd?.verified) {
+            addBotMessage(l === 'hi'
+              ? `बैंक सत्यापित ✅\nखाताधारक: ${pd.accountHolderName || '—'}\nनाम मिलान: ${pd.nameMatch ? 'हाँ' : 'आंशिक'}`
+              : l === 'en'
+                ? `Bank verified ✅\nAccount holder: ${pd.accountHolderName || '—'}\nName match: ${pd.nameMatch ? 'yes' : 'partial'}`
+                : `Bank verify ho gaya ✅\nAccount holder: ${pd.accountHolderName || '—'}\nName match: ${pd.nameMatch ? 'haan' : 'partial'}`);
+            setTimeout(() => advanceTo('kycStart'), 1200);
+          } else {
+            addBotMessage(l === 'hi'
+              ? 'बैंक खाता सत्यापित नहीं हो पाया। कृपया सही IFSC और खाता संख्या दोबारा बताएँ।'
+              : l === 'en'
+                ? "Bank verification failed. Please re-enter a correct IFSC and account number."
+                : 'Bank verify nahi ho paaya. Sahi IFSC aur account number dobara bataiye.');
+            setCurrentStep('askBankDetails');
+          }
+        }).catch((err) => {
+          console.log('[FBot] pennyDrop failed:', err?.message);
           addBotMessage(l === 'hi'
-            ? 'बैंक डिटेल्स सेव हो गए! ✅ अब KYC करते हैं...'
+            ? `बैंक सत्यापन विफल: ${err?.message || 'पुनः प्रयास करें'}`
             : l === 'en'
-              ? 'Bank details saved! ✅ Now let\'s do KYC...'
-              : 'Bank details save ho gaye! ✅ Ab KYC karte hain...');
-          setTimeout(() => advanceTo('kycStart'), 1500);
-        }
+              ? `Bank verification failed: ${err?.message || 'please try again'}`
+              : `Bank verify fail: ${err?.message || 'dobara try karein'}`);
+          setCurrentStep('askBankDetails');
+        });
         break;
+      }
 
       case 'kycStart':
         if (detected.type === 'confirm' || detected.type === 'text') {
           onAction?.({ type: 'START_KYC' });
           addBotMessage(getMessage('waiting', l));
-          setTimeout(() => advanceTo('kycOtp'), 1800);
+          // Kick off the real CKYC flow: search CERSAI → trigger OTP to
+          // the CKYC-registered mobile. Previously the bot just waited
+          // 1.8s and advanced, no API ever fired.
+          const panForKyc = state.panDetails?.panNumber || state.borrowerDetails?.pan || '';
+          const phoneForKyc = state.borrowerDetails?.phone || recall('userPhone') || '';
+          const nameForKyc = state.panDetails?.name || state.borrowerDetails?.name || recall('userName') || '';
+          if (!panForKyc || !phoneForKyc || !nameForKyc) {
+            addBotMessage(l === 'hi'
+              ? 'CKYC शुरू करने के लिए PAN, नाम और फोन चाहिए — कुछ छूट गया है।'
+              : l === 'en'
+                ? "I can't start CKYC without PAN, name and phone on file — something's missing."
+                : 'CKYC ke liye PAN, naam aur phone chahiye — kuch missing hai.');
+            break;
+          }
+          kycService.initiateCkyc({
+            pan: panForKyc,
+            name: nameForKyc,
+            phone: phoneForKyc,
+            loanId: state.applicationId || '',
+          }).then((res) => {
+            ckycRef.current = {
+              requestId: res.requestId || '',
+              referenceNo: res.ckycReferNo || '',
+            };
+            dispatch({ type: 'SET_KYC_METHOD', payload: 'ckyc' });
+            addBotMessage(getMessage('kycOtp', l));
+            setCurrentStep('kycOtp');
+          }).catch((err) => {
+            console.log('[FBot] initiateCkyc failed:', err?.message);
+            addBotMessage(l === 'hi'
+              ? `CKYC शुरू नहीं हो सका: ${err?.message || 'DigiLocker आज़माएँ'}`
+              : l === 'en'
+                ? `CKYC couldn't start: ${err?.message || 'try DigiLocker instead'}`
+                : `CKYC start nahi ho saka: ${err?.message || 'DigiLocker try karein'}`);
+            // Fall back to selfie/enach flow so the user isn't stuck.
+            setTimeout(() => advanceTo('selfieStart'), 800);
+          });
         }
         break;
 
-      case 'kycOtp':
-        if (detected.type === 'otp') {
-          onAction?.({ type: 'VERIFY_KYC_OTP', value: detected.value });
-          addBotMessage(getMessage('waiting', l));
-          setTimeout(() => {
-            addBotMessage(getMessage('kycDone', l));
-            advanceTo('selfieStart');
-          }, 1800);
-        } else {
-          addBotMessage(invalid('invalidOtp'));
+      case 'kycOtp': {
+        const lowerText = (rawText || '').toLowerCase();
+        if (/resend|phir bhejo|dobara|नया otp|new otp/.test(lowerText)) {
+          if (!ckycRef.current.requestId) {
+            addBotMessage(l === 'hi' ? 'CKYC सत्र खो गया — कृपया KYC फिर शुरू करें।'
+              : 'CKYC session lost — please restart KYC.');
+            setCurrentStep('kycStart');
+            break;
+          }
+          const phoneForKyc = state.borrowerDetails?.phone || '';
+          const panForKyc = state.panDetails?.panNumber || state.borrowerDetails?.pan || '';
+          kycService.resendCkycOtp({ pan: panForKyc, phone: phoneForKyc, requestId: ckycRef.current.requestId })
+            .then(() => addBotMessage(l === 'hi'
+              ? 'नया OTP भेज दिया। 6 अंकों का OTP बताइए।'
+              : l === 'en'
+                ? 'A new OTP has been sent. Share the 6-digit code.'
+                : 'Naya OTP bhej diya. 6-digit OTP share karein.'))
+            .catch((err) => addBotMessage(`${err?.message || 'Resend failed'}`));
+          break;
         }
+        if (detected.type !== 'otp') {
+          addBotMessage(invalid('invalidOtp'));
+          break;
+        }
+        if (!ckycRef.current.requestId || !ckycRef.current.referenceNo) {
+          addBotMessage(l === 'hi' ? 'CKYC सत्र नहीं मिला — कृपया KYC फिर शुरू करें।'
+            : 'CKYC session missing — please restart KYC.');
+          setCurrentStep('kycStart');
+          break;
+        }
+        onAction?.({ type: 'VERIFY_KYC_OTP', value: detected.value });
+        addBotMessage(getMessage('waiting', l));
+        const panForVerify = state.panDetails?.panNumber || state.borrowerDetails?.pan || '';
+        const phoneForVerify = state.borrowerDetails?.phone || '';
+        kycService.verifyCkycOtp({
+          pan: panForVerify,
+          phone: phoneForVerify,
+          otp: detected.value,
+          requestId: ckycRef.current.requestId,
+          referenceNo: ckycRef.current.referenceNo,
+        }).then((kyc) => {
+          // Persist the full CKYC payload so the review screens and
+          // selfie liveness step see the same data the real KYC flow
+          // would produce.
+          dispatch({ type: 'SET_KYC_DATA', payload: kyc });
+          ckycRef.current = { requestId: '', referenceNo: '' };
+          addBotMessage(getMessage('kycDone', l));
+          advanceTo('selfieStart');
+        }).catch((err) => {
+          console.log('[FBot] verifyCkycOtp failed:', err?.message);
+          addBotMessage(l === 'hi'
+            ? `CKYC OTP गलत: ${err?.message || 'पुनः प्रयास करें'}`
+            : l === 'en'
+              ? `CKYC OTP failed: ${err?.message || 'try again'}`
+              : `CKYC OTP galat: ${err?.message || 'dobara try karein'}`);
+        });
         break;
+      }
 
       case 'selfieStart':
         onAction?.({ type: 'START_SELFIE' });
