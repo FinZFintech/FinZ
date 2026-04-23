@@ -66,12 +66,12 @@ const LIGHT_COLORS = {
 const ThemeContext = createContext(null);
 
 export const ThemeProvider = ({ children }) => {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem('app_theme').then((val) => {
-      if (val === 'light') setIsDark(false);
+      if (val === 'dark') setIsDark(true);
       setIsLoaded(true);
     }).catch(() => setIsLoaded(true));
   }, []);
