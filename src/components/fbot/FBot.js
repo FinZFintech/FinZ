@@ -303,10 +303,15 @@ const FBot = () => {
     }).start();
   }, [visible]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom whenever messages change, on typing updates, and
+  // — importantly — after the panel opens from a collapsed state with
+  // hydrated history, so the user sees the last message, not the first.
   useEffect(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-  }, [messages, typing]);
+    if (!visible || minimized) return;
+    const t1 = setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 50);
+    const t2 = setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 250);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [messages, typing, visible, minimized, hydrated]);
 
   // Start conversation when language is selected
   // Static translations for bot prompts that aren't in the engine's MESSAGES
@@ -803,6 +808,8 @@ const FBot = () => {
             renderItem={renderMessage}
             contentContainerStyle={styles.messageList}
             showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
             ListFooterComponent={typing ? (
               <View style={[styles.msgRow, styles.msgRowBot]}>
                 <Text style={styles.avatar}>{BOT_AVATAR}</Text>
