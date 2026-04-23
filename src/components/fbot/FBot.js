@@ -7,12 +7,14 @@ import { useTheme } from '../../store/ThemeContext';
 import { useLoan } from '../../store/LoanContext';
 import { useAuth } from '../../store/AuthContext';
 import { getMessage, detectInputType, LANGUAGES, FBOT_STEPS } from './FBotEngine';
+import { useFBot } from './FBotContext';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const BOT_AVATAR = '🤖';
 const USER_AVATAR = '👤';
 
-const FBot = ({ onAction }) => {
+const FBot = () => {
+  const { postAction: onAction } = useFBot();
   const { colors } = useTheme();
   const { state } = useLoan();
   const { user } = useAuth();
