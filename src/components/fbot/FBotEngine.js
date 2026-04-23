@@ -26,6 +26,16 @@ const LANGUAGES = [
 // others get the same structure — in production these would come from a
 // translation API or JSON file)
 const MESSAGES = {
+  askBorrowerType: {
+    en: "Who will be the borrower for this education loan — the student themselves, or a parent / guardian?",
+    hinglish: "Is education loan ka borrower kaun hoga — student khud, ya parent / guardian?",
+    hi: "इस एजुकेशन लोन का उधारकर्ता कौन होगा — छात्र स्वयं, या माता-पिता / संरक्षक?",
+  },
+  askRelationship: {
+    en: "What is your relationship with the student? (Father / Mother / Guardian)",
+    hinglish: "Student se aapka rishta kya hai? (Pita / Mata / Sanrakshak)",
+    hi: "छात्र के साथ आपका रिश्ता क्या है? (पिता / माता / संरक्षक)",
+  },
   welcome: {
     en: "Hi! I'm FBot, your loan application assistant. I'll help you complete your application step by step. Let's get started! 🚀",
     hinglish: "Namaste! Main FBot hoon, aapka loan application assistant. Main aapki application complete karne mein help karunga. Chaliye shuru karte hain! 🚀",
@@ -497,6 +507,8 @@ export function detectInputType(text) {
  */
 export const FBOT_STEPS = [
   'welcome',
+  'askBorrowerType',
+  'askRelationship',
   'askName',
   'askPhone',
   'askOtp',
