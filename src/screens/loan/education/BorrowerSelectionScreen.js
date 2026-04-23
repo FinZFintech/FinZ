@@ -21,6 +21,7 @@ import { smsService } from '../../../services/smsService';
 import { signzyService } from '../../../services/signzyService';
 import { useLoan } from '../../../store/LoanContext';
 import { useAuth } from '../../../store/AuthContext';
+import { useFBot } from '../../../components/fbot/FBotContext';
 import {
   formatCurrency,
   calculateEmi,
@@ -33,6 +34,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const styles = getStyles(colors);
   const { state, dispatch } = useLoan();
   const { user } = useAuth();
+  const { registerListener } = useFBot();
   const student = state.studentDetails;
 
   // ── Restore from persisted state so the user resumes where they left off ──
@@ -111,6 +113,33 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       });
     }, 1000);
   };
+
+  // ── FBot action listener — fills form fields from chat ──
+  useEffect(() => {
+    if (!borrowerType) setBorrowerType('self');
+    return registerListener('borrowerScreen', (action) => {
+      switch (action.type) {
+        case 'SET_NAME':
+          setBorrowerName(action.value || '');
+          break;
+        case 'SET_PHONE':
+          setBorrowerPhone(action.value || '');
+          break;
+        case 'SEND_OTP':
+          if (action.value && action.value.length === 10) {
+            setBorrowerPhone(action.value);
+            handleVerifyPhone();
+          }
+          break;
+        case 'VERIFY_OTP':
+          if (action.value && action.value.length === 6) {
+            setOtp(action.value);
+            setTimeout(() => handleVerifyOtp(), 100);
+          }
+          break;
+      }
+    });
+  }, [registerListener, borrowerType]);
 
   const fetchLoanProducts = async () => {
     if (state.instituteDetails?.isManual || !state.instituteDetails?.id) {
