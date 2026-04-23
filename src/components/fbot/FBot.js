@@ -394,6 +394,35 @@ const FBot = () => {
     }).start();
   }, [visible]);
 
+  // Every time the panel opens after hydration, offer the continue / start
+  // new / help choice if the user has a persisted step and there's either
+  // an active application OR none. Without this the user gets stuck at
+  // whatever step was persisted from the last session with no way to say
+  // "actually, start over". Only fires once per panel-open so we don't
+  // pester a user mid-reply.
+  const openPromptRef = useRef(false);
+  useEffect(() => {
+    if (!visible || !hydrated || !lang) { openPromptRef.current = false; return; }
+    if (openPromptRef.current) return;
+    openPromptRef.current = true;
+    // Don't interrupt if the user is on askStart already or hasn't started.
+    if (currentStep === 'askStart' || currentStep === 'welcome') return;
+    const lg = lang;
+    const prompt = hasActiveApplication()
+      ? {
+          en: "Welcome back. Would you like to continue your application, start a new one, or ask me something else?",
+          hinglish: "Wapas aane ke liye shukriya. Application continue karein, nayi start karein, ya kuch aur poochein?",
+          hi: "वापस आने के लिए धन्यवाद। एप्लीकेशन जारी रखें, नई शुरू करें, या कुछ और पूछें?",
+        }
+      : {
+          en: "Shall we start a new loan application, or do you need help with something?",
+          hinglish: "Nayi loan application start karein, ya kuch aur madad chahiye?",
+          hi: "नई एप्लीकेशन शुरू करें, या कुछ और मदद चाहिए?",
+        };
+    addBotMessage(prompt[lg] || prompt.hinglish);
+    setCurrentStep('askStart');
+  }, [visible, hydrated, lang]);
+
   // Auto-scroll to bottom whenever messages change, on typing updates, and
   // — importantly — after the panel opens from a collapsed state with
   // hydrated history, so the user sees the last message, not the first.

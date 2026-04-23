@@ -138,17 +138,18 @@ const BorrowerSelectionScreen = ({ navigation }) => {
           }
           break;
         case 'PHONE_VERIFIED':
-          // Bot already called smsService.verifyOtp successfully — just
-          // sync the screen's local state (and trigger its own PAN prefill
-          // chain). Do NOT call smsService.verifyOtp again; the OTP has
-          // been consumed and would throw.
+          // Bot already called smsService.verifyOtp successfully AND ran
+          // phone-to-PAN on its own. Just sync the screen's local state —
+          // do NOT call smsService.verifyOtp again (OTP already consumed)
+          // and do NOT re-run runPhonePrefillAfterOtp (fires phone-to-PAN
+          // a second time, which races with the bot's call and yields
+          // stale writes).
           if (action.value && action.value.length === 10) {
             setBorrowerPhone(action.value);
           }
           setPhoneVerified(true);
           setShowOtp(false);
           setOtpError('');
-          try { runPhonePrefillAfterOtp?.(); } catch (_) { /* noop */ }
           break;
       }
     });

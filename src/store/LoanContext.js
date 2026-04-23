@@ -319,7 +319,11 @@ const loanReducer = (state, action) => {
       next = { ...state, borrowerType: action.payload };
       break;
     case 'SET_BORROWER_DETAILS':
-      next = { ...state, borrowerDetails: action.payload };
+      // Merge with existing instead of replacing. Partial updates (from
+      // the bot, for example) otherwise wipe sibling fields — e.g. a
+      // {name} dispatch erased the phone / dob / pan that were already
+      // captured on state.
+      next = { ...state, borrowerDetails: { ...(state.borrowerDetails || {}), ...action.payload } };
       break;
     case 'SET_PRODUCT':
       next = { ...state, selectedProduct: action.payload };
@@ -373,7 +377,9 @@ const loanReducer = (state, action) => {
       next = { ...state, selfieData: action.payload };
       break;
     case 'SET_BANK_DETAILS':
-      next = { ...state, bankDetails: action.payload };
+      // Merge, same reasoning as SET_BORROWER_DETAILS — partial updates
+      // shouldn't erase sibling fields (ifsc vs accountNumber etc.).
+      next = { ...state, bankDetails: { ...(state.bankDetails || {}), ...action.payload } };
       break;
     case 'SET_PENNY_DROP':
       next = { ...state, pennyDropResult: action.payload };
