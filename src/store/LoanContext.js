@@ -45,6 +45,21 @@ const TERMINAL_STATUSES = new Set([
   LOAN_STATUS.CLOSED,
 ]);
 
+// ─── Discarded status: customer explicitly dropped the application ───────────
+// Admin / sales still see these in the queue (via savedApplications) but the
+// customer must not — they wouldn't recognize a draft they threw away.
+const DISCARDED_STATUSES = new Set([
+  LOAN_STATUS.DISCARDED,
+]);
+
+// Is this app something the customer can still resume?
+function isResumable(app) {
+  return app && app.status
+      && !TERMINAL_STATUSES.has(app.status)
+      && !REJECTED_STATUSES.has(app.status)
+      && !DISCARDED_STATUSES.has(app.status);
+}
+
 // ─── Actual screen flow (education loan) ─────────────────────────────────────
 //
 //  Step 0: InstituteSelection  → dispatches SET_INSTITUTE, SET_LOAN_TYPE
@@ -548,9 +563,13 @@ export const LoanProvider = ({ children }) => {
       const apps = await loadAllApplications();
       setSavedApplications(apps);
 
-      // Pick only apps the customer can resume
+      // Pick only apps the customer can resume — terminal / rejected stay
+      // visible to admin via savedApplications, but discarded drafts are
+      // hidden from the customer (they explicitly threw them away).
       const resumable = apps.filter(
-        (a) => !TERMINAL_STATUSES.has(a.status) && !REJECTED_STATUSES.has(a.status),
+        (a) => !TERMINAL_STATUSES.has(a.status)
+            && !REJECTED_STATUSES.has(a.status)
+            && !DISCARDED_STATUSES.has(a.status),
       );
 
       if (resumable.length > 0) {
@@ -560,7 +579,9 @@ export const LoanProvider = ({ children }) => {
         rawDispatch({ type: 'RESTORE', payload: sorted[0] });
         setHasSavedApplication(true);
       } else {
-        setHasSavedApplication(apps.length > 0);
+        // Only non-resumable drafts (terminal / rejected / discarded) in
+        // storage — the customer has no active work to surface.
+        setHasSavedApplication(false);
       }
       setIsLoaded(true);
     })();
@@ -586,10 +607,12 @@ export const LoanProvider = ({ children }) => {
         return [...prev, state];
       });
     } else {
-      // Check if other apps remain
+      // Check if any *resumable* apps remain — terminal / rejected /
+      // discarded apps still live in storage for admins but must not
+      // surface the "resume draft" UI to the customer.
       setSavedApplications((prev) => {
         const remaining = prev.filter((a) => a.applicationId !== state.applicationId);
-        setHasSavedApplication(remaining.length > 0);
+        setHasSavedApplication(remaining.some(isResumable));
         return remaining;
       });
     }
@@ -604,7 +627,7 @@ export const LoanProvider = ({ children }) => {
         removeApplicationFromList(appId);
         setSavedApplications((prev) => {
           const remaining = prev.filter((a) => a.applicationId !== appId);
-          setHasSavedApplication(remaining.length > 0);
+          setHasSavedApplication(remaining.some(isResumable));
           return remaining;
         });
       }
@@ -614,7 +637,10 @@ export const LoanProvider = ({ children }) => {
 
   // Resume info for the current active application
   const getResumeInfo = useCallback(() => {
-    if (!state.status || REJECTED_STATUSES.has(state.status) || TERMINAL_STATUSES.has(state.status)) {
+    if (!state.status
+        || REJECTED_STATUSES.has(state.status)
+        || TERMINAL_STATUSES.has(state.status)
+        || DISCARDED_STATUSES.has(state.status)) {
       return null;
     }
     return {
@@ -631,9 +657,13 @@ export const LoanProvider = ({ children }) => {
     };
   }, [state]);
 
-  // Get resume info for any saved application
+  // Get resume info for any saved application. Returns null for discarded
+  // drafts so the customer never sees an application they threw away.
   const getResumeInfoForApp = useCallback((app) => {
-    if (!app.status || REJECTED_STATUSES.has(app.status) || TERMINAL_STATUSES.has(app.status)) {
+    if (!app.status
+        || REJECTED_STATUSES.has(app.status)
+        || TERMINAL_STATUSES.has(app.status)
+        || DISCARDED_STATUSES.has(app.status)) {
       return null;
     }
     return {
@@ -676,7 +706,7 @@ export const LoanProvider = ({ children }) => {
     }
     setSavedApplications((prev) => {
       const remaining = prev.filter((a) => a.applicationId !== applicationId);
-      setHasSavedApplication(remaining.length > 0);
+      setHasSavedApplication(remaining.some(isResumable));
       return remaining;
     });
     // If we just discarded the active one, reset state
