@@ -9,6 +9,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../store/ThemeContext';
 import { useLoan } from '../../store/LoanContext';
 import { useAuth } from '../../store/AuthContext';
+import { smsService } from '../../services/smsService';
+import { kycService } from '../../services/kycService';
 import {
   getMessage, detectInputType, LANGUAGES, FBOT_STEPS,
   getProgress, getProgressLabel, getPreviousStep,
@@ -780,58 +782,166 @@ const FBot = () => {
         if (detected.type === 'phone') {
           onAction?.({ type: 'SET_PHONE', value: detected.value });
           addBotMessage(getMessage('waiting', l));
-          onAction?.({ type: 'SEND_OTP', value: detected.value });
-          setTimeout(() => {
+          // Actually call the OTP service — previously the bot only
+          // fired a postAction that required BorrowerSelection to be
+          // mounted, so if the user was elsewhere no OTP was ever sent.
+          smsService.sendOtp(detected.value).then(() => {
             addBotMessage(getMessage('askOtp', l));
             setCurrentStep('askOtp');
-          }, 1800);
+          }).catch((err) => {
+            addBotMessage(l === 'hi'
+              ? `OTP भेजने में दिक्कत हुई: ${err?.message || 'कृपया पुनः प्रयास करें'}. दोबारा फोन नंबर टाइप करें।`
+              : l === 'en'
+                ? `Couldn't send OTP: ${err?.message || 'please try again'}. Please type your phone number once more.`
+                : `OTP bhejne mein dikkat: ${err?.message || 'dobara try karein'}. Phone number phir se type karein.`);
+          });
+          // Still notify mounted screens so BorrowerSelection auto-fills.
+          onAction?.({ type: 'SEND_OTP', value: detected.value });
         } else {
           addBotMessage(invalid('invalidPhone'));
         }
         break;
 
-      case 'askOtp':
-        if (detected.type === 'otp') {
-          addBotMessage(getMessage('waiting', l));
-          onAction?.({ type: 'VERIFY_OTP', value: detected.value });
-          setTimeout(() => {
-            addBotMessage(getMessage('phoneVerified', l));
-            setCurrentStep('askPan');
-            setTimeout(() => {
-              const prefillPan = state.borrowerDetails?.pan || '';
-              if (prefillPan) {
-                addBotMessage(l === 'hi'
-                  ? `मुझे आपका PAN मिला: ${prefillPan}। क्या यह सही है?`
-                  : `Mujhe aapka PAN mila: ${prefillPan}. Kya ye sahi hai?`);
-              } else {
-                addBotMessage(getMessage('askPan', l));
-              }
-            }, 700);
-          }, 1400);
-        } else {
+      case 'askOtp': {
+        if (detected.type !== 'otp') {
           addBotMessage(invalid('invalidOtp'));
+          break;
         }
+        addBotMessage(getMessage('waiting', l));
+        const phoneForOtp = state.borrowerDetails?.phone || recall('userPhone') || '';
+        if (!phoneForOtp) {
+          addBotMessage(l === 'hi'
+            ? 'फोन नंबर नहीं मिला — कृपया फिर से फोन नंबर दर्ज करें।'
+            : 'Phone number missing — please re-enter your phone number.');
+          setCurrentStep('askPhone');
+          break;
+        }
+        // Real verification. Wrong OTP now produces an error message and
+        // keeps us on askOtp — previously the bot always said "Phone
+        // verified" after 1.4s regardless of what the user typed.
+        try {
+          smsService.verifyOtp(phoneForOtp, detected.value);
+        } catch (err) {
+          addBotMessage(l === 'hi'
+            ? `गलत OTP: ${err?.message || 'कृपया पुनः प्रयास करें'}`
+            : l === 'en'
+              ? `Wrong OTP: ${err?.message || 'please try again'}`
+              : `Galat OTP: ${err?.message || 'dobara try karein'}`);
+          break;
+        }
+        // Also fire the screen-side verify so the form updates.
+        onAction?.({ type: 'VERIFY_OTP', value: detected.value });
+        addBotMessage(getMessage('phoneVerified', l));
+
+        // Phone is verified — now pull PAN + name + DOB via Signzy's
+        // phone-to-PAN lookup and prefill everything so the user doesn't
+        // have to repeat what we already know.
+        const fullName = state.borrowerDetails?.name || user?.name || recall('userName') || '';
+        const nameParts = fullName.trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+
+        kycService.fetchPanByMobile(phoneForOtp, firstName, lastName).then((res) => {
+          const prefill = {
+            pan: res.panNumber || '',
+            dob: res.dateOfBirth || '',
+            gender: res.gender || '',
+          };
+          // Persist the DOB + gender on the borrower and the PAN on state.
+          if (prefill.dob) {
+            onAction?.({ type: 'SET_DOB', value: prefill.dob });
+          }
+          if (res.name && !fullName) {
+            onAction?.({ type: 'SET_NAME', value: res.name });
+          }
+          if (prefill.pan) {
+            // Stash the prefilled PAN in borrowerDetails so the PAN screen
+            // can read it and the confirm-flow can use it.
+            dispatch({ type: 'SET_BORROWER_DETAILS', payload: { pan: prefill.pan } });
+
+            addBotMessage(l === 'hi'
+              ? `आपके नंबर से जुड़ी ये जानकारी मिली:\nनाम: ${res.name || '—'}\nPAN: ${prefill.pan}${prefill.dob ? '\nजन्मतिथि: ' + prefill.dob : ''}\n\nक्या ये सही है?`
+              : l === 'en'
+                ? `I found these details linked to your number:\nName: ${res.name || '—'}\nPAN: ${prefill.pan}${prefill.dob ? '\nDOB: ' + prefill.dob : ''}\n\nIs this correct?`
+                : `Aapke number se linked details mili:\nNaam: ${res.name || '—'}\nPAN: ${prefill.pan}${prefill.dob ? '\nDOB: ' + prefill.dob : ''}\n\nKya ye sahi hai?`);
+            setCurrentStep('askPan');
+          } else {
+            addBotMessage(getMessage('askPan', l));
+            setCurrentStep('askPan');
+          }
+          safeNavigate('PanVerification');
+        }).catch((err) => {
+          console.log('[FBot] phone-to-PAN failed:', err?.message);
+          // Non-fatal — just ask for PAN manually.
+          addBotMessage(getMessage('askPan', l));
+          setCurrentStep('askPan');
+          safeNavigate('PanVerification');
+        });
         break;
+      }
 
       case 'askPan': {
         const isConfirm = detected.type === 'confirm';
         const isPan = detected.type === 'pan';
-        if (isConfirm || isPan) {
-          const pan = isPan
-            ? detected.value
-            : (state.borrowerDetails?.pan || state.panDetails?.panNumber || '');
-          onAction?.({ type: 'VERIFY_PAN', value: pan });
-          addBotMessage(getMessage('waiting', l));
-          setTimeout(() => {
-            addBotMessage(getMessage('panVerified', l));
-            setTimeout(() => {
-              addBotMessage(getMessage('creditPassed', l));
-              advanceTo('askOccupation');
-            }, 1600);
-          }, 1400);
-        } else {
-          addBotMessage(invalid('invalidPan'));
+        const isDeny = detected.type === 'deny';
+
+        if (isDeny) {
+          // User said the prefilled PAN is wrong — ask them to type it.
+          addBotMessage(getMessage('askPan', l));
+          break;
         }
+        if (!isConfirm && !isPan) {
+          addBotMessage(invalid('invalidPan'));
+          break;
+        }
+        const pan = isPan
+          ? detected.value
+          : (state.borrowerDetails?.pan || state.panDetails?.panNumber || '');
+        if (!pan) {
+          addBotMessage(invalid('invalidPan'));
+          break;
+        }
+        addBotMessage(getMessage('waiting', l));
+
+        // Actually verify the PAN with Signzy instead of pretending.
+        kycService.validatePan(pan).then((res) => {
+          const valid = res?.isValid !== false && res?.status !== 'INVALID';
+          if (!valid) {
+            addBotMessage(l === 'hi'
+              ? `यह PAN वैध नहीं है (${res?.panStatus || 'अमान्य'}). कृपया दूसरा PAN दर्ज करें।`
+              : l === 'en'
+                ? `That PAN is not valid (${res?.panStatus || 'invalid'}). Please enter a different PAN.`
+                : `Ye PAN valid nahi hai (${res?.panStatus || 'invalid'}). Dobara PAN enter karein.`);
+            return;
+          }
+          // Persist the verified PAN.
+          dispatch({
+            type: 'SET_PAN',
+            payload: {
+              panNumber: pan,
+              name: res.name || '',
+              panStatus: res.panStatus || 'E',
+              isValid: true,
+              isIndividual: res.isIndividual !== false,
+              aadhaarSeedingStatus: res.aadhaarSeedingStatus || 'Y',
+            },
+          });
+          onAction?.({ type: 'VERIFY_PAN', value: pan });
+          addBotMessage(getMessage('panVerified', l));
+          // Credit-bureau check isn't integrated yet — bot proceeds
+          // assuming pass (PanVerification screen offers a simulator).
+          setTimeout(() => {
+            addBotMessage(getMessage('creditPassed', l));
+            advanceTo('askOccupation');
+          }, 1600);
+        }).catch((err) => {
+          console.log('[FBot] PAN validate failed:', err?.message);
+          addBotMessage(l === 'hi'
+            ? `PAN सत्यापन विफल: ${err?.message || 'कृपया पुनः प्रयास करें'}`
+            : l === 'en'
+              ? `PAN verification failed: ${err?.message || 'please try again'}`
+              : `PAN verify nahi hua: ${err?.message || 'dobara try karein'}`);
+        });
         break;
       }
 
