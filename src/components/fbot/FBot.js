@@ -13,6 +13,7 @@ import { smsService } from '../../services/smsService';
 import { kycService } from '../../services/kycService';
 import { signzyService } from '../../services/signzyService';
 import { bankService } from '../../services/bankService';
+import { loanService } from '../../services/loanService';
 import {
   getMessage, detectInputType, LANGUAGES, FBOT_STEPS,
   getProgress, getProgressLabel, getPreviousStep,
@@ -236,6 +237,11 @@ const HOME_STACK_SCREENS = new Set([
 // step begins (e.g. when we reach askPan, open the PAN screen).
 const screenForStep = (step) => {
   switch (step) {
+    case 'askInstitute':
+      return 'InstituteSelection';
+    case 'askRegNo':
+    case 'askStudentConfirm':
+      return 'StudentDetails';
     case 'askBorrowerType':
     case 'askRelationship':
     case 'askName':
@@ -321,6 +327,8 @@ const FBot = () => {
   // re-render on every mutation and so stale-closure issues around the
   // async OTP flow don't drop the requestId.
   const ckycRef = useRef({ requestId: '', referenceNo: '' });
+  // Institute search results the user is choosing from (askInstitute → pick).
+  const instituteSearchRef = useRef([]);
   const [minimized, setMinimized] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [unread, setUnread] = useState(0);
@@ -517,15 +525,14 @@ const FBot = () => {
   // Inspect the live loan state and return the bot step that corresponds
   // to the first piece of data still missing. Mirrors the real loan-screen
   // flow so the bot doesn't ask for things the user has already provided.
-  // Special returns:
-  //   'needsInstitute' → navigate the user to InstituteSelection instead
-  //                      of chat-collecting; that screen has to be used.
-  //   'needsStudent'   → same for StudentDetails (education loans).
-  //   'applicationComplete' → nothing left to ask.
+  //
+  // Education-loan funnel now stays entirely in chat — no more "needs
+  // institute, opening screen" hand-offs — so askInstitute / askRegNo
+  // collect institute + student details directly.
   const nextStepFromState = () => {
     if (!state.loanType) return 'askStart';
-    if (!state.instituteDetails && state.loanType === 'education') return 'needsInstitute';
-    if (!state.studentDetails && state.loanType === 'education') return 'needsStudent';
+    if (!state.instituteDetails && state.loanType === 'education') return 'askInstitute';
+    if (!state.studentDetails && state.loanType === 'education') return 'askRegNo';
 
     // Borrower type gates the rest — without it we don't know whether
     // the loan is student-self or parent/guardian. Education loans only.
@@ -596,28 +603,6 @@ const FBot = () => {
     // Institute and student details are screen-only — tell the user and
     // navigate them there. The screens already auto-forward to the next
     // stage on completion, so flow continues without the bot.
-    if (next === 'needsInstitute') {
-      const msg = {
-        en: "First, please pick your institute — I'll open that screen for you now.",
-        hinglish: "Pehle apna institute select karein — main screen open karta hoon.",
-        hi: "पहले अपना संस्थान चुनें — मैं स्क्रीन खोल रहा हूँ।",
-      };
-      addBotMessage(msg[l] || msg.hinglish);
-      setTimeout(() => safeNavigate('ApplyTab'), 600);
-      setCurrentStep('welcome');
-      return;
-    }
-    if (next === 'needsStudent') {
-      const msg = {
-        en: "Let's fill in the student details — opening that screen.",
-        hinglish: "Student details bharte hain — screen open kar raha hoon.",
-        hi: "छात्र की जानकारी भरते हैं — स्क्रीन खोल रहा हूँ।",
-      };
-      addBotMessage(msg[l] || msg.hinglish);
-      setTimeout(() => safeNavigate('StudentDetails'), 600);
-      setCurrentStep('welcome');
-      return;
-    }
     if (next === 'applicationComplete') {
       // Everything the bot can collect is done. Don't re-run the generic
       // summary (which would be wrong post-completion and then follow with
@@ -652,19 +637,17 @@ const FBot = () => {
     const l = lang || 'en';
     onAction({ type: 'SET_LOAN_TYPE', value: 'education' });
     addBotMessage(tr('startedApp'));
-    const msg = {
-      en: "First, please pick your institute — I'll open that screen for you.",
-      hinglish: "Pehle apna institute select karein — main screen open karta hoon.",
-      hi: "पहले अपना संस्थान चुनें — मैं स्क्रीन खोल रहा हूँ।",
+    // Stay in chat. Ask for the institute directly — loanService.getInstitutes
+    // returns matches we can present as chips.
+    const prompt = {
+      en: "Which college / institute is the student studying in? (Type a name or city to search)",
+      hinglish: "Student kis college / institute mein hai? (Naam ya city type karein)",
+      hi: "छात्र किस कॉलेज / संस्थान में पढ़ रहा है? (नाम या शहर टाइप करें)",
     };
     setTimeout(() => {
-      addBotMessage(msg[l] || msg.hinglish);
-      safeNavigate('ApplyTab');
-      // Mark the bot as waiting — once the user completes institute /
-      // student details and comes back (or navigates here), resumeFromState
-      // will pick up where things are.
-      setCurrentStep('welcome');
-    }, 1000);
+      addBotMessage(prompt[l] || prompt.hinglish);
+      setCurrentStep('askInstitute');
+    }, 800);
   };
 
   // Personalized welcome-back line used when memory remembers the user.
@@ -820,9 +803,8 @@ const FBot = () => {
     if (targetScreen) safeNavigate(targetScreen);
     if (extra) setTimeout(() => addBotMessage(extra), 400);
 
-    // Step-specific prompt resolution. Some steps (askName) embed
-    // placeholders that must be substituted at the advance site, and
-    // some have a "fresh" variant when no prefill is available.
+    // Step-specific prompt resolution. Some steps embed placeholders or
+    // pre-filled data that must be substituted at the advance site.
     const lg = lang || 'en';
     let prompt = '';
     if (next === 'askName') {
@@ -830,6 +812,20 @@ const FBot = () => {
       prompt = prefillName
         ? getMessage('askName', lg, { prefillName })
         : getMessage('askNameFresh', lg);
+    } else if (next === 'askLoanAmount') {
+      // If we already know the balance fee (from student lookup) use it
+      // as the proposed loan amount — user just confirms.
+      const proposed = state.selectedProduct?.requestedAmount
+        || state.studentDetails?.balanceFee || 0;
+      if (proposed) {
+        prompt = lg === 'hi'
+          ? `आपकी बकाया फीस ₹${proposed.toLocaleString('en-IN')} है। क्या इतना ही लोन चाहिए? (हाँ, या अलग राशि टाइप करें)`
+          : lg === 'en'
+            ? `Your balance fee is ₹${proposed.toLocaleString('en-IN')}. Take a loan for this amount? (reply "yes" or type a different amount)`
+            : `Aapki balance fee ₹${proposed.toLocaleString('en-IN')} hai. Itna hi loan chahiye? (haan ya alag amount type karein)`;
+      } else {
+        prompt = getMessage('askLoanAmount', lg);
+      }
     } else {
       prompt = getMessage(next, lg);
     }
@@ -922,6 +918,123 @@ const FBot = () => {
         }
         // Fall back to help if we couldn't parse the intent.
         addBotMessage(getMessage('help', l));
+        break;
+      }
+
+      case 'askInstitute': {
+        const query = (rawText || '').trim();
+        // Tap-to-pick: user can reply with a number matching a previously
+        // listed result.
+        const asNum = parseInt(query, 10);
+        const list = instituteSearchRef.current || [];
+        if (asNum && asNum >= 1 && asNum <= list.length) {
+          const picked = list[asNum - 1];
+          dispatch({ type: 'SET_INSTITUTE', payload: {
+            id: picked.id, name: picked.name, instituteName: picked.name, city: picked.city,
+          }});
+          instituteSearchRef.current = [];
+          const prompt = {
+            en: `Great — ${picked.name} selected. 👍 What's the student's registration number / roll number?`,
+            hinglish: `Done — ${picked.name} select ho gaya. 👍 Student ka registration / roll number kya hai?`,
+            hi: `हो गया — ${picked.name} चुन लिया। 👍 छात्र का रजिस्ट्रेशन / रोल नंबर क्या है?`,
+          };
+          addBotMessage(prompt[l] || prompt.hinglish);
+          setCurrentStep('askRegNo');
+          return;
+        }
+        if (!query || query.length < 2) {
+          addBotMessage(l === 'hi'
+            ? 'कृपया कम से कम 2 अक्षर का नाम या शहर टाइप करें।'
+            : 'Please type at least 2 characters of the institute name or city.');
+          return;
+        }
+        addBotMessage(getMessage('waiting', l));
+        loanService.getInstitutes(query).then((res) => {
+          const hits = (res.institutes || []).slice(0, 5);
+          instituteSearchRef.current = hits;
+          if (hits.length === 0) {
+            addBotMessage(l === 'hi'
+              ? 'इस नाम से कोई संस्थान नहीं मिला। कृपया अलग नाम से खोजें।'
+              : l === 'en'
+                ? "No institutes matched that. Try a different name or city."
+                : 'Is naam se institute nahi mila. Dusra naam ya city try karein.');
+            return;
+          }
+          const header = l === 'hi' ? 'ये मिले — नंबर भेजें जिसे चुनना है:'
+            : l === 'en' ? 'Found these — reply with the number to pick:'
+            : 'Ye mile — jo chunna hai uska number bhejein:';
+          const lines = hits.map((h, i) => `${i + 1}. ${h.name}${h.city ? ` (${h.city})` : ''}`).join('\n');
+          addBotMessage(`${header}\n${lines}`);
+        }).catch((err) => {
+          console.log('[FBot] institutes search failed:', err?.message);
+          addBotMessage(l === 'hi'
+            ? 'संस्थान खोज में दिक्कत — कृपया दोबारा प्रयास करें।'
+            : 'Institute search failed — please try again.');
+        });
+        break;
+      }
+
+      case 'askRegNo': {
+        const regNo = (rawText || '').trim();
+        if (!regNo || regNo.length < 3) {
+          addBotMessage(l === 'hi'
+            ? 'कृपया वैध रजिस्ट्रेशन / रोल नंबर बताएं।'
+            : 'Please share a valid registration / roll number.');
+          return;
+        }
+        addBotMessage(getMessage('waiting', l));
+        const instituteId = state.instituteDetails?.id || '';
+        loanService.getStudentDetails(instituteId, regNo).then((student) => {
+          dispatch({ type: 'SET_STUDENT', payload: {
+            ...student,
+            regNo,
+          }});
+          // Default the loan amount to the outstanding balance fee so the
+          // user doesn't have to type it manually — they can still change
+          // it at askLoanAmount if needed.
+          if (student.balanceFee) {
+            dispatch({ type: 'SET_PRODUCT', payload: { requestedAmount: student.balanceFee }});
+          }
+          const lines = [];
+          if (student.studentName) lines.push(l === 'hi' ? `नाम: ${student.studentName}` : `Name: ${student.studentName}`);
+          if (student.fatherName) lines.push(l === 'hi' ? `पिता: ${student.fatherName}` : `Father: ${student.fatherName}`);
+          if (student.courseName) lines.push(l === 'hi' ? `कोर्स: ${student.courseName}` : `Course: ${student.courseName}`);
+          if (student.balanceFee) lines.push(l === 'hi' ? `बकाया फीस: ₹${student.balanceFee.toLocaleString('en-IN')}` : `Balance fee: ₹${student.balanceFee.toLocaleString('en-IN')}`);
+          const intro = l === 'hi'
+            ? `छात्र की जानकारी मिल गई:\n${lines.join('\n')}\n\nक्या ये सही है?`
+            : l === 'en'
+              ? `I found the student details:\n${lines.join('\n')}\n\nIs this correct?`
+              : `Student details mili:\n${lines.join('\n')}\n\nKya ye sahi hai?`;
+          addBotMessage(intro);
+          setCurrentStep('askStudentConfirm');
+        }).catch((err) => {
+          console.log('[FBot] getStudentDetails failed:', err?.message);
+          addBotMessage(l === 'hi'
+            ? 'इस रजिस्ट्रेशन नंबर से छात्र नहीं मिला। कृपया जाँच कर दोबारा बताएं।'
+            : l === 'en'
+              ? "I couldn't find a student with that registration number. Please double-check and try again."
+              : 'Is reg number se student nahi mila. Check karke dobara bataiye.');
+        });
+        break;
+      }
+
+      case 'askStudentConfirm': {
+        if (detected.type === 'confirm') {
+          // Continue into the existing funnel — borrower type next.
+          advanceTo('askBorrowerType');
+          return;
+        }
+        if (detected.type === 'deny') {
+          // Clear the student details and ask reg number again.
+          dispatch({ type: 'SET_STUDENT', payload: null });
+          addBotMessage(l === 'hi' ? 'ठीक है, कृपया सही रजिस्ट्रेशन नंबर बताएं।'
+            : l === 'en' ? 'No problem — please share the correct registration number.'
+            : 'Theek hai, sahi reg number bataiye.');
+          setCurrentStep('askRegNo');
+          return;
+        }
+        addBotMessage(l === 'hi' ? 'कृपया "हाँ" या "नहीं" बताएं।'
+          : 'Please reply with "yes" or "no".');
         break;
       }
 
@@ -1297,7 +1410,17 @@ const FBot = () => {
         break;
 
       case 'askLoanAmount':
-        if (detected.type === 'amount') {
+        if (detected.type === 'confirm') {
+          // User is confirming the prefilled balance-fee amount.
+          const prefilled = state.selectedProduct?.requestedAmount
+            || state.studentDetails?.balanceFee || 0;
+          if (prefilled) {
+            onAction?.({ type: 'SET_LOAN_AMOUNT', value: prefilled });
+            advanceTo('askTenure');
+          } else {
+            addBotMessage(invalid('invalidAmount'));
+          }
+        } else if (detected.type === 'amount') {
           onAction?.({ type: 'SET_LOAN_AMOUNT', value: detected.value });
           advanceTo('askTenure');
         } else {
@@ -1308,6 +1431,47 @@ const FBot = () => {
       case 'askTenure':
         if (detected.type === 'tenure') {
           onAction?.({ type: 'SET_TENURE', value: detected.value });
+          // Estimate EMI so the user sees the monthly cost before bank /
+          // KYC steps. Rate falls back to 14% when selectedProduct isn't
+          // hydrated yet. Kept inline — no dependency on a calc util.
+          const amt = state.selectedProduct?.requestedAmount
+            || state.studentDetails?.balanceFee || 0;
+          const months = detected.value;
+          const rate = (state.selectedProduct?.interestRate || 14) / 100 / 12;
+          const emi = amt && months && rate
+            ? Math.round((amt * rate * Math.pow(1 + rate, months)) / (Math.pow(1 + rate, months) - 1))
+            : 0;
+          const totalPayable = emi * months;
+          const interestTotal = totalPayable - amt;
+          if (emi) {
+            const lines = l === 'hi'
+              ? [
+                  `ऋण राशि: ₹${amt.toLocaleString('en-IN')}`,
+                  `अवधि: ${months} महीने`,
+                  `ब्याज दर: ${(rate * 12 * 100).toFixed(1)}% प्रति वर्ष`,
+                  `अनुमानित EMI: ₹${emi.toLocaleString('en-IN')} / माह`,
+                  `कुल ब्याज: ₹${interestTotal.toLocaleString('en-IN')}`,
+                  `कुल भुगतान: ₹${totalPayable.toLocaleString('en-IN')}`,
+                ]
+              : l === 'en'
+                ? [
+                    `Loan amount: ₹${amt.toLocaleString('en-IN')}`,
+                    `Tenure: ${months} months`,
+                    `Interest rate: ${(rate * 12 * 100).toFixed(1)}% p.a.`,
+                    `Estimated EMI: ₹${emi.toLocaleString('en-IN')} / month`,
+                    `Total interest: ₹${interestTotal.toLocaleString('en-IN')}`,
+                    `Total payable: ₹${totalPayable.toLocaleString('en-IN')}`,
+                  ]
+                : [
+                    `Loan: ₹${amt.toLocaleString('en-IN')}`,
+                    `Tenure: ${months} mahine`,
+                    `Rate: ${(rate * 12 * 100).toFixed(1)}% p.a.`,
+                    `EMI: ₹${emi.toLocaleString('en-IN')} / month`,
+                    `Total interest: ₹${interestTotal.toLocaleString('en-IN')}`,
+                    `Total payable: ₹${totalPayable.toLocaleString('en-IN')}`,
+                  ];
+            addBotMessage(lines.join('\n'));
+          }
           advanceTo('askBankDetails');
         } else {
           addBotMessage(invalid('invalidTenure'));
