@@ -25,7 +25,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { KYC_METHODS } from '../../../config/constants';
 import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
-import { useLoan } from '../../../store/LoanContext';
+import { useLoan, getRequestedAmount } from '../../../store/LoanContext';
+import { VKYC_AMOUNT_THRESHOLD } from '../../../config/constants';
 import { useAuth } from '../../../store/AuthContext';
 import { useFBot } from '../../../components/fbot/FBotContext';
 import { useRisk } from '../../../store/RiskContext';
@@ -267,8 +268,10 @@ const KycVerificationScreen = ({ navigation }) => {
   // Success popup
   const [successModalVisible, setSuccessModalVisible] = useState(false);
 
-  const loanAmount = state.studentDetails?.balanceFee || 0;
-  const requiresVkyc = loanAmount >= 60000;
+  // Prefer a request amount stored on the product / borrower; fall back to the
+  // education-specific balanceFee for older applications where we only had that.
+  const loanAmount = getRequestedAmount(state) || state.studentDetails?.balanceFee || 0;
+  const requiresVkyc = loanAmount >= VKYC_AMOUNT_THRESHOLD;
 
   // Communication address state
   const [sameAsAadhaar, setSameAsAadhaar] = useState(true);
@@ -364,6 +367,16 @@ const KycVerificationScreen = ({ navigation }) => {
       if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
       if (ckycResendTimerRef.current) clearInterval(ckycResendTimerRef.current);
     };
+  }, []);
+
+  // Auto-forward if KYC is already done — don't show this step again.
+  // High-ticket loans (>= threshold) skip selfie and go to EnachEsign;
+  // low-ticket loans go to selfie verification.
+  useEffect(() => {
+    const kycDone = !!state.kycData && !!state.kycMethod && !state.kycData.nameMatchFailed;
+    if (kycDone) {
+      navigation.replace(requiresVkyc ? 'EnachEsign' : 'SelfieVerification');
+    }
   }, []);
 
   /**

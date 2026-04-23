@@ -16,7 +16,7 @@ import StepIndicator from '../../../components/common/StepIndicator';
 import InfoRow from '../../../components/common/InfoRow';
 import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { kycService } from '../../../services/kycService';
-import { useLoan } from '../../../store/LoanContext';
+import { useLoan, requiresVkyc } from '../../../store/LoanContext';
 import { useTheme } from '../../../store/ThemeContext';
 
 const SelfieVerificationScreen = ({ navigation }) => {
@@ -59,6 +59,19 @@ const SelfieVerificationScreen = ({ navigation }) => {
   useEffect(() => {
     fetchLocation();
   }, [fetchLocation]);
+
+  // ─── Skip logic ─────────────────────────────────────────────────────
+  // If this loan needs VKYC (>=60k) or selfie is already verified, don't
+  // show the selfie step again — forward straight to the next stage.
+  useEffect(() => {
+    if (requiresVkyc(state)) {
+      navigation.replace('EnachEsign');
+      return;
+    }
+    if (state.selfieData?.matched) {
+      navigation.replace('EnachEsign');
+    }
+  }, [state, navigation]);
 
   // ─── Listen for Signzy liveness WebView completion ──────────────────
   useEffect(() => {

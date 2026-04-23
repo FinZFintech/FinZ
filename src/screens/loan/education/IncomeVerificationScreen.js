@@ -146,6 +146,14 @@ const IncomeVerificationScreen = ({ navigation }) => {
     }).catch(() => {});
   }, []);
 
+  // If income + eligibility are already done for this application, don't
+  // make the customer repeat the step — forward them to KYC.
+  useEffect(() => {
+    if (state.incomeData && state.eligibilityResult?.eligible) {
+      navigation.replace('KycVerification');
+    }
+  }, []);
+
   // ── Trigger income source verification when occupation is selected ──
   // For salaried: runs ITR forget-password → OTP flow (handled by the
   //   ITR card UI below). Also fires employment verification.
@@ -841,6 +849,86 @@ const IncomeVerificationScreen = ({ navigation }) => {
     navigation.navigate('InstituteSelection');
   };
 
+  /**
+   * Simulate an Account Aggregator / BSA income response. The real AA
+   * + BSA integration is pending, so these buttons let the team drive
+   * the downstream eligibility logic without any live API call.
+   *
+   * outcome:
+   *   'strong' — monthly 85k, no bounces, eligible
+   *   'medium' — monthly 45k, mild obligations, partially eligible
+   *   'weak'   — monthly 18k, multiple bounces, not eligible
+   */
+  const handleSimulateIncomeVerification = async (outcome = 'strong') => {
+    const borrowerName = (state.borrowerDetails?.name || 'RAHUL SHARMA').toUpperCase();
+
+    // Make sure bank details exist so downstream screens don't explode.
+    const ensuredIfsc = ifsc || 'SBIN0001234';
+    const ensuredBankName = bankName || 'State Bank of India';
+    const ensuredAccount = accountNumber || '91234567890';
+    const ensuredAccountType = accountType || 'Savings';
+
+    if (!ifsc) setIfsc(ensuredIfsc);
+    if (!bankName) setBankName(ensuredBankName);
+    if (!accountNumber) { setAccountNumber(ensuredAccount); setConfirmAccountNumber(ensuredAccount); }
+    if (!accountType) setAccountType(ensuredAccountType);
+    if (!occupationCategory) setOccupationCategory('salaried_private');
+    if (!occupationDetail) setOccupationDetail('Software Developer');
+
+    const profiles = {
+      strong: {
+        monthlyIncome: 85000, averageBalance: 62000, totalCredits: 520000,
+        totalDebits: 340000, emiObligations: 4000, bounceCount: 0,
+        declaredAnnual: 1020000,
+      },
+      medium: {
+        monthlyIncome: 45000, averageBalance: 32000, totalCredits: 270000,
+        totalDebits: 210000, emiObligations: 8000, bounceCount: 1,
+        declaredAnnual: 540000,
+      },
+      weak: {
+        monthlyIncome: 18000, averageBalance: 4200, totalCredits: 110000,
+        totalDebits: 108000, emiObligations: 14000, bounceCount: 4,
+        declaredAnnual: 216000,
+      },
+    };
+    const p = profiles[outcome] || profiles.strong;
+
+    dispatch({
+      type: 'SET_BANK_DETAILS',
+      payload: {
+        bankName: ensuredBankName, accountNumber: ensuredAccount, ifsc: ensuredIfsc,
+        accountType: ensuredAccountType, branchName: branchName || 'Main Branch',
+        occupationCategory: 'Salaried (Private)',
+        occupation: occupationDetail || 'Software Developer',
+        declaredAnnualIncome: p.declaredAnnual,
+      },
+    });
+    if (!declaredAnnualIncome) setDeclaredAnnualIncome(String(p.declaredAnnual));
+
+    // Penny drop pass — needed for state.pennyDropResult to unlock the next step.
+    const pdResult = {
+      verified: true, nameMatch: true, accountHolderName: borrowerName,
+      bankRefNo: 'PD' + Date.now(), accountNumberLast4: ensuredAccount.slice(-4),
+    };
+    setPennyDropResult(pdResult);
+    setPennyDropDone(true);
+    dispatch({ type: 'SET_PENNY_DROP', payload: pdResult });
+
+    const incResult = {
+      ...p,
+      accountHolderName: borrowerName,
+      accountNumberLast4: ensuredAccount.slice(-4),
+      source: 'AA_SIM',
+    };
+    setIncomeResult(incResult);
+    setMethod('aa');
+
+    // Run the real eligibility logic on the simulated data so all the
+    // same rules / caps / downgrades apply as in production.
+    await runEligibilityCheck(incResult);
+  };
+
   const handleSkipBankWithTestData = () => {
     const mockIfsc = 'SBIN0001234';
     const mockBankName = 'State Bank of India';
@@ -1270,6 +1358,40 @@ const IncomeVerificationScreen = ({ navigation }) => {
             <Text style={styles.skipTestText}>Skip with Test Data</Text>
             <Text style={styles.skipTestHint}>Pre-fills bank details, IFSC, occupation for testing</Text>
           </TouchableOpacity>
+        )}
+
+        {/* Account Aggregator / BSA Simulator — exposed because the AA +
+            BSA APIs aren't integrated yet. Each button runs the real
+            eligibility logic against a pre-baked profile so the
+            downstream flow (KYC, VKYC/selfie, eNACH) can be exercised. */}
+        {!verificationDone && (
+          <Card style={[styles.simCard, { borderColor: colors.teal }]}>
+            <Text style={[styles.simTitle, { color: colors.teal }]}>🧪 AA / BSA Simulator</Text>
+            <Text style={[styles.simHint, { color: colors.textSecondary }]}>
+              Account Aggregator + Bank Statement Analyser aren't live yet — use a profile
+              to drive the eligibility check.
+            </Text>
+            <View style={styles.simRow}>
+              <TouchableOpacity
+                style={[styles.simBtn, { backgroundColor: `${colors.teal}22`, borderColor: colors.teal }]}
+                onPress={() => handleSimulateIncomeVerification('strong')}
+              >
+                <Text style={[styles.simBtnText, { color: colors.teal }]}>✓ Strong (₹85k/mo)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.simBtn, { backgroundColor: `${colors.warning || '#F5B731'}22`, borderColor: colors.warning || '#F5B731' }]}
+                onPress={() => handleSimulateIncomeVerification('medium')}
+              >
+                <Text style={[styles.simBtnText, { color: colors.warning || '#F5B731' }]}>~ Medium (₹45k/mo)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.simBtn, { backgroundColor: `${colors.error || '#E53E3E'}18`, borderColor: colors.error || '#E53E3E' }]}
+                onPress={() => handleSimulateIncomeVerification('weak')}
+              >
+                <Text style={[styles.simBtnText, { color: colors.error || '#E53E3E' }]}>✕ Weak (₹18k/mo)</Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
         )}
 
         {/* Income Method Selection */}
@@ -1717,6 +1839,16 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 4,
   },
+  simCard: { marginTop: 12, padding: 14, borderWidth: 1, borderRadius: 12 },
+  simTitle: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
+  simHint: { fontSize: 11, marginBottom: 10 },
+  simRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  simBtn: {
+    flexGrow: 1, flexBasis: '30%',
+    paddingVertical: 9, paddingHorizontal: 8, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', marginVertical: 4, marginHorizontal: 2,
+  },
+  simBtnText: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
 });
 
 export default IncomeVerificationScreen;
