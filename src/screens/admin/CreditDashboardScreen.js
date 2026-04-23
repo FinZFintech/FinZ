@@ -8,7 +8,9 @@ import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
+import { useFocusEffect } from '@react-navigation/native';
 import { loadRealApplications } from '../../utils/loadApplications';
+import { saveApplicationToDb } from '../../services/applicationDbService';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { navigationRef } from '../../navigation/navigationRef';
@@ -28,13 +30,15 @@ const CreditDashboardScreen = ({ navigation }) => {
   const [remarks, setRemarks] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  useEffect(() => { loadApplications(); }, []);
-
   const loadApplications = useCallback(async () => {
     const allApps = await loadRealApplications();
     console.log('[CreditDashboard] Apps loaded:', allApps.length);
     setApplications(allApps);
   }, []);
+
+  // Reload on focus so approve / reject from the detail screen flip the
+  // stats tile + filter buckets immediately, without a manual refresh.
+  useFocusEffect(useCallback(() => { loadApplications(); }, [loadApplications]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -63,17 +67,39 @@ const CreditDashboardScreen = ({ navigation }) => {
     setShowActionModal(true);
   };
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!remarks.trim() && actionType === 'reject') {
       Alert.alert('Error', 'Please provide remarks for rejection');
       return;
     }
 
     const newStatus = actionType === 'approve' ? 'fully_eligible' : 'credit_check_failed';
+    // Optimistic local update so the card moves buckets immediately.
     setApplications(prev =>
       prev.map(a => a.id === selectedApp.id ? { ...a, status: newStatus, remarks: remarks.trim() } : a)
     );
     setShowActionModal(false);
+    // Persist to Firestore so a refresh / other roles see the change.
+    // saveApplicationToDb expects the raw app state; _rawState is stashed
+    // on the transformed dashboard card by loadRealApplications.
+    if (selectedApp?._rawState) {
+      try {
+        await saveApplicationToDb({
+          ...selectedApp._rawState,
+          status: newStatus,
+          adminAction: {
+            action: actionType,
+            by: user?.name || user?.phone || 'credit',
+            role: user?.role || 'credit',
+            comment: remarks.trim(),
+            at: new Date().toISOString(),
+          },
+          lastUpdated: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.log('[CreditDashboard] persist failed:', err?.message);
+      }
+    }
     Alert.alert(
       'Success',
       `Application ${selectedApp.id} has been ${actionType === 'approve' ? 'approved' : 'rejected'}.`
