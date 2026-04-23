@@ -9,6 +9,8 @@ import { ThemeProvider, useTheme } from './src/store/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
 
+import { FBotProvider } from './src/components/fbot/FBotContext';
+
 const MAX_MOBILE_WIDTH = 480;
 
 function MobileContainer({ children }) {
@@ -67,7 +69,9 @@ export default function App() {
           <AuthProvider>
             <LoanProvider>
               <RiskProvider>
-                <ThemedApp />
+                <FBotProvider>
+                  <ThemedApp />
+                </FBotProvider>
               </RiskProvider>
             </LoanProvider>
           </AuthProvider>

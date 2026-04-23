@@ -23,6 +23,7 @@ import { kycService } from '../../../services/kycService';
 import { signzyService } from '../../../services/signzyService';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
+import { useFBot } from '../../../components/fbot/FBotContext';
 import { useTheme } from '../../../store/ThemeContext';
 import { formatCurrency, validateIfsc, validateAccountNumber } from '../../../utils/helpers';
 import { OCCUPATION_CATEGORIES, getOccupationsForCategory, isOccupationBlocked, BLOCKED_OCCUPATION_MESSAGE } from '../../../utils/occupationData';
@@ -32,6 +33,34 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const { executePhase, feedBankStatementData } = useRisk();
+  const { registerListener } = useFBot();
+
+  // ── FBot action listener ──
+  useEffect(() => {
+    return registerListener('incomeScreen', (action) => {
+      switch (action.type) {
+        case 'SET_OCCUPATION':
+          if (action.value?.startsWith('salaried')) {
+            setOccupationCategory('salaried_private');
+          } else if (action.value?.startsWith('self')) {
+            setOccupationCategory('self_employed_business');
+          }
+          break;
+        case 'SET_IFSC':
+          if (action.value) handleIfscLookup(action.value);
+          break;
+        case 'SET_ACCOUNT':
+          if (action.value) {
+            setAccountNumber(action.value);
+            setConfirmAccountNumber(action.value);
+          }
+          break;
+        case 'VERIFY_BANK':
+          setTimeout(() => handleVerifyAndFetch(), 500);
+          break;
+      }
+    });
+  }, [registerListener]);
 
   // ── Restore from persisted state ──
   const prevBank = state.bankDetails;

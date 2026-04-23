@@ -28,6 +28,7 @@ import { kycService } from '../../../services/kycService';
 import { useLoan, getRequestedAmount } from '../../../store/LoanContext';
 import { VKYC_AMOUNT_THRESHOLD } from '../../../config/constants';
 import { useAuth } from '../../../store/AuthContext';
+import { useFBot } from '../../../components/fbot/FBotContext';
 import { useRisk } from '../../../store/RiskContext';
 
 const POLL_INTERVAL_MS = 4000;
@@ -209,6 +210,27 @@ const KycVerificationScreen = ({ navigation }) => {
   const { user, updateUser } = useAuth();
   const { state, dispatch } = useLoan();
   const { executePhase } = useRisk();
+  const { registerListener } = useFBot();
+
+  // ── FBot action listener ──
+  useEffect(() => {
+    return registerListener('kycScreen', (action) => {
+      switch (action.type) {
+        case 'START_KYC':
+          if (!currentMethod) {
+            setCurrentMethod('ckyc');
+            handleInitiateCkyc();
+          }
+          break;
+        case 'VERIFY_KYC_OTP':
+          if (action.value && action.value.length === 6) {
+            setOtp(action.value);
+            setTimeout(() => handleVerifyCkycOtp(action.value), 200);
+          }
+          break;
+      }
+    });
+  }, [registerListener, currentMethod]);
 
   // ── Check if KYC can be skipped (active loan holder via PAN dedupe) ──
   const dedupeResult = state.signzyVerifications?.panDedupe?.result;

@@ -11,6 +11,7 @@ import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
 import { signzyService } from '../../../services/signzyService';
 import { checkDedupeByPan } from '../../../services/dedupeService';
+import { useFBot } from '../../../components/fbot/FBotContext';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { maskPan, validatePan } from '../../../utils/helpers';
@@ -20,6 +21,17 @@ const PanVerificationScreen = ({ navigation }) => {
   const styles = getStyles(colors);
   const { state, dispatch } = useLoan();
   const { executePhase, feedCreditBureauData, setExternalData } = useRisk();
+  const { registerListener } = useFBot();
+
+  // ── FBot action listener ──
+  useEffect(() => {
+    return registerListener('panScreen', (action) => {
+      if (action.type === 'VERIFY_PAN' && action.value) {
+        setPan(action.value);
+        setTimeout(() => handleVerifyPan(), 200);
+      }
+    });
+  }, [registerListener]);
 
   // ── Restore from persisted state so user resumes where they left off ──
   const prevPan = state.panDetails;
