@@ -326,13 +326,17 @@ const loanReducer = (state, action) => {
       next = { ...state, borrowerDetails: { ...(state.borrowerDetails || {}), ...action.payload } };
       break;
     case 'SET_PRODUCT':
-      next = { ...state, selectedProduct: action.payload };
+      // Merge so partial bot dispatches (e.g. just {requestedAmount}) don't
+      // wipe name / interestRate / processingFee captured earlier.
+      next = { ...state, selectedProduct: { ...(state.selectedProduct || {}), ...action.payload } };
       break;
     case 'SET_TENURE':
       next = { ...state, selectedTenure: action.payload };
       break;
     case 'SET_PAN':
-      next = { ...state, panDetails: action.payload };
+      // Merge — keeps previous panFetch / credit metadata intact when
+      // the bot later writes just {panNumber, verified}.
+      next = { ...state, panDetails: { ...(state.panDetails || {}), ...action.payload } };
       break;
     case 'SET_CREDIT_SCORE':
       next = { ...state, creditScore: action.payload };
@@ -512,6 +516,45 @@ async function loadAllApplications() {
   }
 }
 
+// AsyncStorage on web is capped at ~5 MB per origin. A single CKYC
+// payload easily blows past that because it carries embedded
+// photograph / signature base64 images (100-500 KB each) plus the
+// raw gateway response (another ~1 MB). The full state is already
+// persisted to Firestore + Firebase Storage, so for the local
+// AsyncStorage copy we only need a lightweight shape that can
+// restore the customer flow — strip the heavy blobs before writing.
+function stripHeavyBlobs(state) {
+  if (!state || typeof state !== 'object') return state;
+  const trimmed = { ...state };
+  if (trimmed.kycData) {
+    const { rawResponse, raw, images, photograph, signature, ...kycLite } = trimmed.kycData;
+    trimmed.kycData = kycLite;
+  }
+  if (trimmed.signzyVerifications && typeof trimmed.signzyVerifications === 'object') {
+    const pruned = {};
+    for (const [k, v] of Object.entries(trimmed.signzyVerifications)) {
+      if (!v || typeof v !== 'object') { pruned[k] = v; continue; }
+      const { rawResponse, raw, ...lite } = v;
+      // Drill one level deeper — result may also carry a rawResponse /
+      // large payload (e.g. ITR per-year rawJson).
+      if (lite.result && typeof lite.result === 'object') {
+        const { rawResponse: rr, raw: r2, itrByYear, ...resultLite } = lite.result;
+        if (Array.isArray(itrByYear)) {
+          resultLite.itrByYear = itrByYear.map(({ rawJson, pdfBase64, ...rest }) => rest);
+        }
+        lite.result = resultLite;
+      }
+      pruned[k] = lite;
+    }
+    trimmed.signzyVerifications = pruned;
+  }
+  if (trimmed.selfieData) {
+    const { image, selfieImage, liveImage, ...selfieLite } = trimmed.selfieData;
+    trimmed.selfieData = selfieLite;
+  }
+  return trimmed;
+}
+
 async function saveApplicationToList(state) {
   try {
     if (!state.applicationId) return;
@@ -522,14 +565,31 @@ async function saveApplicationToList(state) {
     let apps = raw ? JSON.parse(raw) : [];
     // Auto-discard expired
     apps = apps.filter((a) => !isExpired(a));
+    const trimmed = stripHeavyBlobs(state);
     const idx = apps.findIndex((a) => a.applicationId === state.applicationId);
     if (idx >= 0) {
-      apps[idx] = state;
+      apps[idx] = trimmed;
     } else {
-      apps.push(state);
+      apps.push(trimmed);
     }
     const serialized = JSON.stringify(apps);
-    await AsyncStorage.setItem(MULTI_STORAGE_KEY, serialized);
+    try {
+      await AsyncStorage.setItem(MULTI_STORAGE_KEY, serialized);
+    } catch (quotaErr) {
+      // Last-ditch: drop the biggest non-active entries until the list fits.
+      if (/quota|QuotaExceeded/i.test(quotaErr?.message || '')) {
+        console.warn('[LoanContext] AsyncStorage quota hit; compacting…');
+        const pinned = apps.filter((a) => a.applicationId === state.applicationId);
+        const others = apps.filter((a) => a.applicationId !== state.applicationId);
+        // Keep the current app + up to 2 most recent others.
+        others.sort((a, b) => (b.lastUpdated || '').localeCompare(a.lastUpdated || ''));
+        const compact = [...pinned, ...others.slice(0, 2)];
+        await AsyncStorage.setItem(MULTI_STORAGE_KEY, JSON.stringify(compact));
+        console.warn('[LoanContext] Compacted to', compact.length, 'apps');
+      } else {
+        throw quotaErr;
+      }
+    }
     console.log(
       '[LoanContext] Saved application:',
       state.applicationId, '→', state.status,
