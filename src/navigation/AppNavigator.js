@@ -5,6 +5,7 @@ import { Text, View, ActivityIndicator } from 'react-native';
 import { COLORS } from '../config/constants';
 import { useAuth } from '../store/AuthContext';
 import { useTheme } from '../store/ThemeContext';
+import { useLoan } from '../store/LoanContext';
 
 // Auth Screens
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -172,8 +173,58 @@ const ProfileStack = () => (
   </ProfileStackNav.Navigator>
 );
 
+// Maps FBot onAction events → LoanContext dispatch payloads.
+// Kept outside the component so it doesn't re-create per render.
+const buildFBotDispatcher = (dispatch) => (action) => {
+  if (!action || !action.type) return;
+  switch (action.type) {
+    case 'SET_NAME':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { name: action.value } });
+      return;
+    case 'SET_DOB':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { dob: action.value } });
+      return;
+    case 'SET_PHONE':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { phone: action.value } });
+      return;
+    case 'VERIFY_PAN':
+      dispatch({ type: 'SET_PAN', payload: { panNumber: action.value, verified: true } });
+      return;
+    case 'SET_OCCUPATION':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { occupation: action.value } });
+      return;
+    case 'SET_EMPLOYER':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { employer: action.value } });
+      return;
+    case 'SET_MONTHLY_INCOME':
+      dispatch({ type: 'SET_INCOME', payload: { monthlyIncome: action.value } });
+      return;
+    case 'SET_LOAN_AMOUNT':
+      dispatch({ type: 'SET_PRODUCT', payload: { requestedAmount: action.value } });
+      return;
+    case 'SET_TENURE':
+      dispatch({ type: 'SET_TENURE', payload: action.value });
+      return;
+    case 'SET_IFSC':
+      dispatch({ type: 'SET_BANK_DETAILS', payload: { ifsc: action.value } });
+      return;
+    case 'SET_ACCOUNT':
+      dispatch({ type: 'SET_BANK_DETAILS', payload: { accountNumber: action.value } });
+      return;
+    case 'VERIFY_BANK':
+      dispatch({ type: 'SET_PENNY_DROP', payload: { verified: true } });
+      return;
+    default:
+      // SEND_OTP / VERIFY_OTP / START_KYC / VERIFY_KYC_OTP / START_SELFIE
+      // are side-effects; the underlying screens handle them, so we no-op here.
+      return;
+  }
+};
+
 const CustomerTabs = () => {
   const { colors } = useTheme();
+  const { dispatch } = useLoan();
+  const fbotDispatcher = React.useMemo(() => buildFBotDispatcher(dispatch), [dispatch]);
   const tabBarStyle = {
     height: 65,
     paddingBottom: 8,
@@ -243,7 +294,7 @@ const CustomerTabs = () => {
           }}
         />
       </Tab.Navigator>
-      <FBot />
+      <FBot onAction={fbotDispatcher} />
     </View>
   );
 };

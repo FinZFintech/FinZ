@@ -2,7 +2,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
   FlatList, Animated, Dimensions, KeyboardAvoidingView, Platform,
+  ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../store/ThemeContext';
 import { useLoan } from '../../store/LoanContext';
 import { useAuth } from '../../store/AuthContext';
@@ -12,6 +14,88 @@ import { useFBot } from './FBotContext';
 const { height: SCREEN_H } = Dimensions.get('window');
 const BOT_AVATAR = '🤖';
 const USER_AVATAR = '👤';
+const STORAGE_KEY = 'fbot_state_v2';
+const MAX_HISTORY = 80; // cap saved messages to keep AsyncStorage lean
+
+// Chip labels per language. Fallback: en.
+const CHIP_LABELS = {
+  yes:     { en: 'Yes',     hi: 'हाँ',     hinglish: 'Haan' },
+  no:      { en: 'No',      hi: 'नहीं',    hinglish: 'Nahi' },
+  skip:    { en: 'Skip',    hi: 'छोड़ें',  hinglish: 'Skip' },
+  back:    { en: 'Back',    hi: 'पीछे',    hinglish: 'Wapas' },
+  help:    { en: 'Help',    hi: 'मदद',     hinglish: 'Madad' },
+  restart: { en: 'Restart', hi: 'फिर से',  hinglish: 'Restart' },
+  salaried:     { en: 'Salaried',      hi: 'वेतनभोगी',  hinglish: 'Salaried' },
+  selfEmployed: { en: 'Self-employed', hi: 'स्व-नियोजित', hinglish: 'Self-employed' },
+};
+const L = (key, lang) => CHIP_LABELS[key]?.[lang] || CHIP_LABELS[key]?.en || key;
+
+// Context-sensitive chips per step. Returns an array of { label, value } pairs.
+function quickRepliesForStep(step, lang) {
+  const lg = lang || 'en';
+  const base = [
+    { label: L('help', lg), value: 'help' },
+    { label: L('back', lg), value: 'back' },
+    { label: L('restart', lg), value: 'restart' },
+  ];
+  switch (step) {
+    case 'welcome':
+    case 'askName':
+      return [
+        { label: L('yes', lg), value: 'yes' },
+        { label: L('no', lg), value: 'no' },
+        ...base,
+      ];
+    case 'askOccupation':
+      return [
+        { label: L('salaried', lg), value: 'salaried' },
+        { label: L('selfEmployed', lg), value: 'self employed' },
+        ...base,
+      ];
+    case 'askPan':
+    case 'askBankDetails':
+    case 'kycStart':
+      return [
+        { label: L('yes', lg), value: 'yes' },
+        { label: L('no', lg), value: 'no' },
+        { label: L('skip', lg), value: 'skip' },
+        ...base,
+      ];
+    default:
+      return [{ label: L('skip', lg), value: 'skip' }, ...base];
+  }
+}
+
+const renderQuickReplies = ({ currentStep, lang, onPress, colors }) => {
+  const chips = quickRepliesForStep(currentStep, lang);
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 6 }}
+    >
+      {chips.map((c) => (
+        <TouchableOpacity
+          key={c.value}
+          onPress={() => onPress(c.value)}
+          style={{
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: colors.teal,
+            backgroundColor: `${colors.teal}12`,
+            marginRight: 6,
+          }}
+        >
+          <Text style={{ color: colors.textPrimary, fontSize: 12, fontWeight: '600' }}>
+            {c.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
+};
 
 const FBot = () => {
   const { postAction: onAction } = useFBot();
@@ -27,6 +111,38 @@ const FBot = () => {
   const slideAnim = useRef(new Animated.Value(SCREEN_H)).current;
   const flatListRef = useRef(null);
   const [minimized, setMinimized] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const [showLangSwitcher, setShowLangSwitcher] = useState(false);
+
+  // Localized validation error message helper
+  const invalid = (key) => getMessage(key, lang || 'en');
+
+  // ─── Persistence: load saved state on mount ────────────────────────────
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
+      if (raw) {
+        try {
+          const saved = JSON.parse(raw);
+          if (saved.lang) setLang(saved.lang);
+          if (Array.isArray(saved.messages)) setMessages(saved.messages);
+          if (saved.currentStep) setCurrentStep(saved.currentStep);
+        } catch (_) { /* ignore */ }
+      }
+      setHydrated(true);
+    }).catch(() => setHydrated(true));
+  }, []);
+
+  // Persist on change (after hydration, to avoid overwriting with defaults)
+  useEffect(() => {
+    if (!hydrated) return;
+    const snapshot = {
+      lang,
+      currentStep,
+      messages: messages.slice(-MAX_HISTORY),
+    };
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot)).catch(() => {});
+  }, [lang, currentStep, messages, hydrated]);
 
   const addBotMessage = useCallback((text, options = {}) => {
     setTyping(true);
@@ -39,8 +155,15 @@ const FBot = () => {
         ...options,
       }]);
       setTyping(false);
+      // Bump unread when panel isn't showing messages
+      setUnread((u) => (!visible || minimized ? u + 1 : 0));
     }, 600 + Math.random() * 400);
-  }, []);
+  }, [visible, minimized]);
+
+  // Clear unread when panel opens (and is not minimized)
+  useEffect(() => {
+    if (visible && !minimized) setUnread(0);
+  }, [visible, minimized]);
 
   const addUserMessage = useCallback((text) => {
     setMessages((prev) => [...prev, {
@@ -67,11 +190,11 @@ const FBot = () => {
   }, [messages, typing]);
 
   // Start conversation when language is selected
-  const selectLanguage = (langCode) => {
+  const selectLanguage = (langCode, { greet = true } = {}) => {
     setLang(langCode);
+    setShowLangSwitcher(false);
+    if (!greet) return;
     addBotMessage(getMessage('welcome', langCode));
-
-    // Check if we have prefill data
     const prefillName = state.borrowerDetails?.name || user?.name || '';
     setTimeout(() => {
       if (prefillName) {
@@ -83,21 +206,74 @@ const FBot = () => {
     }, 1200);
   };
 
+  // Restart the conversation from scratch
+  const restartConversation = () => {
+    const l = lang || 'en';
+    setMessages([]);
+    setCurrentStep('welcome');
+    AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+    addBotMessage(getMessage('restarted', l));
+    setTimeout(() => {
+      const prefillName = state.borrowerDetails?.name || user?.name || '';
+      addBotMessage(prefillName
+        ? getMessage('askName', l, { prefillName })
+        : getMessage('askNameFresh', l));
+      setCurrentStep('askName');
+    }, 800);
+  };
+
+  // Send from quick-reply chip (skips re-typing)
+  const sendText = (text) => {
+    if (!text) return;
+    addUserMessage(text);
+    const detected = detectInputType(text);
+    handleDetected(detected, text);
+  };
+
   // Process user input
   const handleSend = () => {
     const text = input.trim();
     if (!text) return;
     setInput('');
     addUserMessage(text);
-
     const detected = detectInputType(text);
+    handleDetected(detected, text);
+  };
+
+  const handleDetected = (detected, rawText) => {
+    const l = lang || 'en';
 
     if (detected.type === 'help') {
-      addBotMessage(getMessage('help', lang));
+      addBotMessage(getMessage('help', l));
+      return;
+    }
+    if (detected.type === 'restart') {
+      restartConversation();
+      return;
+    }
+    if (detected.type === 'back') {
+      const prev = getPreviousStep(currentStep);
+      setCurrentStep(prev);
+      addBotMessage(getMessage('backStep', l));
+      setTimeout(() => addBotMessage(getMessage(prev, l) || ''), 500);
+      return;
+    }
+    if (detected.type === 'skip') {
+      // Move forward one step without storing data
+      const idx = FBOT_STEPS.indexOf(currentStep);
+      const next = FBOT_STEPS[Math.min(idx + 1, FBOT_STEPS.length - 1)];
+      setCurrentStep(next);
+      addBotMessage(getMessage(next, l) || '');
       return;
     }
 
-    processStep(detected, text);
+    processStep(detected, rawText);
+  };
+
+  const advanceTo = (next, extra) => {
+    setCurrentStep(next);
+    if (extra) setTimeout(() => addBotMessage(extra), 400);
+    setTimeout(() => addBotMessage(getMessage(next, lang || 'en')), extra ? 1100 : 500);
   };
 
   const processStep = (detected, rawText) => {
@@ -108,14 +284,21 @@ const FBot = () => {
         if (detected.type === 'confirm') {
           const name = state.borrowerDetails?.name || user?.name || '';
           onAction?.({ type: 'SET_NAME', value: name });
-          addBotMessage(getMessage('askPhone', l));
-          setCurrentStep('askPhone');
+          advanceTo('askDob');
         } else if (detected.type === 'deny') {
           addBotMessage(getMessage('askNameFresh', l));
         } else if (detected.type === 'text') {
           onAction?.({ type: 'SET_NAME', value: detected.value });
-          addBotMessage(getMessage('askPhone', l));
-          setCurrentStep('askPhone');
+          advanceTo('askDob');
+        }
+        break;
+
+      case 'askDob':
+        if (detected.type === 'dob') {
+          onAction?.({ type: 'SET_DOB', value: detected.value });
+          advanceTo('askPhone');
+        } else {
+          addBotMessage(invalid('invalidDob'));
         }
         break;
 
@@ -127,11 +310,9 @@ const FBot = () => {
           setTimeout(() => {
             addBotMessage(getMessage('askOtp', l));
             setCurrentStep('askOtp');
-          }, 2000);
+          }, 1800);
         } else {
-          addBotMessage(l === 'en'
-            ? 'Please enter a valid 10-digit mobile number starting with 6-9.'
-            : 'Please ek valid 10-digit mobile number enter karein jo 6-9 se start ho.');
+          addBotMessage(invalid('invalidPhone'));
         }
         break;
 
@@ -145,91 +326,111 @@ const FBot = () => {
             setTimeout(() => {
               const prefillPan = state.borrowerDetails?.pan || '';
               if (prefillPan) {
-                addBotMessage(l === 'en'
-                  ? `I found your PAN: ${prefillPan}. Is this correct?`
+                addBotMessage(l === 'hi'
+                  ? `मुझे आपका PAN मिला: ${prefillPan}। क्या यह सही है?`
                   : `Mujhe aapka PAN mila: ${prefillPan}. Kya ye sahi hai?`);
               } else {
                 addBotMessage(getMessage('askPan', l));
               }
-            }, 800);
-          }, 1500);
+            }, 700);
+          }, 1400);
         } else {
-          addBotMessage(l === 'en'
-            ? 'Please enter the 6-digit OTP sent to your mobile.'
-            : 'Please 6-digit OTP enter karein jo aapke mobile pe aaya hai.');
+          addBotMessage(invalid('invalidOtp'));
         }
         break;
 
-      case 'askPan':
-        if (detected.type === 'confirm') {
-          const pan = state.borrowerDetails?.pan || state.panDetails?.panNumber || '';
+      case 'askPan': {
+        const isConfirm = detected.type === 'confirm';
+        const isPan = detected.type === 'pan';
+        if (isConfirm || isPan) {
+          const pan = isPan
+            ? detected.value
+            : (state.borrowerDetails?.pan || state.panDetails?.panNumber || '');
           onAction?.({ type: 'VERIFY_PAN', value: pan });
           addBotMessage(getMessage('waiting', l));
           setTimeout(() => {
             addBotMessage(getMessage('panVerified', l));
-            setCurrentStep('creditCheck');
             setTimeout(() => {
               addBotMessage(getMessage('creditPassed', l));
-              setCurrentStep('askOccupation');
-              setTimeout(() => addBotMessage(getMessage('askOccupation', l)), 800);
-            }, 2000);
-          }, 1500);
-        } else if (detected.type === 'pan') {
-          onAction?.({ type: 'VERIFY_PAN', value: detected.value });
-          addBotMessage(getMessage('waiting', l));
-          setTimeout(() => {
-            addBotMessage(getMessage('panVerified', l));
-            setCurrentStep('creditCheck');
-            setTimeout(() => {
-              addBotMessage(getMessage('creditPassed', l));
-              setCurrentStep('askOccupation');
-              setTimeout(() => addBotMessage(getMessage('askOccupation', l)), 800);
-            }, 2000);
-          }, 1500);
+              advanceTo('askOccupation');
+            }, 1600);
+          }, 1400);
         } else {
-          addBotMessage(l === 'en'
-            ? 'Please enter a valid PAN number (e.g. ABCDE1234F).'
-            : 'Please ek valid PAN number enter karein (jaise ABCDE1234F).');
+          addBotMessage(invalid('invalidPan'));
         }
         break;
+      }
 
       case 'askOccupation':
         if (detected.type === 'occupation' || detected.type === 'text') {
           const occ = detected.type === 'occupation' ? detected.value : rawText;
           onAction?.({ type: 'SET_OCCUPATION', value: occ });
-          addBotMessage(getMessage('askBankDetails', l));
-          setCurrentStep('askBankDetails');
+          advanceTo('askEmployer');
+        }
+        break;
+
+      case 'askEmployer':
+        if (detected.type === 'text') {
+          onAction?.({ type: 'SET_EMPLOYER', value: rawText });
+          advanceTo('askMonthlyIncome');
+        }
+        break;
+
+      case 'askMonthlyIncome':
+        if (detected.type === 'amount' || detected.type === 'tenure') {
+          // tenure detection can swallow small numbers; accept either here
+          const income = detected.value;
+          onAction?.({ type: 'SET_MONTHLY_INCOME', value: income });
+          advanceTo('askLoanAmount');
+        } else {
+          addBotMessage(invalid('invalidAmount'));
+        }
+        break;
+
+      case 'askLoanAmount':
+        if (detected.type === 'amount') {
+          onAction?.({ type: 'SET_LOAN_AMOUNT', value: detected.value });
+          advanceTo('askTenure');
+        } else {
+          addBotMessage(invalid('invalidAmount'));
+        }
+        break;
+
+      case 'askTenure':
+        if (detected.type === 'tenure') {
+          onAction?.({ type: 'SET_TENURE', value: detected.value });
+          advanceTo('askBankDetails');
+        } else {
+          addBotMessage(invalid('invalidTenure'));
         }
         break;
 
       case 'askBankDetails':
         if (detected.type === 'ifsc') {
           onAction?.({ type: 'SET_IFSC', value: detected.value });
-          addBotMessage(l === 'en'
-            ? 'IFSC noted. Now please share your account number.'
-            : 'IFSC note kar liya. Ab please apna account number share karein.');
+          addBotMessage(l === 'hi'
+            ? 'IFSC नोट कर लिया। अब कृपया अपना अकाउंट नंबर साझा करें।'
+            : l === 'en'
+              ? 'IFSC noted. Now please share your account number.'
+              : 'IFSC note kar liya. Ab please apna account number share karein.');
           setCurrentStep('askAccountNumber');
         } else if (detected.type === 'confirm') {
-          addBotMessage(getMessage('kycStart', l));
-          setCurrentStep('kycStart');
+          advanceTo('kycStart');
         } else {
-          addBotMessage(l === 'en'
-            ? 'Please share your bank IFSC code (11 characters, e.g. SBIN0001234).'
-            : 'Please apna bank IFSC code share karein (11 characters, jaise SBIN0001234).');
+          addBotMessage(invalid('invalidIfsc'));
         }
         break;
 
       case 'askAccountNumber':
         if (detected.type === 'accountNumber') {
           onAction?.({ type: 'SET_ACCOUNT', value: detected.value });
-          addBotMessage(l === 'en'
-            ? 'Bank details saved! ✅ Let me verify your income now...'
-            : 'Bank details save ho gaye! ✅ Ab income verify karta hoon...');
           onAction?.({ type: 'VERIFY_BANK' });
-          setTimeout(() => {
-            addBotMessage(getMessage('kycStart', l));
-            setCurrentStep('kycStart');
-          }, 2000);
+          addBotMessage(l === 'hi'
+            ? 'बैंक डिटेल्स सेव हो गए! ✅ अब KYC करते हैं...'
+            : l === 'en'
+              ? 'Bank details saved! ✅ Now let\'s do KYC...'
+              : 'Bank details save ho gaye! ✅ Ab KYC karte hain...');
+          setTimeout(() => advanceTo('kycStart'), 1500);
         }
         break;
 
@@ -237,10 +438,7 @@ const FBot = () => {
         if (detected.type === 'confirm' || detected.type === 'text') {
           onAction?.({ type: 'START_KYC' });
           addBotMessage(getMessage('waiting', l));
-          setTimeout(() => {
-            addBotMessage(getMessage('kycOtp', l));
-            setCurrentStep('kycOtp');
-          }, 2000);
+          setTimeout(() => advanceTo('kycOtp'), 1800);
         }
         break;
 
@@ -250,9 +448,10 @@ const FBot = () => {
           addBotMessage(getMessage('waiting', l));
           setTimeout(() => {
             addBotMessage(getMessage('kycDone', l));
-            setCurrentStep('selfieStart');
-            setTimeout(() => addBotMessage(getMessage('selfieStart', l)), 800);
-          }, 2000);
+            advanceTo('selfieStart');
+          }, 1800);
+        } else {
+          addBotMessage(invalid('invalidOtp'));
         }
         break;
 
@@ -296,6 +495,11 @@ const FBot = () => {
       >
         <Text style={styles.fabText}>🤖</Text>
         <Text style={[styles.fabLabel, { color: '#fff' }]}>FBot</Text>
+        {unread > 0 && (
+          <View style={[styles.badge, { backgroundColor: colors.error || '#E53E3E' }]}>
+            <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
   }
@@ -337,9 +541,19 @@ const FBot = () => {
     ]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.teal }]}>
-        <Text style={styles.headerTitle}>🤖 FBot</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={styles.headerTitle}>🤖 FBot</Text>
+          {!minimized && (
+            <Text style={styles.headerProgress}>
+              {' · '}{getProgressLabel(currentStep, lang || 'en')}
+            </Text>
+          )}
+        </View>
         <View style={{ flexDirection: 'row' }}>
-          <TouchableOpacity onPress={() => setMinimized(!minimized)} style={{ marginRight: 16 }}>
+          <TouchableOpacity onPress={() => setShowLangSwitcher((s) => !s)} style={{ marginRight: 14 }}>
+            <Text style={styles.headerClose}>🌐</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setMinimized(!minimized)} style={{ marginRight: 14 }}>
             <Text style={styles.headerClose}>{minimized ? '▲' : '▼'}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setVisible(false)}>
@@ -347,6 +561,39 @@ const FBot = () => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Progress bar (hidden when minimized or on welcome) */}
+      {!minimized && currentStep !== 'welcome' && (
+        <View style={[styles.progressTrack, { backgroundColor: `${colors.teal}22` }]}>
+          <View
+            style={[
+              styles.progressFill,
+              { backgroundColor: colors.teal, width: `${Math.round(getProgress(currentStep) * 100)}%` },
+            ]}
+          />
+        </View>
+      )}
+
+      {/* In-chat language switcher (shown on demand) */}
+      {!minimized && showLangSwitcher && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.langStrip}>
+          {LANGUAGES.map((l) => (
+            <TouchableOpacity
+              key={l.code}
+              style={[
+                styles.langStripChip,
+                {
+                  borderColor: lang === l.code ? colors.teal : colors.border,
+                  backgroundColor: lang === l.code ? `${colors.teal}22` : colors.surface,
+                },
+              ]}
+              onPress={() => selectLanguage(l.code, { greet: false })}
+            >
+              <Text style={[styles.langStripText, { color: colors.textPrimary }]}>{l.native}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       {!minimized ? (
         <KeyboardAvoidingView
@@ -371,6 +618,9 @@ const FBot = () => {
               </View>
             ) : null}
           />
+
+          {/* Quick-reply chips — contextual based on step */}
+          {renderQuickReplies({ currentStep, lang, onPress: sendText, colors })}
 
           {/* Input */}
           <View style={[styles.inputRow, { borderTopColor: colors.border, backgroundColor: colors.surface }]}>
@@ -411,6 +661,20 @@ const styles = StyleSheet.create({
   },
   fabText: { fontSize: 24 },
   fabLabel: { fontSize: 8, fontWeight: '800', marginTop: -2 },
+  badge: {
+    position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9,
+    paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center',
+  },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  headerProgress: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600' },
+  progressTrack: { height: 3, width: '100%' },
+  progressFill: { height: 3 },
+  langStrip: { maxHeight: 44, paddingHorizontal: 6, paddingVertical: 6 },
+  langStripChip: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1,
+    marginRight: 6, minWidth: 64, alignItems: 'center',
+  },
+  langStripText: { fontSize: 12, fontWeight: '600' },
   container: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     height: SCREEN_H * 0.55, borderTopLeftRadius: 20, borderTopRightRadius: 20,
