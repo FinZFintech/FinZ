@@ -11,6 +11,10 @@ import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
 import { loadRealApplications } from '../../utils/loadApplications';
 import { saveApplicationToDb } from '../../services/applicationDbService';
+import {
+  OPS_ALL_STATUSES, OPS_PENDING_STATUSES, OPS_DISBURSED_STATUSES,
+  OPS_COMPLETED_STATUSES,
+} from '../../utils/statusBuckets';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { navigationRef } from '../../navigation/navigationRef';
@@ -47,13 +51,17 @@ const OperationsDashboardScreen = ({ navigation }) => {
 
   const loadApplications = useCallback(async () => {
     const allApps = await loadRealApplications();
-    // Operations bucket is only eligible → disbursed / active / closed.
-    // Anything still in the customer / credit stages is not on their plate.
-    const opsApps = allApps
-      .filter((a) => OPS_TASK_BY_STATUS[a.status])
-      .map((a) => ({ ...a, ...OPS_TASK_BY_STATUS[a.status] }));
-    console.log('[OperationsDashboard] Apps loaded:', opsApps.length);
-    setApplications(opsApps);
+    // Keep every real app so the Total tile reflects the whole pipeline.
+    // Apps in an operations-relevant status get their task + taskStatus
+    // columns populated so the card renders correctly; apps earlier in
+    // the funnel pass through unchanged and are filtered out of the
+    // ops-specific filter buckets below.
+    const annotated = allApps.map((a) =>
+      OPS_TASK_BY_STATUS[a.status] ? { ...a, ...OPS_TASK_BY_STATUS[a.status] } : a,
+    );
+    console.log('[OperationsDashboard] Apps loaded:', annotated.length,
+      '(ops-bucket:', annotated.filter((a) => OPS_ALL_STATUSES.has(a.status)).length, ')');
+    setApplications(annotated);
   }, []);
 
   // Re-load whenever the screen comes into focus so status changes from
@@ -74,11 +82,15 @@ const OperationsDashboardScreen = ({ navigation }) => {
   };
 
   const getFilteredApps = () => {
-    if (activeFilter === 'All') return applications;
-    if (activeFilter === 'Pending Tasks') return applications.filter(a => a.taskStatus === 'pending');
-    if (activeFilter === 'Disbursement') return applications.filter(a => a.status === 'esign_done' || a.status === 'disbursed');
-    if (activeFilter === 'Completed') return applications.filter(a => a.taskStatus === 'completed');
-    return applications;
+    // "All" on the ops dashboard means "everything in the ops bucket" —
+    // not every app in the system. Apps still in sales / credit stages
+    // shouldn't appear as rows here.
+    const opsApps = applications.filter(a => OPS_ALL_STATUSES.has(a.status));
+    if (activeFilter === 'All') return opsApps;
+    if (activeFilter === 'Pending Tasks') return opsApps.filter(a => OPS_PENDING_STATUSES.has(a.status));
+    if (activeFilter === 'Disbursement') return opsApps.filter(a => a.status === 'esign_done' || OPS_DISBURSED_STATUSES.has(a.status));
+    if (activeFilter === 'Completed') return opsApps.filter(a => OPS_COMPLETED_STATUSES.has(a.status));
+    return opsApps;
   };
 
   const openAction = (app, type) => {
@@ -134,12 +146,18 @@ const OperationsDashboardScreen = ({ navigation }) => {
     Alert.alert('Success', `${actionLabels[actionType]} for ${selectedApp.id}.`);
   };
 
+  // Ops-specific view of the pipeline. "Total" = every app in an ops
+  // status (post-eligibility onwards); previously it was undefined
+  // because applications was empty when no app reached that stage.
+  // Top-line total of *every* app in the system is also surfaced so
+  // the ops dashboard isn't blind to the overall pipeline.
+  const opsApps = applications.filter(a => OPS_ALL_STATUSES.has(a.status));
   const stats = {
-    total: applications.length,
-    pendingTasks: applications.filter(a => a.taskStatus === 'pending').length,
-    disbursed: applications.filter(a => a.status === 'disbursed').length,
-    completed: applications.filter(a => a.taskStatus === 'completed').length,
-    discarded: applications.filter(a => a.status === 'discarded').length,
+    totalApplications: applications.length,
+    total: opsApps.length,
+    pendingTasks: opsApps.filter(a => OPS_PENDING_STATUSES.has(a.status)).length,
+    disbursed: opsApps.filter(a => OPS_DISBURSED_STATUSES.has(a.status)).length,
+    completed: opsApps.filter(a => OPS_COMPLETED_STATUSES.has(a.status)).length,
   };
 
   const filteredApps = getFilteredApps();
@@ -163,11 +181,11 @@ const OperationsDashboardScreen = ({ navigation }) => {
         {/* Stats */}
         <View style={styles.statsRow}>
           {[
-            { label: 'Total', value: stats.total, color: colors.primary },
+            { label: 'Applications', value: stats.totalApplications, color: colors.accent || colors.teal },
+            { label: 'Ops Bucket', value: stats.total, color: colors.primary },
             { label: 'Pending', value: stats.pendingTasks, color: colors.warning },
             { label: 'Disbursed', value: stats.disbursed, color: colors.teal },
             { label: 'Completed', value: stats.completed, color: colors.info },
-            { label: 'Discarded', value: stats.discarded, color: colors.textSecondary },
           ].map(s => (
             <View key={s.label} style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderLeftColor: s.color }]}>
               <Text style={[styles.statValue, { color: colors.textPrimary }]}>{s.value}</Text>

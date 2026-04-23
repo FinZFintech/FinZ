@@ -11,6 +11,9 @@ import StatusBadge from '../../components/common/StatusBadge';
 import InfoRow from '../../components/common/InfoRow';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadRealApplications } from '../../utils/loadApplications';
+import {
+  SALES_DRAFT_STATUSES, SALES_SUBMITTED_STATUSES, isInProgress,
+} from '../../utils/statusBuckets';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { navigationRef } from '../../navigation/navigationRef';
@@ -67,19 +70,14 @@ const SalesDashboardScreen = ({ navigation }) => {
     navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
-  // Statuses that don't belong in the "In Progress" bucket — rejected /
-  // discarded / completed applications are over and shouldn't inflate
-  // the active workload count for sales. Keep in sync with stats.inProgress.
-  const IN_PROGRESS_EXCLUDED = new Set([
-    'draft', 'submitted', 'disbursed', 'active', 'closed',
-    'credit_check_failed', 'not_eligible', 'kyc_failed', 'discarded',
-  ]);
+  // Shared buckets from utils/statusBuckets so sales / admin / credit / ops
+  // all agree on what "draft" / "in progress" / "submitted" mean.
   const getFilteredApps = () => {
     if (activeFilter === 'All') return applications;
-    if (activeFilter === 'Draft') return applications.filter(a => a.status === 'draft');
-    if (activeFilter === 'Submitted') return applications.filter(a => a.status === 'submitted' || a.status === 'disbursed');
-    // In Progress = alive + actively being worked on
-    return applications.filter(a => !IN_PROGRESS_EXCLUDED.has(a.status));
+    if (activeFilter === 'Draft') return applications.filter(a => SALES_DRAFT_STATUSES.has(a.status));
+    if (activeFilter === 'Submitted') return applications.filter(a => SALES_SUBMITTED_STATUSES.has(a.status));
+    // In Progress = alive and past the draft stages.
+    return applications.filter(a => isInProgress(a.status) && !SALES_DRAFT_STATUSES.has(a.status));
   };
 
   const handleInitiateApplication = () => {
@@ -126,9 +124,9 @@ const SalesDashboardScreen = ({ navigation }) => {
 
   const stats = {
     total: applications.length,
-    draft: applications.filter(a => a.status === 'draft').length,
-    inProgress: applications.filter(a => !IN_PROGRESS_EXCLUDED.has(a.status)).length,
-    submitted: applications.filter(a => a.status === 'submitted' || a.status === 'disbursed').length,
+    draft: applications.filter(a => SALES_DRAFT_STATUSES.has(a.status)).length,
+    inProgress: applications.filter(a => isInProgress(a.status) && !SALES_DRAFT_STATUSES.has(a.status)).length,
+    submitted: applications.filter(a => SALES_SUBMITTED_STATUSES.has(a.status)).length,
   };
 
   const filteredApps = getFilteredApps();

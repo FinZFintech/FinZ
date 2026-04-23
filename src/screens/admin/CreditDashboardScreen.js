@@ -11,6 +11,15 @@ import InfoRow from '../../components/common/InfoRow';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadRealApplications } from '../../utils/loadApplications';
 import { saveApplicationToDb } from '../../services/applicationDbService';
+import {
+  CREDIT_PENDING_STATUSES, CREDIT_APPROVED_STATUSES,
+  CREDIT_REJECTED_STATUSES, DISCARDED_STATUSES, isParkedToCredit,
+} from '../../utils/statusBuckets';
+
+// An app is "on credit's desk" iff its status explicitly needs human review
+// OR a teammate parked it to credit. System-approved apps (e.g.
+// fully_eligible) aren't shown — they don't need credit's attention.
+const needsCreditReview = (a) => CREDIT_PENDING_STATUSES.has(a.status) || isParkedToCredit(a);
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
 import { navigationRef } from '../../navigation/navigationRef';
@@ -32,8 +41,19 @@ const CreditDashboardScreen = ({ navigation }) => {
 
   const loadApplications = useCallback(async () => {
     const allApps = await loadRealApplications();
-    console.log('[CreditDashboard] Apps loaded:', allApps.length);
-    setApplications(allApps);
+    // Keep only apps that actually belong on a credit reviewer's desk:
+    //   - awaiting human review (manual_review / kyc_address_review)
+    //   - parked here by another role
+    //   - already approved / rejected by credit (so this dashboard can
+    //     reflect the credit queue's full state, not just the pending)
+    const creditApps = allApps.filter((a) =>
+      needsCreditReview(a)
+      || CREDIT_APPROVED_STATUSES.has(a.status)
+      || CREDIT_REJECTED_STATUSES.has(a.status),
+    );
+    console.log('[CreditDashboard] Apps loaded:', creditApps.length,
+      'of', allApps.length, 'total');
+    setApplications(creditApps);
   }, []);
 
   // Reload on focus so approve / reject from the detail screen flip the
@@ -54,9 +74,9 @@ const CreditDashboardScreen = ({ navigation }) => {
 
   const getFilteredApps = () => {
     if (activeFilter === 'All') return applications;
-    if (activeFilter === 'Pending Review') return applications.filter(a => a.status === 'manual_review' || a.status === 'credit_check_passed' || a.status === 'income_verified');
-    if (activeFilter === 'Approved') return applications.filter(a => a.status === 'fully_eligible');
-    if (activeFilter === 'Rejected') return applications.filter(a => a.status === 'credit_check_failed' || a.status === 'not_eligible');
+    if (activeFilter === 'Pending Review') return applications.filter(needsCreditReview);
+    if (activeFilter === 'Approved') return applications.filter(a => CREDIT_APPROVED_STATUSES.has(a.status));
+    if (activeFilter === 'Rejected') return applications.filter(a => CREDIT_REJECTED_STATUSES.has(a.status));
     return applications;
   };
 
@@ -108,10 +128,10 @@ const CreditDashboardScreen = ({ navigation }) => {
 
   const stats = {
     total: applications.length,
-    pendingReview: applications.filter(a => a.status === 'manual_review' || a.status === 'credit_check_passed' || a.status === 'income_verified').length,
-    approved: applications.filter(a => a.status === 'fully_eligible').length,
-    rejected: applications.filter(a => a.status === 'credit_check_failed' || a.status === 'not_eligible').length,
-    discarded: applications.filter(a => a.status === 'discarded').length,
+    pendingReview: applications.filter(needsCreditReview).length,
+    approved: applications.filter(a => CREDIT_APPROVED_STATUSES.has(a.status)).length,
+    rejected: applications.filter(a => CREDIT_REJECTED_STATUSES.has(a.status)).length,
+    discarded: applications.filter(a => DISCARDED_STATUSES.has(a.status)).length,
   };
 
   const filteredApps = getFilteredApps();
