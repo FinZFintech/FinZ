@@ -1460,6 +1460,28 @@ const FBot = () => {
       case 'askEmployer':
         if (detected.type === 'text') {
           onAction?.({ type: 'SET_EMPLOYER', value: rawText });
+          // For self-employed borrowers, try a GST lookup on their PAN —
+          // same call the IncomeVerification screen makes. Logged to
+          // signzyVerifications.gstIncome so staff can audit the trace.
+          const pan = state.panDetails?.panNumber || state.borrowerDetails?.pan || '';
+          const occ = state.borrowerDetails?.occupation || '';
+          if (pan && /self.?employed|business/i.test(occ)) {
+            signzyService.gstIncomeByPan(pan).then((gst) => {
+              dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+                key: 'gstIncome',
+                status: gst?.gstins?.length ? 'success' : 'no_match',
+                result: gst,
+              }});
+              const estimate = gst?.estimatedAnnualIncome;
+              if (estimate) {
+                // Pre-fill monthly income from GST so the next question can
+                // be a confirmation rather than a fresh ask.
+                dispatch({ type: 'SET_BORROWER_DETAILS', payload: {
+                  monthlyIncome: Math.round(estimate / 12),
+                }});
+              }
+            }).catch((err) => console.log('[FBot] gstIncomeByPan failed:', err?.message));
+          }
           advanceTo('askMonthlyIncome');
         }
         break;
