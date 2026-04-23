@@ -14,6 +14,11 @@ import {
   getProgress, getProgressLabel, getPreviousStep,
 } from './FBotEngine';
 import { useFBot } from './FBotContext';
+import {
+  loadMemory, remember, recall, rememberCorrection, recallCorrection,
+  logChipTap, reorderChipsByTaps, logIntent, intentFrequency, clearMemory,
+} from './FBotMemory';
+import { matchIntent, intentAnswer } from './FBotIntents';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const BOT_AVATAR = '🤖';
@@ -78,7 +83,11 @@ function quickRepliesForStep(step, lang) {
 }
 
 const renderQuickReplies = ({ currentStep, lang, onPress, colors }) => {
-  const chips = quickRepliesForStep(currentStep, lang);
+  // Reorder the default chip set so chips this user taps more often
+  // appear first. Stable for untapped chips — no learning-induced
+  // flicker on fresh installs.
+  const defaultChips = quickRepliesForStep(currentStep, lang);
+  const chips = reorderChipsByTaps(currentStep, defaultChips);
   return (
     <View style={{ height: 44, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface }}>
       <ScrollView
@@ -89,7 +98,7 @@ const renderQuickReplies = ({ currentStep, lang, onPress, colors }) => {
         {chips.map((c) => (
           <TouchableOpacity
             key={c.value}
-            onPress={() => onPress(c.value)}
+            onPress={() => { logChipTap(currentStep, c.value); onPress(c.value); }}
             style={{
               paddingHorizontal: 12,
               paddingVertical: 6,
@@ -221,11 +230,21 @@ const FBot = () => {
   const { user } = useAuth();
   const navigation = useNavigation();
 
-  // Every FBot action: (1) update persistent loan state and (2) notify any
-  // mounted screen listener so it can auto-fill and auto-submit its form.
+  // Every FBot action: (1) update persistent loan state, (2) notify any
+  // mounted screen listener so it can auto-fill/auto-submit, and (3) pipe
+  // the key facts into memory so the bot can pre-fill them next session.
   const onAction = useCallback((action) => {
     dispatchLoanUpdate(dispatch, action);
     postAction(action);
+    switch (action?.type) {
+      case 'SET_NAME':        if (action.value) remember('userName', action.value); break;
+      case 'SET_DOB':         if (action.value) remember('userDob', action.value); break;
+      case 'SET_PHONE':       if (action.value) remember('userPhone', action.value); break;
+      case 'SET_OCCUPATION':  if (action.value) remember('userOccupation', action.value); break;
+      case 'SET_EMPLOYER':    if (action.value) remember('userEmployer', action.value); break;
+      case 'SET_MONTHLY_INCOME': if (action.value) remember('userMonthlyIncome', action.value); break;
+      case 'SET_IFSC':        if (action.value) remember('userIfsc', action.value); break;
+    }
   }, [dispatch, postAction]);
 
   // Navigate to a screen robustly across tabs. Loan-flow screens live
@@ -265,7 +284,10 @@ const FBot = () => {
 
   // ─── Persistence: load saved state on mount ────────────────────────────
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
+    Promise.all([
+      AsyncStorage.getItem(STORAGE_KEY),
+      loadMemory(),
+    ]).then(([raw, mem]) => {
       if (raw) {
         try {
           const saved = JSON.parse(raw);
@@ -274,9 +296,19 @@ const FBot = () => {
           if (saved.currentStep) setCurrentStep(saved.currentStep);
         } catch (_) { /* ignore */ }
       }
+      // If we don't have a language in the session snapshot but memory
+      // remembers one from a past session, adopt it so the user doesn't
+      // have to re-pick it.
+      if (!mem) { /* memory unavailable */ }
       setHydrated(true);
     }).catch(() => setHydrated(true));
   }, []);
+
+  // Remember language every time it changes so a fresh install /
+  // cleared session restores it.
+  useEffect(() => {
+    if (lang) remember('preferredLanguage', lang);
+  }, [lang]);
 
   // Persist on change (after hydration, to avoid overwriting with defaults)
   useEffect(() => {
@@ -388,11 +420,30 @@ const FBot = () => {
     }, 1200);
   };
 
+  // Personalized welcome-back line used when memory remembers the user.
+  // Kept inline (not in MESSAGES) to avoid shuttling user names through
+  // the translation layer.
+  const welcomeBackLine = (langCode, name) => {
+    const lines = {
+      en: `Welcome back${name ? ', ' + name : ''}! 👋 How can I help you today?`,
+      hinglish: `Wapas aane ke liye shukriya${name ? ', ' + name : ''}! 👋 Aaj main kaise madad karoon?`,
+      hi: `वापस आने के लिए स्वागत है${name ? ', ' + name : ''}! 👋 आज मैं कैसे मदद करूँ?`,
+    };
+    return lines[langCode] || lines.hinglish;
+  };
+
   const selectLanguage = (langCode, { greet = true } = {}) => {
     setLang(langCode);
     setShowLangSwitcher(false);
     if (!greet) return;
-    addBotMessage(getMessage('welcome', langCode));
+
+    // Returning user? Greet by name instead of the generic welcome.
+    const rememberedName = recall('userName');
+    if (rememberedName) {
+      addBotMessage(welcomeBackLine(langCode, rememberedName));
+    } else {
+      addBotMessage(getMessage('welcome', langCode));
+    }
     setTimeout(() => {
       // Always enter askStart — the chips adapt based on whether an
       // application already exists (Resume / Start-new / No).
@@ -475,6 +526,40 @@ const FBot = () => {
       return;
     }
 
+    // ── Intent matching ───────────────────────────────────────────────
+    // For open-ended free text (not a recognized form field), try to
+    // match an FAQ intent. If confidence is high enough, answer it
+    // without disrupting the current flow. Intents can also navigate
+    // (e.g. "my status" → MyLoans screen).
+    //
+    // Skipped when the step is actively collecting text data (askName,
+    // askEmployer) — in those cases the user is meant to provide a
+    // value, not ask a question.
+    const stepWantsText = ['askName', 'askEmployer'].includes(currentStep);
+    if (detected.type === 'text' && !stepWantsText) {
+      const match = matchIntent(rawText);
+      if (match) {
+        const answer = intentAnswer(match.intent, l);
+        if (answer) addBotMessage(answer);
+        logIntent(match.intent.id, rawText);
+        if (match.intent.action?.type === 'navigate') {
+          setTimeout(() => safeNavigate(match.intent.action.screen), 600);
+        }
+        // If we've seen this intent many times, the user is clearly
+        // confused — nudge them toward human support.
+        if (intentFrequency(match.intent.id) >= 3) {
+          setTimeout(() => addBotMessage(
+            l === 'hi'
+              ? "आप यह कई बार पूछ रहे हैं — क्या मैं आपको सहायता टीम से जोड़ूँ?"
+              : l === 'en'
+                ? "You've asked this a few times — would you like me to connect you with the support team?"
+                : "Aap ye baar-baar pooch rahe hain — kya main aapko support team se connect karoon?"
+          ), 1200);
+        }
+        return;
+      }
+    }
+
     processStep(detected, rawText);
   };
 
@@ -512,12 +597,14 @@ const FBot = () => {
 
       case 'askName':
         if (detected.type === 'confirm') {
-          const name = state.borrowerDetails?.name || user?.name || '';
+          const name = state.borrowerDetails?.name || user?.name || recall('userName') || '';
           onAction?.({ type: 'SET_NAME', value: name });
           advanceTo('askDob');
         } else if (detected.type === 'deny') {
           addBotMessage(getMessage('askNameFresh', l));
         } else if (detected.type === 'text') {
+          // User corrected the prefilled name — remember it for next time.
+          rememberCorrection('askName', detected.value);
           onAction?.({ type: 'SET_NAME', value: detected.value });
           advanceTo('askDob');
         }
