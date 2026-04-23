@@ -5,6 +5,7 @@ import {
   ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../store/ThemeContext';
 import { useLoan } from '../../store/LoanContext';
 import { useAuth } from '../../store/AuthContext';
@@ -42,6 +43,13 @@ function quickRepliesForStep(step, lang) {
     { label: L('restart', lg), value: 'restart' },
   ];
   switch (step) {
+    case 'askStart':
+      return [
+        { label: L('yes', lg), value: 'yes' },
+        { label: L('no', lg), value: 'no' },
+        { label: L('help', lg), value: 'help' },
+        { label: L('restart', lg), value: 'restart' },
+      ];
     case 'welcome':
     case 'askName':
       return [
@@ -72,39 +80,147 @@ function quickRepliesForStep(step, lang) {
 const renderQuickReplies = ({ currentStep, lang, onPress, colors }) => {
   const chips = quickRepliesForStep(currentStep, lang);
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 6 }}
-    >
-      {chips.map((c) => (
-        <TouchableOpacity
-          key={c.value}
-          onPress={() => onPress(c.value)}
-          style={{
-            paddingHorizontal: 12,
-            paddingVertical: 6,
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: colors.teal,
-            backgroundColor: `${colors.teal}12`,
-            marginRight: 6,
-          }}
-        >
-          <Text style={{ color: colors.textPrimary, fontSize: 12, fontWeight: '600' }}>
-            {c.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
+    <View style={{ height: 44, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center' }}
+      >
+        {chips.map((c) => (
+          <TouchableOpacity
+            key={c.value}
+            onPress={() => onPress(c.value)}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: colors.teal,
+              backgroundColor: `${colors.teal}12`,
+              marginRight: 6,
+            }}
+          >
+            <Text style={{ color: colors.textPrimary, fontSize: 12, fontWeight: '600' }}>
+              {c.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
   );
 };
 
+// Maps an FBot intent (SET_NAME, SET_PHONE, VERIFY_PAN, ...) onto a
+// LoanContext dispatch. Kept outside the component so it doesn't rebind
+// on every render.
+const dispatchLoanUpdate = (dispatch, action) => {
+  if (!dispatch || !action || !action.type) return;
+  switch (action.type) {
+    case 'SET_NAME':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { name: action.value } });
+      return;
+    case 'SET_DOB':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { dob: action.value } });
+      return;
+    case 'SET_PHONE':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { phone: action.value } });
+      return;
+    case 'VERIFY_PAN':
+      dispatch({ type: 'SET_PAN', payload: { panNumber: action.value, verified: true } });
+      return;
+    case 'SET_OCCUPATION':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { occupation: action.value } });
+      return;
+    case 'SET_EMPLOYER':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { employer: action.value } });
+      return;
+    case 'SET_MONTHLY_INCOME':
+      dispatch({ type: 'SET_INCOME', payload: { monthlyIncome: action.value } });
+      return;
+    case 'SET_LOAN_AMOUNT':
+      dispatch({ type: 'SET_PRODUCT', payload: { requestedAmount: action.value } });
+      return;
+    case 'SET_TENURE':
+      dispatch({ type: 'SET_TENURE', payload: action.value });
+      return;
+    case 'SET_IFSC':
+      dispatch({ type: 'SET_BANK_DETAILS', payload: { ifsc: action.value } });
+      return;
+    case 'SET_ACCOUNT':
+      dispatch({ type: 'SET_BANK_DETAILS', payload: { accountNumber: action.value } });
+      return;
+    case 'VERIFY_BANK':
+      dispatch({ type: 'SET_PENNY_DROP', payload: { verified: true } });
+      return;
+    case 'SET_LOAN_TYPE':
+      dispatch({ type: 'SET_LOAN_TYPE', payload: action.value });
+      return;
+    default:
+      // OTP / KYC_OTP / SELFIE side-effects are handled by the mounted
+      // screen's listener via FBotContext; no direct state update here.
+      return;
+  }
+};
+
+// Route an FBot step to the customer-facing screen that collects that step's
+// data. Used so the bot can navigate the user to the right screen when a
+// step begins (e.g. when we reach askPan, open the PAN screen).
+const screenForStep = (step) => {
+  switch (step) {
+    case 'askName':
+    case 'askDob':
+    case 'askPhone':
+    case 'askOtp':
+      return 'BorrowerSelection';
+    case 'askPan':
+      return 'PanVerification';
+    case 'askOccupation':
+    case 'askEmployer':
+    case 'askMonthlyIncome':
+    case 'askLoanAmount':
+    case 'askTenure':
+    case 'askBankDetails':
+    case 'askAccountNumber':
+      return 'IncomeVerification';
+    case 'kycStart':
+    case 'kycOtp':
+      return 'KycVerification';
+    case 'selfieStart':
+      return 'SelfieVerification';
+    case 'applicationComplete':
+      return 'EnachEsign';
+    default:
+      return null;
+  }
+};
+
 const FBot = () => {
-  const { postAction: onAction } = useFBot();
+  const { postAction } = useFBot();
   const { colors } = useTheme();
-  const { state } = useLoan();
+  const { state, dispatch } = useLoan();
   const { user } = useAuth();
+  const navigation = useNavigation();
+
+  // Every FBot action: (1) update persistent loan state and (2) notify any
+  // mounted screen listener so it can auto-fill and auto-submit its form.
+  const onAction = useCallback((action) => {
+    dispatchLoanUpdate(dispatch, action);
+    postAction(action);
+  }, [dispatch, postAction]);
+
+  // Attempt to navigate to a screen. Works from any tab — if the target
+  // lives inside a sub-stack, we try the stack's screen name directly
+  // (the tab navigator resolves the right stack).
+  const safeNavigate = useCallback((screen) => {
+    if (!screen || !navigation?.navigate) return;
+    try {
+      navigation.navigate(screen);
+    } catch (_) {
+      // Best-effort — if the user is on a tab that doesn't expose this
+      // screen, fall back to the Apply tab which owns the loan stack.
+      try { navigation.navigate('ApplyTab'); } catch (_) {}
+    }
+  }, [navigation]);
   const [visible, setVisible] = useState(false);
   const [lang, setLang] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -193,13 +309,76 @@ const FBot = () => {
   }, [messages, typing]);
 
   // Start conversation when language is selected
+  // Static translations for bot prompts that aren't in the engine's MESSAGES
+  // map (kept here to avoid shuttling tiny strings back through the engine).
+  const tr = (key) => {
+    const lg = lang || 'en';
+    const lines = {
+      askStart: {
+        en: "I can help you start a new loan application — shall we begin?",
+        hinglish: "Main ek nayi loan application start karne mein madad kar sakta hoon — shuru karein?",
+        hi: "मैं एक नई लोन एप्लीकेशन शुरू करने में मदद कर सकता हूँ — शुरू करें?",
+      },
+      startedApp: {
+        en: "Starting a new education loan application for you. 🚀",
+        hinglish: "Aapke liye nayi education loan application start kar raha hoon. 🚀",
+        hi: "आपके लिए एक नई एजुकेशन लोन एप्लीकेशन शुरू कर रहा हूँ। 🚀",
+      },
+      openingScreen: {
+        en: "Opening the next screen for you...",
+        hinglish: "Aapke liye next screen open kar raha hoon...",
+        hi: "आपके लिए अगली स्क्रीन खोल रहा हूँ...",
+      },
+      noThanks: {
+        en: "No problem — you can ask me anytime to start or continue.",
+        hinglish: "Koi baat nahi — kabhi bhi shuru karne ke liye kah dein.",
+        hi: "कोई बात नहीं — कभी भी शुरू करने के लिए कह दें।",
+      },
+    };
+    return lines[key]?.[lg] || lines[key]?.hinglish || lines[key]?.en || '';
+  };
+
+  // True if the user has an application in progress we can resume into.
+  const hasActiveApplication = () => !!(state.loanType || state.instituteDetails || state.borrowerDetails);
+
+  // Kick off a new application on the user's behalf: pick a default loan
+  // type, dispatch it, and navigate to the Apply tab so the flow begins.
+  const startNewApplication = () => {
+    const l = lang || 'en';
+    onAction({ type: 'SET_LOAN_TYPE', value: 'education' });
+    addBotMessage(tr('startedApp'));
+    safeNavigate('ApplyTab');
+    setTimeout(() => {
+      const prefillName = state.borrowerDetails?.name || user?.name || '';
+      addBotMessage(prefillName
+        ? getMessage('askName', l, { prefillName })
+        : getMessage('askNameFresh', l));
+      setCurrentStep('askName');
+    }, 1200);
+  };
+
   const selectLanguage = (langCode, { greet = true } = {}) => {
     setLang(langCode);
     setShowLangSwitcher(false);
     if (!greet) return;
     addBotMessage(getMessage('welcome', langCode));
-    const prefillName = state.borrowerDetails?.name || user?.name || '';
     setTimeout(() => {
+      // If no application is in progress, offer to start one. Otherwise
+      // resume by asking for the name (prefilled when we already have it).
+      if (!hasActiveApplication()) {
+        // Inline the ask-start prompt; handleDetected/processStep react via
+        // the 'askStart' step below.
+        const lg = langCode;
+        const lines = {
+          en: "I can help you start a new loan application — shall we begin?",
+          hinglish: "Main ek nayi loan application start karne mein madad kar sakta hoon — shuru karein?",
+          hi: "मैं एक नई लोन एप्लीकेशन शुरू करने में मदद कर सकता हूँ — शुरू करें?",
+        };
+        addBotMessage(lines[lg] || lines.hinglish);
+        setCurrentStep('askStart');
+        return;
+      }
+      const prefillName = state.borrowerDetails?.name || user?.name || '';
       if (prefillName) {
         addBotMessage(getMessage('askName', langCode, { prefillName }));
       } else {
@@ -275,6 +454,10 @@ const FBot = () => {
 
   const advanceTo = (next, extra) => {
     setCurrentStep(next);
+    // If this step has an owning screen, open it so the matching form
+    // listener is mounted and the chat-filled data takes effect.
+    const targetScreen = screenForStep(next);
+    if (targetScreen) safeNavigate(targetScreen);
     if (extra) setTimeout(() => addBotMessage(extra), 400);
     setTimeout(() => addBotMessage(getMessage(next, lang || 'en')), extra ? 1100 : 500);
   };
@@ -283,6 +466,14 @@ const FBot = () => {
     const l = lang || 'en';
 
     switch (currentStep) {
+      case 'askStart':
+        if (detected.type === 'confirm' || detected.type === 'text') {
+          startNewApplication();
+        } else if (detected.type === 'deny') {
+          addBotMessage(tr('noThanks'));
+        }
+        break;
+
       case 'askName':
         if (detected.type === 'confirm') {
           const name = state.borrowerDetails?.name || user?.name || '';
@@ -680,7 +871,7 @@ const styles = StyleSheet.create({
   langStripText: { fontSize: 12, fontWeight: '600' },
   container: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    height: SCREEN_H * 0.55, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    height: SCREEN_H * 0.7, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     overflow: 'hidden', elevation: 20, zIndex: 999,
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.3, shadowRadius: 12,
   },
