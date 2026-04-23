@@ -31,7 +31,30 @@ function getCollection() {
 // Keep uploading anyway so the first failure path still logs — but
 // suppress the stacks after that so the console isn't spammed during
 // KYC / selfie uploads and surface a single actionable message.
-let storageBlockedByCors = false;
+// Persisted to localStorage so a subsequent page load doesn't re-try
+// and re-spam the console until the bucket policy is applied.
+const STORAGE_CORS_FLAG_KEY = 'finz_storage_cors_blocked_v1';
+let storageBlockedByCors = (() => {
+  try { return typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_CORS_FLAG_KEY) === '1'; }
+  catch (_) { return false; }
+})();
+
+function markStorageBlockedByCors() {
+  storageBlockedByCors = true;
+  try { if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_CORS_FLAG_KEY, '1'); }
+  catch (_) { /* ignore */ }
+}
+
+/**
+ * Clear the persisted CORS-blocked flag — call once the bucket policy
+ * has been applied (`gsutil cors set scripts/storage-cors.json …`) so
+ * uploads start being attempted again.
+ */
+export function resetStorageCorsFlag() {
+  storageBlockedByCors = false;
+  try { if (typeof localStorage !== 'undefined') localStorage.removeItem(STORAGE_CORS_FLAG_KEY); }
+  catch (_) { /* ignore */ }
+}
 
 async function uploadImageToStorage(appId, filename, base64Data, contentType = 'image/jpeg') {
   if (!storage || !base64Data || base64Data.length < 100) return null;
@@ -50,17 +73,21 @@ async function uploadImageToStorage(appId, filename, base64Data, contentType = '
   } catch (err) {
     const msg = err?.message || '';
     const isCors = err?.code === 'storage/unknown'
-      || /preflight|CORS|cors/i.test(msg)
-      || err?.serverResponse === undefined && err?.status === undefined;
-    if (isCors && !storageBlockedByCors) {
-      storageBlockedByCors = true;
-      console.warn(
-        '[applicationDb] Firebase Storage uploads blocked by CORS. ' +
-        'Apply the bucket policy with:\n' +
-        '  gsutil cors set scripts/storage-cors.json gs://finz-2e9dc.firebasestorage.app\n' +
-        'See scripts/README-storage-cors.md for details. Continuing without image uploads.',
-      );
-    } else if (!isCors) {
+      || /preflight|CORS|cors|ERR_FAILED/i.test(msg)
+      || (err?.serverResponse === undefined && err?.status === undefined);
+    if (isCors) {
+      const first = !storageBlockedByCors;
+      markStorageBlockedByCors();
+      if (first) {
+        console.warn(
+          '[applicationDb] Firebase Storage uploads blocked by CORS. ' +
+          'Apply the bucket policy with:\n' +
+          '  gsutil cors set scripts/storage-cors.json gs://finz-2e9dc.firebasestorage.app\n' +
+          'See scripts/README-storage-cors.md. Continuing without image uploads — ' +
+          'call resetStorageCorsFlag() from applicationDbService after applying the policy.',
+        );
+      }
+    } else {
       console.log('[applicationDb] Image upload failed:', filename, msg);
     }
     return null;
@@ -73,30 +100,43 @@ async function uploadImageToStorage(appId, filename, base64Data, contentType = '
  */
 async function uploadAllImages(appId, payload) {
   if (!storage) return payload;
+  // Bail early when we already know Storage is blocked by CORS, so we
+  // don't even try to dispatch the batch — the previous parallel
+  // Promise.all meant the flag only kicked in AFTER the first failure,
+  // but every sibling upload had already been fired into the void and
+  // all of them filled the console with the same CORS error.
+  if (storageBlockedByCors) return payload;
 
   // KYC images (photograph, signature, address proof, etc.)
+  // Sequential on purpose — lets the CORS short-circuit in
+  // uploadImageToStorage stop the remaining uploads after one failure.
   if (payload.kycData?.images && Array.isArray(payload.kycData.images)) {
-    const uploaded = await Promise.all(
-      payload.kycData.images.map(async (img, idx) => {
-        if (!img.data || img.data.startsWith('http') || img.data.startsWith('[')) {
-          return img; // already a URL or placeholder
-        }
-        const ext = img.type === 'png' ? 'png' : 'jpg';
-        const filename = `kyc_${img.code || idx}_${img.sequence || idx}.${ext}`;
-        const downloadUrl = await uploadImageToStorage(appId, filename, img.data, img.mime || 'image/jpeg');
-        return {
-          ...img,
-          uri: downloadUrl || img.uri,
-          data: downloadUrl ? `[uploaded:${filename}]` : img.data,
-          storageUrl: downloadUrl || '',
-        };
-      }),
-    );
+    const uploaded = [];
+    for (let idx = 0; idx < payload.kycData.images.length; idx++) {
+      const img = payload.kycData.images[idx];
+      if (!img.data || img.data.startsWith('http') || img.data.startsWith('[')) {
+        uploaded.push(img);
+        continue;
+      }
+      if (storageBlockedByCors) { uploaded.push(img); continue; }
+      const ext = img.type === 'png' ? 'png' : 'jpg';
+      const filename = `kyc_${img.code || idx}_${img.sequence || idx}.${ext}`;
+      const downloadUrl = await uploadImageToStorage(appId, filename, img.data, img.mime || 'image/jpeg');
+      uploaded.push({
+        ...img,
+        uri: downloadUrl || img.uri,
+        data: downloadUrl ? `[uploaded:${filename}]` : img.data,
+        storageUrl: downloadUrl || '',
+      });
+    }
     payload.kycData = { ...payload.kycData, images: uploaded };
   }
 
   // KYC photo field (single base64 string)
-  if (payload.kycData?.photo && typeof payload.kycData.photo === 'string' && payload.kycData.photo.length > 1000) {
+  if (!storageBlockedByCors
+      && payload.kycData?.photo
+      && typeof payload.kycData.photo === 'string'
+      && payload.kycData.photo.length > 1000) {
     const url = await uploadImageToStorage(appId, 'kyc_photo.jpg', payload.kycData.photo);
     if (url) {
       payload.kycData = { ...payload.kycData, photo: url, photoStorageUrl: url };
