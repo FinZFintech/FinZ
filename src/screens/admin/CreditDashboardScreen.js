@@ -85,6 +85,7 @@ const CreditDashboardScreen = ({ navigation }) => {
     pendingReview: applications.filter(a => a.status === 'manual_review' || a.status === 'credit_check_passed' || a.status === 'income_verified').length,
     approved: applications.filter(a => a.status === 'fully_eligible').length,
     rejected: applications.filter(a => a.status === 'credit_check_failed' || a.status === 'not_eligible').length,
+    discarded: applications.filter(a => a.status === 'discarded').length,
   };
 
   const filteredApps = getFilteredApps();
@@ -118,6 +119,7 @@ const CreditDashboardScreen = ({ navigation }) => {
             { label: 'Pending', value: stats.pendingReview, color: colors.warning },
             { label: 'Approved', value: stats.approved, color: colors.teal },
             { label: 'Rejected', value: stats.rejected, color: colors.error },
+            { label: 'Discarded', value: stats.discarded, color: colors.textSecondary },
           ].map(s => (
             <View key={s.label} style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderLeftColor: s.color }]}>
               <Text style={[styles.statValue, { color: colors.textPrimary }]}>{s.value}</Text>

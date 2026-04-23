@@ -116,6 +116,7 @@ const OperationsDashboardScreen = ({ navigation }) => {
     pendingTasks: applications.filter(a => a.taskStatus === 'pending').length,
     disbursed: applications.filter(a => a.status === 'disbursed').length,
     completed: applications.filter(a => a.taskStatus === 'completed').length,
+    discarded: applications.filter(a => a.status === 'discarded').length,
   };
 
   const filteredApps = getFilteredApps();
@@ -143,6 +144,7 @@ const OperationsDashboardScreen = ({ navigation }) => {
             { label: 'Pending', value: stats.pendingTasks, color: colors.warning },
             { label: 'Disbursed', value: stats.disbursed, color: colors.teal },
             { label: 'Completed', value: stats.completed, color: colors.info },
+            { label: 'Discarded', value: stats.discarded, color: colors.textSecondary },
           ].map(s => (
             <View key={s.label} style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderLeftColor: s.color }]}>
               <Text style={[styles.statValue, { color: colors.textPrimary }]}>{s.value}</Text>

@@ -46,9 +46,10 @@ const AdminDashboardScreen = ({ navigation }) => {
     setStats({
       totalApplications: allApps.length,
       pendingReview: allApps.filter(a => a.status === 'manual_review').length,
-      inProgress: allApps.filter(a => !['draft', 'disbursed', 'credit_check_failed', 'not_eligible'].includes(a.status)).length,
+      inProgress: allApps.filter(a => !['draft', 'disbursed', 'credit_check_failed', 'not_eligible', 'discarded'].includes(a.status)).length,
       disbursed: allApps.filter(a => a.status === 'disbursed').length,
       rejected: allApps.filter(a => a.status === 'credit_check_failed' || a.status === 'not_eligible').length,
+      discarded: allApps.filter(a => a.status === 'discarded').length,
       totalDisbursedAmount: allApps.filter(a => a.status === 'disbursed').reduce((sum, a) => sum + (a.amount || 0), 0),
     });
   }, []);
@@ -147,6 +148,7 @@ const AdminDashboardScreen = ({ navigation }) => {
                 { label: 'In Progress', value: stats.inProgress, color: colors.info, icon: '⏳' },
                 { label: 'Disbursed', value: stats.disbursed, color: colors.teal, icon: '✅' },
                 { label: 'Rejected', value: stats.rejected, color: colors.error, icon: '❌' },
+                { label: 'Discarded', value: stats.discarded || 0, color: colors.textSecondary, icon: '🗑️' },
               ].map(card => (
                 <TouchableOpacity
                   key={card.label}
