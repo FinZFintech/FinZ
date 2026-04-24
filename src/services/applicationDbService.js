@@ -12,6 +12,7 @@ import {
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { db, storage, isFirebaseConfigured, STORAGE_UPLOADS_ENABLED, STORAGE_PROVIDER } from '../config/firebase';
 import { uploadImage as supabaseUploadImage } from './supabaseStorageService';
+import { uploadImage as cloudinaryUploadImage } from './cloudinaryStorageService';
 
 // When Cloud Storage uploads are disabled (no Blaze plan, etc.) we must
 // also strip base64 image blobs out of the Firestore payload — otherwise
@@ -149,6 +150,12 @@ export function resetStorageCorsFlag() {
 async function uploadImageToStorage(appId, filename, base64Data, contentType = 'image/jpeg') {
   if (!base64Data || base64Data.length < 100) return null;
 
+  if (STORAGE_PROVIDER === 'cloudinary') {
+    // Cloudinary unsigned upload preset — fully client-side, base64 in,
+    // secure_url back. Adapter handles its own errors + blocked flag.
+    return cloudinaryUploadImage(appId, filename, base64Data, contentType);
+  }
+
   if (STORAGE_PROVIDER === 'supabase') {
     // Supabase Storage — adapter handles its own errors + RLS flag.
     return supabaseUploadImage(appId, filename, base64Data, contentType);
@@ -197,6 +204,7 @@ async function uploadImageToStorage(appId, filename, base64Data, contentType = '
 
 /** True when any storage provider is wired up and willing to take the call. */
 function storageProviderActive() {
+  if (STORAGE_PROVIDER === 'cloudinary') return true;
   if (STORAGE_PROVIDER === 'supabase') return true;
   if (STORAGE_PROVIDER === 'firebase') return !!(STORAGE_UPLOADS_ENABLED && storage && !storageBlockedByCors);
   return false;
