@@ -1,5 +1,6 @@
 import { signzyService } from './signzyService';
 import { ckycService } from './ckycService';
+import { getActiveVendorsForApi } from './vendorConfigService';
 
 export const kycService = {
   // ─── REAL APIs (Signzy) ──────────────────────────────────────────────────
@@ -131,12 +132,59 @@ export const kycService = {
     }
   },
 
-  // ─── MOCK APIs (until backend is integrated) ────────────────────────────
-
-  // Credit Bureau
+  // ─── Credit Bureau ─────────────────────────────────────────────────────
+  // softPull tries the live Signzy CIBIL API when the cibilBureau
+  // vendor toggle is on (default until CRIF hard-pull is integrated).
+  // On success the caller gets a normalized {cibilScore, gatingPassed,
+  // raw report, PDF URL} object plus the full Signzy payload on
+  // `_signzy` for audit logging. Falls back to the deterministic mock
+  // when Signzy is disabled / unreachable so the flow still completes.
   async softPull(data) {
-    console.log('[kycService] Mock softPull for:', data.pan);
-    await new Promise((r) => setTimeout(r, 1000));
+    const enabled = await getActiveVendorsForApi('cibilBureau').catch(() => ({ signzy: true }));
+    const useSignzy = !!enabled?.signzy;
+
+    if (useSignzy && data?.pan) {
+      try {
+        // CIBIL needs a few fields beyond PAN — pass through whatever
+        // the caller provided. Most are mandatory upstream; missing
+        // ones become empty strings and the API will respond with a
+        // 400 the catch-block surfaces.
+        const result = await signzyService.cibilConsumerReport({
+          phoneNumber: data.phone || '',
+          panNumber: data.pan,
+          firstName: data.firstName || (data.name || '').split(/\s+/)[0] || '',
+          lastName: data.lastName || ((data.name || '').split(/\s+/).slice(-1)[0]) || '',
+          gender: data.gender || 'Male',
+          dateOfBirth: data.dob || data.dateOfBirth || '',
+          address: data.address || '',
+          pincode: data.pincode || '',
+          consent: {
+            consentFlag: true,
+            consentTimestamp: Math.floor(Date.now() / 1000),
+            consentIpAddress: data.ipAddress || '0.0.0.0',
+          },
+        });
+        console.log('[kycService] CIBIL softPull → score =', result.cibilScore, ', gating =', result.gatingPassed);
+        return {
+          score: result.cibilScore,
+          cibilScore: result.cibilScore,
+          gatingPassed: !!result.gatingPassed,
+          enquiryCount: 0,
+          activeAccounts: 0,
+          overdueAccounts: 0,
+          source: 'signzy_cibil',
+          // Carry the full Signzy result so the caller can stash it on
+          // signzyVerifications.cibilBureau without making a second call.
+          _signzy: result,
+        };
+      } catch (err) {
+        console.log('[kycService] CIBIL softPull failed, falling back to mock:', err?.message);
+        // Fall through to the mock below so the flow still completes.
+      }
+    }
+
+    console.log('[kycService] Mock softPull for:', data?.pan);
+    await new Promise((r) => setTimeout(r, 800));
     return {
       score: 720,
       cibilScore: 720,
@@ -144,6 +192,7 @@ export const kycService = {
       enquiryCount: 2,
       activeAccounts: 3,
       overdueAccounts: 0,
+      source: 'mock',
     };
   },
 

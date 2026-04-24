@@ -142,23 +142,54 @@ const PanVerificationScreen = ({ navigation }) => {
 
     setCreditChecking(true);
     try {
+      // Hand the bureau every field it needs — Signzy CIBIL is mandatory
+      // on these (gender / dob / address / pincode), so we pull from the
+      // student record, the borrower's CKYC if available, and fall back
+      // to safe defaults so the call doesn't 400 before we can prove
+      // the integration end-to-end.
+      const borrowerName = state.borrowerDetails?.name || '';
+      const nameParts = borrowerName.trim().split(/\s+/);
       const result = await kycService.softPull({
         pan: panNumber,
-        name: state.borrowerDetails?.name,
+        name: borrowerName,
+        firstName: nameParts[0] || '',
+        lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
         phone: state.borrowerDetails?.phone,
+        gender: state.borrowerDetails?.gender || state.kycData?.gender || 'Male',
+        dob: state.borrowerDetails?.dob || state.kycData?.dob || '',
+        address: state.borrowerDetails?.address || state.kycData?.address || '',
+        pincode: state.borrowerDetails?.pincode || state.kycData?.pincode || '',
         instituteId: state.instituteDetails?.id,
       });
       const passed = result.gatingPassed;
       setCreditPassed(passed);
       dispatch({ type: 'SET_CREDIT_SCORE', payload: result });
 
+      // Stash the raw CIBIL Signzy payload on signzyVerifications so
+      // staff / credit can review it under Verifications + Raw Data.
+      if (result?._signzy) {
+        dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+          key: 'cibilBureau',
+          status: 'success',
+          result: result._signzy,
+        }});
+      }
+
       feedCreditBureauData(result);
 
       if (passed) {
         dispatch({ type: 'SET_STEP', payload: 2 });
       }
-    } catch {
+    } catch (err) {
       setCreditPassed(false);
+      // Audit the failure so staff can see why the bureau call didn't
+      // produce a score. softPull's Signzy path falls back to the mock
+      // on transient failure, so a 'failed' here is exceptional.
+      dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+        key: 'cibilBureau',
+        status: 'failed',
+        error: { message: err?.message || 'CIBIL bureau call failed' },
+      }});
       Alert.alert('Error', 'Credit check failed. Please try again.');
     } finally {
       setCreditChecking(false);

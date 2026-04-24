@@ -35,6 +35,7 @@ const SIGNZY_VERIFICATION_LABELS = {
   bankVerification: 'Bank Account Verification (Penny Drop)',
   ckyc: 'CKYC',
   fraudShieldLite: 'FraudShield Lite',
+  cibilBureau: 'CIBIL Bureau Report (Signzy)',
   gstIncome: 'GST Income (PAN → GSTIN)',
   itrPull: 'Income Tax Returns',
   form26AS: 'Form 26AS (TDS)',
@@ -1148,10 +1149,11 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
               {isSuccess && key === 'bankVerification' && renderBankVerification(entry.result)}
               {isSuccess && key === 'ckyc' && renderCkycResult(entry.result)}
               {isSuccess && key === 'fraudShieldLite' && renderFraudShield(entry.result)}
+              {isSuccess && key === 'cibilBureau' && renderCibilBureau(entry.result)}
               {isSuccess && key === 'gstIncome' && renderGstIncome(entry.result)}
               {isSuccess && key === 'itrPull' && renderItrPull(entry.result)}
               {isSuccess && key === 'form26AS' && renderForm26AS(entry.result)}
-              {isSuccess && !['employmentBasic', 'phonePrefill', 'phoneToPan', 'panFetch', 'bankVerification', 'ckyc', 'fraudShieldLite', 'gstIncome', 'itrPull', 'form26AS'].includes(key) && (
+              {isSuccess && !['employmentBasic', 'phonePrefill', 'phoneToPan', 'panFetch', 'bankVerification', 'ckyc', 'fraudShieldLite', 'cibilBureau', 'gstIncome', 'itrPull', 'form26AS'].includes(key) && (
                 renderGenericResult(entry.result)
               )}
 
@@ -1518,6 +1520,77 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
    * sections for cybercrime, digital identity, finance, phone, email,
    * pincode and IP blacklist.
    */
+
+  /**
+   * CIBIL Bureau Report (Signzy soft pull). Surfaces the headline
+   * score with traffic-light colouring + the matched identity /
+   * addresses + a link to the full CIBIL PDF the bureau returned.
+   */
+  const renderCibilBureau = (result) => {
+    if (!result) return null;
+    const score = result.cibilScore;
+    let scoreColor = colors.textSecondary;
+    let scoreLabel = '—';
+    if (typeof score === 'number') {
+      if (score < 0) { scoreLabel = 'No hit / NTC'; scoreColor = colors.warning; }
+      else if (score >= 750) { scoreLabel = 'Excellent'; scoreColor = colors.teal; }
+      else if (score >= 700) { scoreLabel = 'Good'; scoreColor = colors.teal; }
+      else if (score >= 600) { scoreLabel = 'Fair'; scoreColor = colors.warning; }
+      else if (score >= 500) { scoreLabel = 'Borderline'; scoreColor = colors.warning; }
+      else { scoreLabel = 'Below threshold'; scoreColor = colors.error; }
+    }
+    return (
+      <>
+        <View style={{
+          flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+          padding: 12, borderRadius: 10, backgroundColor: `${scoreColor}14`, marginBottom: 12,
+        }}>
+          <View>
+            <Text style={{ color: colors.textSecondary, fontSize: 11, marginBottom: 2 }}>CIBIL Score</Text>
+            <Text style={{ color: scoreColor, fontSize: 28, fontWeight: '800' }}>
+              {score == null ? '—' : score}
+            </Text>
+          </View>
+          <Text style={{ color: scoreColor, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>
+            {scoreLabel}
+          </Text>
+        </View>
+        <InfoRow label="Gating Decision" value={result.gatingPassed ? 'Pass' : 'Fail'} highlight={!!result.gatingPassed} />
+        {result.matchedName ? <InfoRow label="Name (CIBIL)" value={result.matchedName} /> : null}
+        {result.matchedDob ? <InfoRow label="DOB (CIBIL)" value={result.matchedDob} /> : null}
+        {result.matchedPan ? <InfoRow label="PAN (CIBIL)" value={result.matchedPan} /> : null}
+        {result.scoreName ? <InfoRow label="Score Model" value={result.scoreName} /> : null}
+        {result.scoreDate ? <InfoRow label="Score Date" value={result.scoreDate} /> : null}
+        {result.enquiryControlNumber ? <InfoRow label="Enquiry Control No." value={result.enquiryControlNumber} /> : null}
+        {Array.isArray(result.matchedAddresses) && result.matchedAddresses.length > 0 ? (
+          <>
+            <Text style={[{ fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6, color: colors.textPrimary }]}>
+              Addresses on file
+            </Text>
+            {result.matchedAddresses.map((a, i) => (
+              <View key={i} style={{ paddingVertical: 6, borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+                <Text style={{ color: colors.textPrimary, fontSize: 13 }}>{a.line1 || '—'}</Text>
+                {a.line2 ? <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{a.line2}</Text> : null}
+                {a.pincode ? <Text style={{ color: colors.textSecondary, fontSize: 11 }}>Pincode: {a.pincode}</Text> : null}
+              </View>
+            ))}
+          </>
+        ) : null}
+        {result.pdfUrl ? (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(result.pdfUrl).catch(() => {})}
+            style={{
+              marginTop: 12, paddingVertical: 10, borderRadius: 8,
+              borderWidth: 1, borderColor: colors.teal, alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: colors.teal, fontWeight: '700' }}>View Full CIBIL PDF</Text>
+          </TouchableOpacity>
+        ) : null}
+      </>
+    );
+  };
+
   const renderFraudShield = (result) => {
     if (!result) return null;
     const ts = result.trustScore || {};

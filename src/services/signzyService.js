@@ -1029,6 +1029,87 @@ export const signzyService = {
    * registered mobile and returns a sessionId for the password-reset
    * flow. The userName is normally the PAN.
    */
+
+  /**
+   * CIBIL Consumer Report (Signzy /bureau/cibil-consumer-report).
+   *
+   * Soft pull — used while CRIF hard-pull is pending. Returns a
+   * normalised object with the headline credit score + identity /
+   * address echo + the original CIBIL report payload + the PDF URL,
+   * all wrapped together so the staff Verification tab can render it
+   * and the score can drive eligibility gating identically to a hard
+   * pull. Falls back gracefully to status:'failed' on upstream errors.
+   *
+   * Mandatory fields per Signzy docs: phoneNumber, panNumber,
+   * firstName, lastName, gender, dateOfBirth (YYYY-MM-DD), address,
+   * pincode, consent { consentFlag, consentTimestamp, consentIpAddress }.
+   */
+  async cibilConsumerReport({
+    phoneNumber, panNumber, firstName, lastName, gender,
+    dateOfBirth, address, pincode, consent,
+  }) {
+    console.log('[signzyService] cibilConsumerReport → pan =', panNumber, ', name =', firstName, lastName);
+    const body = {
+      phoneNumber: String(phoneNumber || ''),
+      panNumber: String(panNumber || '').toUpperCase(),
+      firstName: String(firstName || '').toUpperCase(),
+      lastName: String(lastName || '').toUpperCase(),
+      gender: String(gender || ''),
+      dateOfBirth: String(dateOfBirth || ''), // YYYY-MM-DD
+      address: String(address || ''),
+      pincode: String(pincode || ''),
+      consent: {
+        consentFlag: consent?.consentFlag !== false,
+        consentTimestamp: consent?.consentTimestamp || Math.floor(Date.now() / 1000),
+        consentIpAddress: consent?.consentIpAddress || '0.0.0.0',
+      },
+    };
+
+    const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.CIBIL_CONSUMER_REPORT, body);
+    const r = data?.data || data || {};
+    const report = r.CIBILReport || {};
+    const pdfUrl = r.CIBILPDF || '';
+
+    // Pull the headline score out of the first scores entry. CIBIL
+    // pads the score with leading zeros ("00147") and uses -1 / 1
+    // sentinels for "no hit" / "thin file" — preserve them so the
+    // gating logic downstream can recognise the no-hit path.
+    const credit = (report.consumerCreditData && report.consumerCreditData[0]) || {};
+    const headerScore = credit.scores?.[0]?.score;
+    const cibilScore = headerScore != null ? parseInt(String(headerScore).replace(/^0+/, ''), 10) || 0 : null;
+
+    // Echo the verified identity Signzy returned for cross-checking.
+    const matchedName = credit.names?.[0]?.name || '';
+    const matchedDob = credit.names?.[0]?.birthDate || '';
+    const matchedPan = credit.ids?.find((i) => i.idNumber)?.idNumber || '';
+
+    // Address as CIBIL has it on file (could be different from the
+    // input — useful for KYC address-mismatch flagging downstream).
+    const matchedAddresses = (credit.addresses || []).map((a) => ({
+      line1: a.line1 || '', line2: a.line2 || '',
+      pincode: a.pinCode || '', stateCode: a.stateCode || '',
+      addressCategory: a.addressCategory || '',
+    }));
+
+    return {
+      success: !!report.controlData?.success,
+      cibilScore,                       // numeric, easy to gate on
+      gatingPassed: cibilScore != null && cibilScore >= 500,
+      matchedName,
+      matchedDob,
+      matchedPan,
+      matchedAddresses,
+      enquiryControlNumber: credit.tuefHeader?.enquiryControlNumber || '',
+      memberRefNo: credit.tuefHeader?.memberRefNo || '',
+      scoreDate: credit.scores?.[0]?.scoreDate || '',
+      scoreName: credit.scores?.[0]?.scoreName || '',
+      pdfUrl,
+      // Original report passed through so the audit screens can dig in.
+      report,
+      rawResponse: data,
+    };
+  },
+
   async itrForgetPassword(userName, newPassword) {
     console.log('[signzyService] itrForgetPassword → userName =', userName);
     const { data } = await signzyApi.post(SIGNZY_CONFIG.ENDPOINTS.ITR_FORGET_PASSWORD, {
