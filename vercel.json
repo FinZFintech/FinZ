@@ -35,8 +35,8 @@
       "destination": "https://msgn.mtalkz.com/api/:path*"
     },
     {
-      "source": "/proxy/digitap/:path*",
-      "destination": "https://svc.digitap.ai/:path*"
+      "source": "/proxy/digitap/:path(.*)",
+      "destination": "https://svc.digitap.ai/:path"
     },
     { "source": "/((?!proxy/|assets/|_expo/|favicon|.*\\..*).*)", "destination": "/" }
   ],
