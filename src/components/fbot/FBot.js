@@ -1279,6 +1279,33 @@ const FBot = () => {
         const firstName = nameParts[0] || '';
         const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
 
+        // Fire FraudShield Lite in the background once we have phone +
+        // name — same non-blocking pattern the PanVerification screen
+        // uses. Result lands on signzyVerifications.fraudShieldLite so
+        // credit reviewers see the trust score in the Verification tab.
+        if (fullName) {
+          signzyService.fraudShieldLite({
+            phoneNumber: phoneForOtp,
+            name: fullName,
+            email: state.borrowerDetails?.email || '',
+            pincode: state.kycData?.pincode || '',
+            ipAddress: '',
+          }).then((fs) => {
+            dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+              key: 'fraudShieldLite',
+              status: 'success',
+              result: fs,
+            }});
+          }).catch((err) => {
+            console.log('[FBot] fraudShieldLite failed:', err?.message);
+            dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+              key: 'fraudShieldLite',
+              status: 'failed',
+              error: { message: err?.message || 'FraudShield Lite failed' },
+            }});
+          });
+        }
+
         kycService.fetchPanByMobile(phoneForOtp, firstName, lastName).then((res) => {
           // Record the raw API call on signzyVerifications so the staff
           // detail / credit / ops views see the same audit trail a

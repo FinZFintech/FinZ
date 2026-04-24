@@ -24,11 +24,22 @@ function stripImagesForFirestore(payload) {
     const kyc = { ...out.kycData };
     if (Array.isArray(kyc.images)) {
       kyc.images = kyc.images.map((img) => {
-        if (!img?.data) return img;
-        if (typeof img.data === 'string' && (img.data.startsWith('http') || img.data.startsWith('['))) {
-          return img;
+        if (!img) return img;
+        const out = { ...img };
+        // Blank base64 `data` AND any `data:` URI on `uri`, since
+        // img.uri = `data:${mime};base64,${img.data}` — keeping one
+        // without the other still blows the 1 MB Firestore doc cap.
+        // HTTP URIs and previously-uploaded placeholders pass through.
+        if (typeof out.data === 'string'
+            && !out.data.startsWith('http')
+            && !out.data.startsWith('[')) {
+          out.data = '[storage-disabled]';
         }
-        return { ...img, data: '[storage-disabled]' };
+        if (typeof out.uri === 'string'
+            && out.uri.startsWith('data:')) {
+          out.uri = '[storage-disabled]';
+        }
+        return out;
       });
     }
     if (typeof kyc.photo === 'string' && kyc.photo.length > 1000 && !kyc.photo.startsWith('http')) {
