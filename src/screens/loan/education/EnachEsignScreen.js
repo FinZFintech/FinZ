@@ -122,6 +122,44 @@ const EnachEsignScreen = ({ navigation }) => {
       const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
       const kycData = state.kycData || {};
 
+      // All six of the external-Aadhaar fields are mandatory for Digitap's
+      // create-lead API — sending any of them empty raises
+      // "All external Aadhaar fields must be provided" (400).
+      // Map CKYC's field names (fatherName / uid / photo / address) onto
+      // the Aadhaar-shaped payload; strip 'X' from CKYC's masked UID so
+      // we always hand over 4 real digits.
+      const guardianNameAsPerAadhaar = kycData.guardianName || kycData.fatherName || '';
+      const uidDigits = String(kycData.uid || '').replace(/[^0-9]/g, '');
+      const aadhaarLastFourDigits = uidDigits.slice(-4);
+      const addressAsPerAadhaar = kycData.address
+        || kycData.addressLine
+        || [kycData.permanentAddress?.addressLine, kycData.correspondenceAddress?.addressLine].filter(Boolean)[0]
+        || '';
+      // Digitap wants YYYY-MM-DDTHH:MM:SS (local, no timezone).
+      const rawFetched = kycData.fetchedAt || kycData.validatedAt || new Date().toISOString();
+      const dateOfAadhaarFetch = String(rawFetched).replace(/\..*$/, '').replace(/Z$/, '');
+      // Base64 photograph only — strip any data: prefix CKYC may have
+      // applied when shaping it for the app.
+      const imageOfUserBase64 = String(kycData.photo || kycData.photograph || '')
+        .replace(/^data:image\/[a-z]+;base64,/i, '');
+
+      // Quick validation before we fire the network call, so the user
+      // sees an actionable message instead of a generic 400.
+      const missing = [];
+      if (!(kycData.name || borrowerName)) missing.push('name');
+      if (!guardianNameAsPerAadhaar) missing.push('father / guardian name');
+      if (!addressAsPerAadhaar) missing.push('address');
+      if (!aadhaarLastFourDigits || aadhaarLastFourDigits.length < 4) missing.push('Aadhaar last 4 digits');
+      if (!imageOfUserBase64 || imageOfUserBase64.length < 100) missing.push('photograph');
+      if (missing.length > 0) {
+        Alert.alert(
+          'KYC data incomplete for vKYC',
+          `vKYC needs ${missing.join(', ')} from your Aadhaar. Complete DigiLocker / CKYC fully, or ask the agent to reinitiate KYC.`,
+        );
+        setVkycLoading(false);
+        return;
+      }
+
       // Build verification questions from application state
       const verificationQuestions = digitapService.buildVerificationQuestions(state);
 
@@ -132,11 +170,11 @@ const EnachEsignScreen = ({ navigation }) => {
         mobile: state.borrowerDetails?.phone || '',
         email: state.borrowerDetails?.email || '',
         nameAsPerAadhaar: kycData.name || borrowerName,
-        guardianNameAsPerAadhaar: kycData.guardianName || '',
-        addressAsPerAadhaar: kycData.address || '',
-        aadhaarLastFourDigits: (kycData.uid || '').replace(/[^0-9]/g, '').slice(-4),
-        dateOfAadhaarFetch: kycData.fetchedAt || new Date().toISOString(),
-        imageOfUserBase64: kycData.photo || '',
+        guardianNameAsPerAadhaar,
+        addressAsPerAadhaar,
+        aadhaarLastFourDigits,
+        dateOfAadhaarFetch,
+        imageOfUserBase64,
         redirectionUrl: 'https://finz.app/vkyc/complete',
         verificationQuestions,
       });
