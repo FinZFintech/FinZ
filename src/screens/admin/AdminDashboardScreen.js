@@ -12,7 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { loadRealApplications } from '../../utils/loadApplications';
 import {
   PENDING_REVIEW_STATUSES, REJECTED_STATUSES,
-  DISCARDED_STATUSES, isInProgress,
+  DISCARDED_STATUSES, isInProgress, isAutoRejected, isManuallyRejected,
 } from '../../utils/statusBuckets';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
@@ -20,7 +20,7 @@ import { adminService } from '../../services/adminService';
 import { navigationRef } from '../../navigation/navigationRef';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 
-const FILTERS = ['All', 'Sales', 'Credit', 'Operations', 'Completed'];
+const FILTERS = ['All', 'Sales', 'Credit', 'Operations', 'Auto Rejected', 'Manually Rejected', 'Completed'];
 
 const AdminDashboardScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
@@ -56,6 +56,11 @@ const AdminDashboardScreen = ({ navigation }) => {
       pendingReview: allApps.filter(a => PENDING_REVIEW_STATUSES.has(a.status)).length,
       inProgress: allApps.filter(a => isInProgress(a.status)).length,
       disbursed: allApps.filter(a => a.status === 'disbursed').length,
+      // Split rejected by actor — auto (system rule fired) vs manual
+      // (human reviewer tapped Reject). The auto bucket is what sales /
+      // credit can still act on (override, ask customer to retry).
+      autoRejected: allApps.filter(isAutoRejected).length,
+      manuallyRejected: allApps.filter(isManuallyRejected).length,
       rejected: allApps.filter(a => REJECTED_STATUSES.has(a.status)).length,
       discarded: allApps.filter(a => DISCARDED_STATUSES.has(a.status)).length,
       totalDisbursedAmount: allApps.filter(a => a.status === 'disbursed').reduce((sum, a) => sum + (a.amount || 0), 0),
@@ -79,6 +84,8 @@ const AdminDashboardScreen = ({ navigation }) => {
     if (activeFilter === 'Sales') return applications.filter(a => a.assignedTo === 'sales');
     if (activeFilter === 'Credit') return applications.filter(a => a.assignedTo === 'credit');
     if (activeFilter === 'Operations') return applications.filter(a => a.assignedTo === 'operations');
+    if (activeFilter === 'Auto Rejected') return applications.filter(isAutoRejected);
+    if (activeFilter === 'Manually Rejected') return applications.filter(isManuallyRejected);
     if (activeFilter === 'Completed') return applications.filter(a => a.status === 'disbursed' || a.status === 'credit_check_failed' || a.status === 'not_eligible');
     return applications;
   };
@@ -155,7 +162,8 @@ const AdminDashboardScreen = ({ navigation }) => {
                 { label: 'Pending Review', value: stats.pendingReview, color: colors.warning, icon: '👁️' },
                 { label: 'In Progress', value: stats.inProgress, color: colors.info, icon: '⏳' },
                 { label: 'Disbursed', value: stats.disbursed, color: colors.teal, icon: '✅' },
-                { label: 'Rejected', value: stats.rejected, color: colors.error, icon: '❌' },
+                { label: 'Auto Rejected', value: stats.autoRejected || 0, color: colors.error, icon: '🤖' },
+                { label: 'Manually Rejected', value: stats.manuallyRejected || 0, color: colors.error, icon: '❌' },
                 { label: 'Discarded', value: stats.discarded || 0, color: colors.textSecondary, icon: '🗑️' },
               ].map(card => (
                 <TouchableOpacity
