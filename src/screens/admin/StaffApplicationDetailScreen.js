@@ -645,25 +645,35 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         )}
       </Card>
 
-      {/* Name Match Verification — borrower vs PAN vs Bank vs KYC.
-          Reviewers want one card that flags every mismatch up-front,
-          not the single PAN↔KYC pair the previous block showed. */}
+      {/* Name Match Verification — authoritative pairs (PAN ↔ Bank ↔
+          KYC) compared at a 70% threshold, borrower-entered name
+          compared at a 40% threshold against those authoritative
+          sources (users make typos + honorifics; as long as the
+          customer-facing name is recognisable to one authoritative
+          source we're fine). Overall verdict passes only when every
+          available pair clears its respective threshold. */}
       {(() => {
+        const AUTH_THRESHOLD = 70;       // PAN ↔ Bank ↔ KYC must match each other
+        const BORROWER_THRESHOLD = 40;   // borrower-entered needs to be recognisable
         const raw = application._rawState || {};
-        const sources = [
-          { key: 'borrower', label: 'Borrower Name (entered)', name: application.customerName || raw.borrowerDetails?.name || '' },
-          { key: 'pan',      label: 'PAN Name',                name: application.panName
-            || raw.panDetails?.name
-            || raw.signzyVerifications?.panFetch?.result?.name
-            || raw.signzyVerifications?.phoneToPan?.result?.name
-            || '' },
-          { key: 'bank',     label: 'Bank Account Holder',     name: raw.pennyDropResult?.accountHolderName
-            || raw.signzyVerifications?.bankVerification?.result?.accountHolderName
-            || '' },
-          { key: 'kyc',      label: 'KYC Name',                name: application.kycData?.name || raw.kycData?.name || '' },
+        const borrowerName = application.customerName || raw.borrowerDetails?.name || '';
+        const panName = application.panName
+          || raw.panDetails?.name
+          || raw.signzyVerifications?.panFetch?.result?.name
+          || raw.signzyVerifications?.phoneToPan?.result?.name
+          || '';
+        const bankName = raw.pennyDropResult?.accountHolderName
+          || raw.signzyVerifications?.bankVerification?.result?.accountHolderName
+          || '';
+        const kycName = application.kycData?.name || raw.kycData?.name || '';
+
+        const authSources = [
+          { key: 'pan',  label: 'PAN Name',            name: panName },
+          { key: 'bank', label: 'Bank Account Holder', name: bankName },
+          { key: 'kyc',  label: 'KYC Name',            name: kycName },
         ].filter((s) => s.name && s.name.trim());
 
-        if (sources.length < 2) return null; // need at least 2 to compare
+        if (authSources.length === 0 && !borrowerName) return null;
 
         // Token-overlap match score: normalize, drop honorifics, split
         // on whitespace, intersection / union of token sets. Cheap,
@@ -683,61 +693,122 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
           return Math.round((inter / union) * 100);
         };
 
-        // Pick the borrower entry as the reference; each other source
-        // is compared against it.
-        const ref = sources.find((s) => s.key === 'borrower') || sources[0];
-        const others = sources.filter((s) => s !== ref);
-        const pairScores = others.map((s) => ({
-          ...s,
-          score: matchScore(ref.name, s.name),
-        }));
-        const overall = pairScores.length
-          ? Math.round(pairScores.reduce((sum, p) => sum + p.score, 0) / pairScores.length)
+        // Authoritative pairwise matches — every pair among
+        // {PAN, Bank, KYC} that exists must clear AUTH_THRESHOLD.
+        const authPairs = [];
+        for (let i = 0; i < authSources.length; i++) {
+          for (let j = i + 1; j < authSources.length; j++) {
+            authPairs.push({
+              a: authSources[i], b: authSources[j],
+              score: matchScore(authSources[i].name, authSources[j].name),
+            });
+          }
+        }
+
+        // Borrower vs each authoritative source — must clear
+        // BORROWER_THRESHOLD against ALL of them (a typo in one place
+        // shouldn't look like a match just because it rhymes with a
+        // different source).
+        const borrowerPairs = borrowerName
+          ? authSources.map((s) => ({
+              a: { key: 'borrower', label: 'Borrower Name (entered)', name: borrowerName },
+              b: s,
+              score: matchScore(borrowerName, s.name),
+            }))
+          : [];
+
+        const authOk = authPairs.every((p) => p.score >= AUTH_THRESHOLD);
+        const borrowerOk = borrowerPairs.every((p) => p.score >= BORROWER_THRESHOLD);
+        const overallOk = authOk && borrowerOk;
+
+        // Headline % for the summary pill — keep the simplest thing
+        // that conveys severity: average of every pair we considered.
+        const allPairs = [...authPairs, ...borrowerPairs];
+        const overall = allPairs.length
+          ? Math.round(allPairs.reduce((sum, p) => sum + p.score, 0) / allPairs.length)
           : 0;
-        const overallColor = overall >= 80 ? colors.teal : overall >= 60 ? colors.warning : colors.error;
-        const overallLabel = overall >= 80 ? 'MATCH' : overall >= 60 ? 'PARTIAL MATCH' : 'MISMATCH';
+        const overallColor = overallOk ? colors.teal : (authPairs.some((p) => p.score < 40) || borrowerPairs.some((p) => p.score < 20)) ? colors.error : colors.warning;
+        const overallLabel = overallOk ? 'MATCH' : 'REVIEW';
+
+        const pillColor = (score, threshold) => (score >= threshold ? colors.teal
+          : score >= Math.max(threshold - 20, 10) ? colors.warning
+          : colors.error);
 
         return (
           <Card accent={overallColor}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Name Match Verification</Text>
             <View style={{ alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ fontSize: 32, fontWeight: '800', color: overallColor }}>
-                {overall}%
-              </Text>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: overallColor }}>
-                {overallLabel}
-              </Text>
-              <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>
-                averaged across {pairScores.length} source{pairScores.length === 1 ? '' : 's'}
+              <Text style={{ fontSize: 32, fontWeight: '800', color: overallColor }}>{overall}%</Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: overallColor }}>{overallLabel}</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4, textAlign: 'center', paddingHorizontal: 8 }}>
+                PAN / Bank / KYC must match each other at ≥ {AUTH_THRESHOLD}%; borrower-entered name at ≥ {BORROWER_THRESHOLD}%.
               </Text>
             </View>
 
-            <InfoRow label={ref.label} value={ref.name} />
-            {pairScores.map((p) => {
-              const c = p.score >= 80 ? colors.teal : p.score >= 60 ? colors.warning : colors.error;
-              return (
-                <View
-                  key={p.key}
-                  style={{
-                    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                    paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
-                  }}
-                >
-                  <View style={{ flex: 1, paddingRight: 12 }}>
-                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>{p.label}</Text>
-                    <Text style={{ fontSize: 13, color: colors.textPrimary, fontWeight: '500' }}>{p.name}</Text>
-                  </View>
-                  <View
-                    style={{
-                      paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
-                      backgroundColor: `${c}1A`,
-                    }}
-                  >
-                    <Text style={{ color: c, fontSize: 12, fontWeight: '700' }}>{p.score}%</Text>
-                  </View>
-                </View>
-              );
-            })}
+            {borrowerName ? <InfoRow label="Borrower Name (entered)" value={borrowerName} /> : null}
+            {authSources.map((s) => (
+              <InfoRow key={s.key} label={s.label} value={s.name} />
+            ))}
+
+            {authPairs.length > 0 ? (
+              <>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary, marginTop: 14, marginBottom: 4 }}>
+                  Authoritative pairs (≥ {AUTH_THRESHOLD}%)
+                </Text>
+                {authPairs.map((p, i) => {
+                  const c = pillColor(p.score, AUTH_THRESHOLD);
+                  const pass = p.score >= AUTH_THRESHOLD;
+                  return (
+                    <View
+                      key={`auth-${i}`}
+                      style={{
+                        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                        {p.a.label.replace(/Name.*$/, '').trim()} ↔ {p.b.label.replace(/Name.*$/, '').trim()}
+                      </Text>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: `${c}1A` }}>
+                        <Text style={{ color: c, fontSize: 12, fontWeight: '700' }}>
+                          {pass ? '✓' : '✕'} {p.score}%
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            ) : null}
+
+            {borrowerPairs.length > 0 ? (
+              <>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary, marginTop: 14, marginBottom: 4 }}>
+                  Borrower vs authoritative (≥ {BORROWER_THRESHOLD}%)
+                </Text>
+                {borrowerPairs.map((p, i) => {
+                  const c = pillColor(p.score, BORROWER_THRESHOLD);
+                  const pass = p.score >= BORROWER_THRESHOLD;
+                  return (
+                    <View
+                      key={`b-${i}`}
+                      style={{
+                        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                        Borrower ↔ {p.b.label.replace(/Name.*$/, '').trim()}
+                      </Text>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: `${c}1A` }}>
+                        <Text style={{ color: c, fontSize: 12, fontWeight: '700' }}>
+                          {pass ? '✓' : '✕'} {p.score}%
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            ) : null}
           </Card>
         );
       })()}
