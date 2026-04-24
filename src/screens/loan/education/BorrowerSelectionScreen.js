@@ -29,6 +29,7 @@ import {
   validateEmail,
 } from '../../../utils/helpers';
 import { getLoanTypeRules } from '../../../config/constants';
+import useFocusScroller from '../../../hooks/useFocusScroller';
 
 const BorrowerSelectionScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -36,6 +37,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
   const { user } = useAuth();
   const { registerListener } = useFBot();
+  const { scrollRef, anchorProps, scrollToAnchor } = useFocusScroller();
   const student = state.studentDetails;
 
   // ── Restore from persisted state so the user resumes where they left off ──
@@ -200,6 +202,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     setPrefillDone(false);
     setPrefillSource({});
     setEmailVerification(null);
+    scrollToAnchor('borrowerForm');
   };
 
   const handleParentBorrower = () => {
@@ -222,6 +225,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     setPrefillDone(false);
     setPrefillSource({});
     setEmailVerification(null);
+    scrollToAnchor('borrowerForm');
   };
 
   const handleVerifyPhone = async () => {
@@ -519,12 +523,14 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       />
       <StepIndicator currentStep={1} />
       <ScrollView
+        ref={scrollRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         {/* Borrower Type Selection */}
+        <View {...anchorProps('borrowerType')}>
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Who is the Borrower?</Text>
           <View style={styles.optionsRow}>
@@ -548,9 +554,11 @@ const BorrowerSelectionScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </Card>
+        </View>
 
         {/* Step 1: Name + Mobile verification */}
         {borrowerType && (
+          <View {...anchorProps('borrowerForm')}>
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
               {borrowerType === 'parent' ? 'Parent / Guardian Details' : 'Verify Your Identity'}
@@ -770,10 +778,12 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               multiline
             />
           </Card>
+          </View>
         )}
 
         {/* Loan Products — shown after phone verified + borrower name filled + email verified */}
         {borrowerType && phoneVerified && !prefillLoading && borrowerName.trim() && borrowerEmail && emailVerification && !emailVerification.isRisky && (
+          <View {...anchorProps('product')}>
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Loan Product</Text>
             {products.map((product) => (
@@ -786,6 +796,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 onPress={() => {
                   setSelectedProduct(product);
                   setSelectedTenure(null);
+                  scrollToAnchor('tenure');
                 }}
               >
                 <Text style={[styles.productName, { color: colors.textPrimary }]}>{product.name}</Text>
@@ -801,10 +812,12 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               </TouchableOpacity>
             ))}
           </Card>
+          </View>
         )}
 
         {/* Tenure Selection */}
         {selectedProduct && (
+          <View {...anchorProps('tenure')}>
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Tenure</Text>
             <View style={styles.tenureRow}>
@@ -815,7 +828,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                     styles.tenureChip,
                     selectedTenure === tenure && styles.selectedTenure,
                   ]}
-                  onPress={() => setSelectedTenure(tenure)}
+                  onPress={() => { setSelectedTenure(tenure); scrollToAnchor('coApplicants'); }}
                 >
                   <Text
                     style={[
@@ -830,6 +843,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               ))}
             </View>
           </Card>
+          </View>
         )}
 
         {/* EMI Preview */}
@@ -863,6 +877,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         )}
 
         {/* Co-borrowers (optional, up to 2) */}
+        <View {...anchorProps('coApplicants')} />
         {selectedTenure && (() => {
           const rules = getLoanTypeRules(state.loanType);
           const cbLimit = rules.coBorrowerLimit;
@@ -875,7 +890,10 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               </Text>
               {cbCount < cbLimit ? (
                 <TouchableOpacity
-                  onPress={() => dispatch({ type: 'ADD_CO_BORROWER', payload: {} })}
+                  onPress={() => {
+                    dispatch({ type: 'ADD_CO_BORROWER', payload: {} });
+                    scrollToAnchor('guarantor');
+                  }}
                   style={{
                     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
                     borderWidth: 1, borderColor: colors.teal,
@@ -993,6 +1011,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         })()}
 
         {/* Guarantor (only when policy permits — currently higher_education) */}
+        <View {...anchorProps('guarantor')} />
         {selectedTenure && getLoanTypeRules(state.loanType).allowsGuarantor && (
           <Card>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -1005,7 +1024,10 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  onPress={() => dispatch({ type: 'SET_GUARANTOR', payload: { name: '', relationship: '', phone: '', pan: '' } })}
+                  onPress={() => {
+                    dispatch({ type: 'SET_GUARANTOR', payload: { name: '', relationship: '', phone: '', pan: '' } });
+                    scrollToAnchor('apply');
+                  }}
                   style={{
                     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
                     borderWidth: 1, borderColor: colors.teal,
@@ -1061,6 +1083,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         )}
 
         {/* Apply Button */}
+        <View {...anchorProps('apply')} />
         {selectedTenure && (
           <Button
             title="Apply for Loan"

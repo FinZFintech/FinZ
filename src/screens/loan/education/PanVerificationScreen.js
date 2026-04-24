@@ -14,6 +14,7 @@ import { checkDedupeByPan } from '../../../services/dedupeService';
 import { useFBot } from '../../../components/fbot/FBotContext';
 import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
+import useFocusScroller from '../../../hooks/useFocusScroller';
 import { maskPan, validatePan } from '../../../utils/helpers';
 
 const PanVerificationScreen = ({ navigation }) => {
@@ -22,6 +23,7 @@ const PanVerificationScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
   const { executePhase, feedCreditBureauData, setExternalData } = useRisk();
   const { registerListener } = useFBot();
+  const { scrollRef, anchorProps, scrollToAnchor } = useFocusScroller();
 
   // ── FBot action listener ──
   useEffect(() => {
@@ -136,6 +138,9 @@ const PanVerificationScreen = ({ navigation }) => {
         dispatch({ type: 'SET_CREDIT_SCORE', payload: reusedScore });
       }
       feedCreditBureauData(reusedScore);
+      // Credit decision is the next thing the user sees — bring it
+      // (and the proceed button below) into view.
+      scrollToAnchor('creditResult');
       if (passed) dispatch({ type: 'SET_STEP', payload: 2 });
       return;
     }
@@ -164,6 +169,9 @@ const PanVerificationScreen = ({ navigation }) => {
       const passed = result.gatingPassed;
       setCreditPassed(passed);
       dispatch({ type: 'SET_CREDIT_SCORE', payload: result });
+      // Once we have a verdict, focus the customer on the result card +
+      // proceed button so they don't have to scroll for it.
+      scrollToAnchor('creditResult');
 
       // Stash the CIBIL attempt on signzyVerifications so staff can
       // see on the Verification + Raw Data tabs whether the bureau
@@ -579,7 +587,7 @@ const PanVerificationScreen = ({ navigation }) => {
         onBack={() => navigation.goBack()}
       />
       <StepIndicator currentStep={2} />
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* PAN Verification */}
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>PAN Verification</Text>
@@ -713,6 +721,7 @@ const PanVerificationScreen = ({ navigation }) => {
         )}
 
         {/* Credit Check Result */}
+        <View {...anchorProps('creditResult')} />
         {creditPassed === true && (
           <Card style={styles.successCard}>
             <Text style={[styles.successIcon, { color: colors.teal }]}>✓</Text>

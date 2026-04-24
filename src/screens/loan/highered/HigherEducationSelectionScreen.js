@@ -10,6 +10,7 @@ import FloatingAssistButton from '../../../components/common/FloatingAssistButto
 import { useTheme } from '../../../store/ThemeContext';
 import { useLoan } from '../../../store/LoanContext';
 import { LOAN_TYPES } from '../../../config/constants';
+import useFocusScroller from '../../../hooks/useFocusScroller';
 import {
   listCountries, listStates, listUniversities, listCourses,
   computeIndicativeTotalInr, USD_TO_INR_RATE,
@@ -35,6 +36,7 @@ import { getHigherEdCatalog } from '../../../services/higherEducationCatalogServ
 const HigherEducationSelectionScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { dispatch } = useLoan();
+  const { scrollRef, anchorProps, scrollToAnchor } = useFocusScroller();
 
   const [country, setCountry] = useState(null); // { code, name, flag, isDomestic }
   const [stateSel, setStateSel] = useState(null); // { code, name }
@@ -194,7 +196,7 @@ const HigherEducationSelectionScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Higher Education Loan" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={0} />
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView ref={scrollRef} style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
         <Card>
           <Text style={[styles.intro, { color: colors.textSecondary }]}>
             Loans for higher-education programs — both within India and abroad.
@@ -204,6 +206,7 @@ const HigherEducationSelectionScreen = ({ navigation }) => {
         </Card>
 
         {/* Country */}
+        <View {...anchorProps('country')}>
         <Card>
           <SectionTitle>1. Country</SectionTitle>
           <View style={styles.chipRow}>
@@ -217,14 +220,18 @@ const HigherEducationSelectionScreen = ({ navigation }) => {
                   setStateSel(null);
                   setUniversity(null);
                   setCourse(null);
+                  // Country picked → reveal + scroll to state picker.
+                  scrollToAnchor('state');
                 }}
               />
             ))}
           </View>
         </Card>
+        </View>
 
         {/* State */}
         {country && (
+          <View {...anchorProps('state')}>
           <Card>
             <SectionTitle>2. State / Region in {country.name}</SectionTitle>
             {states.length === 0 ? (
@@ -240,16 +247,19 @@ const HigherEducationSelectionScreen = ({ navigation }) => {
                       setStateSel(s);
                       setUniversity(null);
                       setCourse(null);
+                      scrollToAnchor('university');
                     }}
                   />
                 ))}
               </View>
             )}
           </Card>
+          </View>
         )}
 
         {/* University */}
         {country && stateSel && (
+          <View {...anchorProps('university')}>
           <Card>
             <SectionTitle>3. University in {stateSel.name}</SectionTitle>
             <TextInput
@@ -267,7 +277,7 @@ const HigherEducationSelectionScreen = ({ navigation }) => {
               return (
                 <TouchableOpacity
                   key={u.id}
-                  onPress={() => { setUniversity(u); setCourse(null); }}
+                  onPress={() => { setUniversity(u); setCourse(null); scrollToAnchor('course'); }}
                   style={[styles.uniRow, {
                     backgroundColor: isSel ? `${colors.teal}14` : 'transparent',
                     borderColor: isSel ? colors.teal : colors.cardBorder,
@@ -292,10 +302,12 @@ const HigherEducationSelectionScreen = ({ navigation }) => {
               </Text>
             )}
           </Card>
+          </View>
         )}
 
         {/* Course */}
         {country && stateSel && university && (
+          <View {...anchorProps('course')}>
           <Card>
             <SectionTitle>4. Course at {university.name}</SectionTitle>
             {courses.map((c) => {
@@ -308,7 +320,7 @@ const HigherEducationSelectionScreen = ({ navigation }) => {
               return (
                 <TouchableOpacity
                   key={c.id}
-                  onPress={() => setCourse(c)}
+                  onPress={() => { setCourse(c); scrollToAnchor('cost'); }}
                   style={[styles.uniRow, {
                     backgroundColor: isSel ? `${colors.teal}14` : 'transparent',
                     borderColor: isSel ? colors.teal : colors.cardBorder,
@@ -328,10 +340,12 @@ const HigherEducationSelectionScreen = ({ navigation }) => {
               );
             })}
           </Card>
+          </View>
         )}
 
         {/* Cost summary */}
         {course && (
+          <View {...anchorProps('cost')}>
           <Card>
             <SectionTitle>5. Estimated Loan Amount</SectionTitle>
             <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 8 }}>
@@ -378,14 +392,17 @@ const HigherEducationSelectionScreen = ({ navigation }) => {
               </Text>
             ) : null}
           </Card>
+          </View>
         )}
 
+        <View {...anchorProps('continue')}>
         <Button
           title="Continue"
           onPress={handleProceed}
           disabled={!course}
           style={{ marginTop: 16 }}
         />
+        </View>
       </ScrollView>
       <FloatingAssistButton />
     </View>

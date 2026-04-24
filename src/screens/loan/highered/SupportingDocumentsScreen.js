@@ -14,6 +14,7 @@ import { useTheme } from '../../../store/ThemeContext';
 import { useLoan } from '../../../store/LoanContext';
 import { useAuth } from '../../../store/AuthContext';
 import { formatCurrency } from '../../../utils/helpers';
+import useFocusScroller from '../../../hooks/useFocusScroller';
 
 /**
  * Supporting documents step for higher-education (abroad) loans.
@@ -100,6 +101,7 @@ const SupportingDocumentsScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
   const { user } = useAuth();
   const [pickingCode, setPickingCode] = useState(null);
+  const { scrollRef, anchorProps, scrollToAnchor } = useFocusScroller();
 
   const docs = state.supportingDocuments || [];
   // Group what the user already uploaded by required-doc code.
@@ -201,7 +203,7 @@ const SupportingDocumentsScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Supporting Documents" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={1} />
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView ref={scrollRef} style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
         <Card>
           <Text style={[styles.intro, { color: colors.textSecondary }]}>
             Higher-education loans need extra underwriting evidence.
@@ -213,16 +215,25 @@ const SupportingDocumentsScreen = ({ navigation }) => {
         </Card>
 
         {/* ── Moratorium ── */}
+        <View {...anchorProps('moratorium')}>
         <Card>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>
               Moratorium {moratorium.optedIn ? '✓' : '(optional)'}
             </Text>
             <TouchableOpacity
-              onPress={() => dispatch({
-                type: 'SET_MORATORIUM',
-                payload: { optedIn: !moratorium.optedIn, type: moratorium.type || 'simple_interest', monthsRequested: moratorium.monthsRequested || (state.studentDetails?.courseDurationMonths || 24) },
-              })}
+              onPress={() => {
+                const becomingActive = !moratorium.optedIn;
+                dispatch({
+                  type: 'SET_MORATORIUM',
+                  payload: { optedIn: becomingActive, type: moratorium.type || 'simple_interest', monthsRequested: moratorium.monthsRequested || (state.studentDetails?.courseDurationMonths || 24) },
+                });
+                // Once moratorium is enabled, the type picker mounts —
+                // bring the new field into view so the next action (the
+                // type selection) is the focal point.
+                if (becomingActive) scrollToAnchor('moratoriumType');
+                else scrollToAnchor('selfContribution');
+              }}
               style={{
                 paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
                 borderWidth: 1, borderColor: colors.teal,
@@ -241,13 +252,17 @@ const SupportingDocumentsScreen = ({ navigation }) => {
           </Text>
 
           {moratorium.optedIn && (
-            <View style={{ marginTop: 10 }}>
+            <View style={{ marginTop: 10 }} {...anchorProps('moratoriumType')}>
               {MORATORIUM_TYPES.map((t) => {
                 const isSel = (moratorium.type || 'simple_interest') === t.code;
                 return (
                   <TouchableOpacity
                     key={t.code}
-                    onPress={() => dispatch({ type: 'SET_MORATORIUM', payload: { type: t.code } })}
+                    onPress={() => {
+                      dispatch({ type: 'SET_MORATORIUM', payload: { type: t.code } });
+                      // Type chosen → next field is the duration input.
+                      scrollToAnchor('moratoriumDuration');
+                    }}
                     style={{
                       padding: 10, borderRadius: 8,
                       borderWidth: 1,
@@ -265,18 +280,22 @@ const SupportingDocumentsScreen = ({ navigation }) => {
                   </TouchableOpacity>
                 );
               })}
-              <Input
-                label="Moratorium duration requested (months)"
-                keyboardType="numeric"
-                value={String(moratorium.monthsRequested || '')}
-                onChangeText={(v) => dispatch({ type: 'SET_MORATORIUM', payload: { monthsRequested: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 } })}
-                placeholder="e.g. 24"
-              />
+              <View {...anchorProps('moratoriumDuration')}>
+                <Input
+                  label="Moratorium duration requested (months)"
+                  keyboardType="numeric"
+                  value={String(moratorium.monthsRequested || '')}
+                  onChangeText={(v) => dispatch({ type: 'SET_MORATORIUM', payload: { monthsRequested: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 } })}
+                  placeholder="e.g. 24"
+                />
+              </View>
             </View>
           )}
         </Card>
+        </View>
 
         {/* ── Self-contribution ── */}
+        <View {...anchorProps('selfContribution')}>
         <Card>
           <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>Self-Contribution</Text>
           <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 6, marginBottom: 10, lineHeight: 18 }}>
@@ -287,15 +306,22 @@ const SupportingDocumentsScreen = ({ navigation }) => {
           <Input
             label={`Total course cost: ${formatCurrency(totalCost)}`}
             value={String(declaredContribution || '')}
-            onChangeText={(v) => dispatch({
-              type: 'SET_SELF_CONTRIBUTION',
-              payload: { amountInr: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 },
-            })}
+            onChangeText={(v) => {
+              const num = parseInt(v.replace(/[^0-9]/g, ''), 10) || 0;
+              const wasZero = !declaredContribution;
+              dispatch({
+                type: 'SET_SELF_CONTRIBUTION',
+                payload: { amountInr: num },
+              });
+              // First time the user enters a positive amount the source
+              // picker mounts — bring it into view.
+              if (wasZero && num > 0) scrollToAnchor('selfContributionSource');
+            }}
             placeholder="Self-contribution amount in ₹"
             keyboardType="numeric"
           />
           {declaredContribution > 0 ? (
-            <>
+            <View {...anchorProps('selfContributionSource')}>
               <Text style={{ color: colors.textPrimary, fontSize: 13, marginTop: 6 }}>
                 Loan amount you're requesting:{' '}
                 <Text style={{ color: colors.teal, fontWeight: '700' }}>
@@ -309,7 +335,10 @@ const SupportingDocumentsScreen = ({ navigation }) => {
                   return (
                     <TouchableOpacity
                       key={s.code}
-                      onPress={() => dispatch({ type: 'SET_SELF_CONTRIBUTION', payload: { sourceType: s.code } })}
+                      onPress={() => {
+                        dispatch({ type: 'SET_SELF_CONTRIBUTION', payload: { sourceType: s.code } });
+                        scrollToAnchor('collateral');
+                      }}
                       style={{
                         paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
                         borderWidth: 1,
@@ -331,23 +360,30 @@ const SupportingDocumentsScreen = ({ navigation }) => {
                 onChangeText={(v) => dispatch({ type: 'SET_SELF_CONTRIBUTION', payload: { sourceDescription: v } })}
                 placeholder="e.g. Father's savings + 50% scholarship from XYZ"
               />
-            </>
+            </View>
           ) : null}
         </Card>
+        </View>
 
         {/* ── Collateral ── */}
+        <View {...anchorProps('collateral')}>
         <Card>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>
               Collateral {collateral.offered ? '✓' : '(optional)'}
             </Text>
             <TouchableOpacity
-              onPress={() => dispatch({
-                type: 'SET_COLLATERAL',
-                payload: collateral.offered
-                  ? { offered: false }
-                  : { offered: true, type: collateral.type || 'property', valuationCurrency: 'INR' },
-              })}
+              onPress={() => {
+                const becomingActive = !collateral.offered;
+                dispatch({
+                  type: 'SET_COLLATERAL',
+                  payload: becomingActive
+                    ? { offered: true, type: collateral.type || 'property', valuationCurrency: 'INR' }
+                    : { offered: false },
+                });
+                if (becomingActive) scrollToAnchor('collateralType');
+                else scrollToAnchor('docs');
+              }}
               style={{
                 paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
                 borderWidth: 1, borderColor: colors.teal,
@@ -364,7 +400,7 @@ const SupportingDocumentsScreen = ({ navigation }) => {
           </Text>
 
           {collateral.offered && (
-            <View style={{ marginTop: 10 }}>
+            <View style={{ marginTop: 10 }} {...anchorProps('collateralType')}>
               <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600' }}>Type</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
                 {COLLATERAL_TYPES.map((t) => {
@@ -372,7 +408,10 @@ const SupportingDocumentsScreen = ({ navigation }) => {
                   return (
                     <TouchableOpacity
                       key={t.code}
-                      onPress={() => dispatch({ type: 'SET_COLLATERAL', payload: { type: t.code } })}
+                      onPress={() => {
+                        dispatch({ type: 'SET_COLLATERAL', payload: { type: t.code } });
+                        scrollToAnchor('collateralValue');
+                      }}
                       style={{
                         paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
                         borderWidth: 1,
@@ -388,13 +427,15 @@ const SupportingDocumentsScreen = ({ navigation }) => {
                   );
                 })}
               </View>
-              <Input
-                label="Indicative market value (₹)"
-                value={String(collateral.marketValue || '')}
-                onChangeText={(v) => dispatch({ type: 'SET_COLLATERAL', payload: { marketValue: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 } })}
-                placeholder="e.g. 5000000"
-                keyboardType="numeric"
-              />
+              <View {...anchorProps('collateralValue')}>
+                <Input
+                  label="Indicative market value (₹)"
+                  value={String(collateral.marketValue || '')}
+                  onChangeText={(v) => dispatch({ type: 'SET_COLLATERAL', payload: { marketValue: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 } })}
+                  placeholder="e.g. 5000000"
+                  keyboardType="numeric"
+                />
+              </View>
               <Input
                 label="Owner name"
                 value={collateral.ownerName || ''}
@@ -428,6 +469,9 @@ const SupportingDocumentsScreen = ({ navigation }) => {
             </View>
           )}
         </Card>
+        </View>
+
+        <View {...anchorProps('docs')} />
 
         {REQUIRED_DOCS.map((def) => {
           const filesForCode = uploadedBy[def.code] || [];

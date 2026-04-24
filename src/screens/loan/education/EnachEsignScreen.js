@@ -14,6 +14,7 @@ import { useLoan } from '../../../store/LoanContext';
 import { useRisk } from '../../../store/RiskContext';
 import { formatCurrency, calculateEmi } from '../../../utils/helpers';
 import { useTheme } from '../../../store/ThemeContext';
+import useFocusScroller from '../../../hooks/useFocusScroller';
 
 const RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Brother', 'Sister', 'Friend', 'Colleague', 'Other'];
 
@@ -21,6 +22,7 @@ const EnachEsignScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, dispatch } = useLoan();
   const { state: riskState, executePhase } = useRisk();
+  const { scrollRef, anchorProps, scrollToAnchor } = useFocusScroller();
   const [enachLoading, setEnachLoading] = useState(false);
   const [esignLoading, setEsignLoading] = useState(false);
   const [enachDone, setEnachDone] = useState(false);
@@ -117,6 +119,8 @@ const EnachEsignScreen = ({ navigation }) => {
       setEnachDone(true);
       dispatch({ type: 'SET_ENACH', payload: 'completed' });
       setEnachLoading(false);
+      // eNACH done — eSign is the next gated action.
+      scrollToAnchor('esign');
     }, 2000);
   };
 
@@ -136,6 +140,8 @@ const EnachEsignScreen = ({ navigation }) => {
       setEsignDone(true);
       dispatch({ type: 'SET_ESIGN', payload: 'completed' });
       setEsignLoading(false);
+      // eSign done — references / vKYC are next.
+      scrollToAnchor(requiresVkyc ? 'vkyc' : 'references');
     }, 2000);
   };
 
@@ -347,7 +353,7 @@ const EnachEsignScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="eNACH, eSign & VCIP" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={6} />
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView ref={scrollRef} style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* Loan Summary */}
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Loan Summary</Text>
@@ -382,6 +388,7 @@ const EnachEsignScreen = ({ navigation }) => {
         )}
 
         {/* eNACH Setup */}
+        <View {...anchorProps('enach')} />
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>1. eNACH Setup</Text>
           <Text style={[styles.infoText, { color: colors.textSecondary }]}>
@@ -407,6 +414,7 @@ const EnachEsignScreen = ({ navigation }) => {
         </Card>
 
         {/* eSign */}
+        <View {...anchorProps('esign')} />
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>2. eSign Agreement</Text>
           <Text style={[styles.infoText, { color: colors.textSecondary }]}>
@@ -475,6 +483,7 @@ const EnachEsignScreen = ({ navigation }) => {
         </Card>
 
         {/* VKYC (VCIP) — only for loans >= 60K, shown in parallel */}
+        <View {...anchorProps('vkyc')} />
         {requiresVkyc && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>3. Video KYC (VCIP)</Text>
@@ -557,6 +566,7 @@ const EnachEsignScreen = ({ navigation }) => {
         )}
 
         {/* References (2 required) */}
+        <View {...anchorProps('references')} />
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
             {requiresVkyc ? '4' : '3'}. References
@@ -625,6 +635,7 @@ const EnachEsignScreen = ({ navigation }) => {
         </Card>
 
         {/* Submit Application */}
+        <View {...anchorProps('submit')} />
         {allDone && (
           <Button
             title="Submit Application"
