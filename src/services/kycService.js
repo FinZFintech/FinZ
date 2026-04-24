@@ -452,10 +452,37 @@ export const kycService = {
     const { digitapService } = require('./digitapService');
     console.log('[kycService] Checking vKYC status for:', uniqueId);
 
-    const sessions = await digitapService.getStatusByUniqueId(uniqueId);
+    let sessions;
+    try {
+      sessions = await digitapService.getStatusByUniqueId(uniqueId);
+    } catch (err) {
+      // Digitap returns 400 "No session found for the given uniqueId"
+      // when no vKYC lead exists yet (e.g. customer clicked "Check
+      // status" before "Initiate vKYC", or the link expired before the
+      // session was created). Treat this as NOT_STARTED so the UI can
+      // show a helpful message instead of bubbling a raw 400.
+      const msg = String(err?.message || '');
+      const detail = String(err?.signzyError?.errors || err?.response?.data?.errors || '');
+      const body = `${msg} ${detail}`;
+      const noSession = /no session found/i.test(body) || err?.statusCode === 400;
+      if (noSession) {
+        return {
+          status: 'pending',
+          vkycStatus: 'NOT_STARTED',
+          reason: 'no_session',
+          checkedAt: new Date().toISOString(),
+        };
+      }
+      throw err;
+    }
 
     if (!sessions || sessions.length === 0) {
-      return { status: 'pending', vkycStatus: 'NOT_STARTED' };
+      return {
+        status: 'pending',
+        vkycStatus: 'NOT_STARTED',
+        reason: 'no_session',
+        checkedAt: new Date().toISOString(),
+      };
     }
 
     // Get the latest session
@@ -471,6 +498,8 @@ export const kycService = {
       callStatus: latest.callStatus,
       callInitiated: latest.callInitiated,
       verified: isApproved,
+      rejectionReason: latest.rejectionReason || latest.rejectReason || '',
+      checkedAt: new Date().toISOString(),
     };
   },
 

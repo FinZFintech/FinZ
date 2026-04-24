@@ -34,6 +34,10 @@ const EnachEsignScreen = ({ navigation }) => {
   const [vkycDone, setVkycDone] = useState(false);
   const [vkycUrl, setVkycUrl] = useState(null);
   const [vkycStatusText, setVkycStatusText] = useState(null);
+  // Rich vKYC status detail (tone / label / message) — rendered as an
+  // inline status card. Rehydrated from state.vkycStatusDetail on
+  // mount so a page refresh keeps the last-known status visible.
+  const [vkycStatusDetail, setVkycStatusDetail] = useState(null);
   // Missing-Aadhaar-fields modal (shown when KYC didn't yield every
   // field Digitap's external-Aadhaar vKYC needs).
   const [missingKycModal, setMissingKycModal] = useState({ visible: false, fields: [] });
@@ -48,6 +52,13 @@ const EnachEsignScreen = ({ navigation }) => {
   useEffect(() => {
     if (state.references?.[0]) setRef1(state.references[0]);
     if (state.references?.[1]) setRef2(state.references[1]);
+    // Rehydrate the last-seen vKYC status so a page refresh doesn't
+    // blank the status card. The customer (and sales / credit later)
+    // sees the same message they left the screen with.
+    if (state.vkycStatusDetail?.label) {
+      setVkycStatusText(state.vkycStatusDetail.label);
+      setVkycStatusDetail(state.vkycStatusDetail);
+    }
   }, []);
 
   const riskDecision = riskState.decision?.decision;
@@ -318,32 +329,133 @@ const EnachEsignScreen = ({ navigation }) => {
     }
   };
 
+  /**
+   * Decode the Digitap vKYC status into a customer-facing tone (ok /
+   * pending / review / rejected / error), a short label and a longer
+   * explanation. Sales / credit / ops see the same values on the
+   * admin detail screen, so keeping the mapping in one place avoids
+   * drift.
+   */
+  const decodeVkycStatus = (result) => {
+    if (!result) {
+      return { tone: 'error', label: 'Error', message: 'We could not check vKYC right now. Please try again in a minute.' };
+    }
+    if (result.status === 'completed' && result.verified) {
+      return {
+        tone: 'ok',
+        label: 'Approved',
+        message: 'Video KYC has been approved. You can proceed with the rest of your application.',
+      };
+    }
+    if (result.status === 'rejected') {
+      return {
+        tone: 'rejected',
+        label: 'Rejected',
+        message: result.rejectionReason
+          ? `Video KYC was rejected — reason: ${result.rejectionReason}. Please re-initiate and retry.`
+          : 'Video KYC was rejected. Please re-initiate and retry.',
+      };
+    }
+    // Pending — use reason / callStatus to render a precise message.
+    if (result.reason === 'no_session' || result.vkycStatus === 'NOT_STARTED') {
+      return {
+        tone: 'pending',
+        label: 'Not started',
+        message: 'No Video KYC session exists yet. Tap "Initiate vKYC" to create one — the link is valid for 24 hours.',
+      };
+    }
+    const raw = String(result.vkycStatus || '').toUpperCase();
+    if (raw === 'IN_REVIEW' || raw === 'INREVIEW' || raw === 'UNDER_REVIEW') {
+      return {
+        tone: 'review',
+        label: 'Under review',
+        message: 'The Video KYC call is complete and is currently being reviewed by our compliance team. You will be notified as soon as the decision is finalised (typically within a few hours).',
+      };
+    }
+    if (raw === 'INCOMPLETE' || raw === 'EXPIRED') {
+      return {
+        tone: 'pending',
+        label: raw === 'EXPIRED' ? 'Link expired' : 'Incomplete',
+        message: raw === 'EXPIRED'
+          ? 'The Video KYC link has expired. Please tap "Initiate vKYC" again to get a fresh link.'
+          : 'Video KYC was not completed on the last attempt. Please re-open the link and finish the video call.',
+      };
+    }
+    if (result.callStatus === 'AGENT_NOT_PICKED') {
+      return {
+        tone: 'pending',
+        label: 'Agent busy',
+        message: 'All agents are currently busy. Please try again in a few minutes, or use a different time slot.',
+      };
+    }
+    if (result.callInitiated) {
+      return {
+        tone: 'review',
+        label: 'Call in progress',
+        message: 'Video KYC call is live or waiting to be reviewed. Do not close this page while the call is ongoing.',
+      };
+    }
+    return {
+      tone: 'pending',
+      label: raw || 'Pending',
+      message: 'Video KYC is still pending. Please open the link to start the video call.',
+    };
+  };
+
   const handleCheckVkycStatus = async () => {
     setVkycLoading(true);
     try {
       const result = await kycService.getVkycStatus(state.applicationId);
-      if (result.status === 'completed' && result.verified) {
+      const decoded = decodeVkycStatus(result);
+
+      // Surface the decoded status inline (no more Alert pop-ups —
+      // they're easy to miss and don't leave an audit trail).
+      setVkycStatusText(decoded.label);
+      setVkycStatusDetail(decoded);
+
+      // Persist the full Digitap payload + decoded summary so admin /
+      // credit / sales / ops see identical messaging on the detail
+      // screen.
+      dispatch({
+        type: 'SET_VKYC_STATUS_DETAIL',
+        payload: {
+          tone: decoded.tone,
+          label: decoded.label,
+          message: decoded.message,
+          digitapStatus: result?.vkycStatus || null,
+          sessionId: result?.sessionId || null,
+          callStatus: result?.callStatus || null,
+          callInitiated: !!result?.callInitiated,
+          rejectionReason: result?.rejectionReason || null,
+          reason: result?.reason || null,
+          lastCheckedAt: result?.checkedAt || new Date().toISOString(),
+        },
+      });
+
+      if (decoded.tone === 'ok') {
         setVkycDone(true);
-        setVkycStatusText('APPROVED');
         dispatch({ type: 'SET_VKYC', payload: 'completed' });
-        Alert.alert('Verified', 'Video KYC has been approved.');
-      } else if (result.status === 'rejected') {
-        setVkycStatusText('REJECTED');
-        Alert.alert('Rejected', 'Video KYC was rejected. Please re-initiate and try again.');
+      } else if (decoded.tone === 'rejected') {
         setVkycInitiated(false);
         setVkycUrl(null);
-      } else {
-        const statusMsg = result.callStatus === 'AGENT_NOT_PICKED'
-          ? 'Waiting for an agent. Please try again in a few minutes.'
-          : result.callInitiated
-            ? 'Video KYC call is in progress or waiting for review.'
-            : 'Video KYC is still pending. Please open the link to start the video call.';
-        setVkycStatusText(result.vkycStatus || 'PENDING');
-        Alert.alert('Pending', statusMsg);
       }
     } catch (err) {
       console.log('[EnachEsign] vKYC status check error:', err.message);
-      Alert.alert('Error', 'Failed to check vKYC status. Please try again.');
+      const decoded = {
+        tone: 'error',
+        label: 'Check failed',
+        message: 'We could not reach the Video KYC service right now. Please try again in a minute — your vKYC link is still valid.',
+      };
+      setVkycStatusText(decoded.label);
+      setVkycStatusDetail(decoded);
+      dispatch({
+        type: 'SET_VKYC_STATUS_DETAIL',
+        payload: {
+          ...decoded,
+          errorMessage: err?.message || '',
+          lastCheckedAt: new Date().toISOString(),
+        },
+      });
     } finally {
       setVkycLoading(false);
     }
@@ -568,12 +680,52 @@ const EnachEsignScreen = ({ navigation }) => {
                   <Text style={[styles.pendingText, { color: colors.warning }]}>
                     vKYC link has been sent to your mobile and email. You can also open it directly from here.
                   </Text>
-                  {vkycStatusText && (
-                    <Text style={[styles.pendingText, { color: colors.textSecondary, marginTop: 4, fontSize: 12 }]}>
-                      Status: {vkycStatusText}
-                    </Text>
-                  )}
                 </View>
+
+                {/* Themed status card — tone drives the accent colour
+                    and icon so the customer can tell at a glance
+                    whether vKYC is waiting, in review, rejected, or
+                    errored. Sales / credit / ops see the same text on
+                    the admin detail screen via state.vkycStatusDetail. */}
+                {vkycStatusDetail ? (() => {
+                  const tone = vkycStatusDetail.tone || 'pending';
+                  const palette = {
+                    ok:       { bg: tealBg,   fg: colors.teal,    icon: '✓',  hdr: 'Approved' },
+                    pending:  { bg: warningBg,fg: colors.warning, icon: '⏳', hdr: 'In progress' },
+                    review:   { bg: warningBg,fg: colors.warning, icon: '🔎', hdr: 'Under review' },
+                    rejected: { bg: errorBg,  fg: colors.error,   icon: '✕',  hdr: 'Rejected' },
+                    error:    { bg: errorBg,  fg: colors.error,   icon: '⚠️', hdr: 'Check failed' },
+                  }[tone] || { bg: warningBg, fg: colors.warning, icon: '⏳', hdr: 'Pending' };
+                  const ts = vkycStatusDetail.lastCheckedAt
+                    ? new Date(vkycStatusDetail.lastCheckedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : null;
+                  return (
+                    <View style={{
+                      marginTop: 10, padding: 14, borderRadius: 10,
+                      backgroundColor: palette.bg, borderLeftWidth: 4, borderLeftColor: palette.fg,
+                    }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 16, marginRight: 6 }}>{palette.icon}</Text>
+                        <Text style={{ color: palette.fg, fontWeight: '700', fontSize: 13 }}>
+                          {vkycStatusDetail.label || palette.hdr}
+                        </Text>
+                        {ts ? (
+                          <Text style={{ color: colors.textSecondary, fontSize: 11, marginLeft: 8 }}>
+                            checked at {ts}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Text style={{ color: colors.textPrimary, fontSize: 12, lineHeight: 18 }}>
+                        {vkycStatusDetail.message}
+                      </Text>
+                      {vkycStatusDetail.rejectionReason ? (
+                        <Text style={{ color: colors.error, fontSize: 11, marginTop: 6, fontStyle: 'italic' }}>
+                          Rejection reason: {vkycStatusDetail.rejectionReason}
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })() : null}
 
                 {/* vKYC URL actions */}
                 {vkycUrl && (

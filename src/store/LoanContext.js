@@ -512,6 +512,20 @@ const loanReducer = (state, action) => {
     case 'SET_VKYC':
       next = { ...state, vkycStatus: action.payload };
       break;
+    case 'SET_VKYC_STATUS_DETAIL':
+      // Rich vKYC status payload from Digitap — lastCheckedAt, raw
+      // Digitap status (APPROVED/REJECTED/IN_REVIEW/etc.), session id,
+      // callStatus, reason. Merged so partial refreshes don't drop
+      // earlier fields. Kept alongside state.vkycStatus so existing
+      // 'completed' string checks keep working.
+      next = {
+        ...state,
+        vkycStatusDetail: {
+          ...(state.vkycStatusDetail || {}),
+          ...(action.payload || {}),
+        },
+      };
+      break;
     case 'SET_RISK_PROFILE':
       next = { ...state, riskProfile: action.payload };
       break;
