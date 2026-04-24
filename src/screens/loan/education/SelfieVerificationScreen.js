@@ -141,6 +141,21 @@ const SelfieVerificationScreen = ({ navigation }) => {
       setLivenessUrl(result.videoUrl);
       setLivenessToken(result.token);
       setStep('liveness');
+
+      // Persist the liveness link + token so a refresh, resume, or
+      // admin detail view can show the same URL the customer has
+      // (sales / credit / ops can share or re-open it).
+      dispatch({
+        type: 'SET_SELFIE',
+        payload: {
+          status: 'initiated',
+          livenessUrl: result.videoUrl,
+          livenessToken: result.token,
+          initiatedAt: new Date().toISOString(),
+          matched: false,
+          livenessVerified: false,
+        },
+      });
     } catch (err) {
       console.log('[SelfieVerification] createLivenessUrl error:', err.message);
       setError(err.message || 'Failed to start verification. Please try again.');
@@ -175,11 +190,19 @@ const SelfieVerificationScreen = ({ navigation }) => {
       dispatch({
         type: 'SET_SELFIE',
         payload: {
+          status: (result.verified && result.liveness) ? 'completed'
+            : result.verified ? 'liveness_failed'
+            : result.liveness ? 'face_mismatch'
+            : 'failed',
           uri: result.capturedImage || '',
+          capturedImage: result.capturedImage || '',
           matched: result.verified,
           livenessVerified: result.liveness,
+          livenessScore: result.livenessScore,
           faceMatchPercentage: result.matchPercentage,
+          message: result.message || '',
           timestamp: captureTimestamp?.toISOString() || new Date().toISOString(),
+          completedAt: new Date().toISOString(),
           location: location
             ? `${location.latitude}, ${location.longitude}`
             : 'Unavailable',

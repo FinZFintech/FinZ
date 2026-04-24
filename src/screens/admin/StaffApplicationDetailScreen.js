@@ -912,28 +912,112 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
       {/* Face Match / Selfie Results */}
       {(application.selfieData || application._rawState?.selfieData) && (() => {
         const selfie = application.selfieData || application._rawState?.selfieData || {};
+        const status = selfie.status
+          || (selfie.matched && selfie.livenessVerified ? 'completed'
+            : selfie.livenessUrl ? 'initiated'
+            : 'unknown');
+        const tone = status === 'completed' ? 'ok'
+          : status === 'initiated' ? 'pending'
+          : 'rejected';
+        const palette = {
+          ok:       { bg: `${colors.teal}14`,    fg: colors.teal,    icon: '✓',  hdr: 'Selfie verified' },
+          pending:  { bg: `${colors.warning}14`, fg: colors.warning, icon: '⏳', hdr: 'Awaiting customer' },
+          rejected: { bg: `${colors.error}14`,   fg: colors.error,   icon: '✕',  hdr: 'Selfie failed' },
+        }[tone];
+        const hdr = status === 'completed' ? 'Approved'
+          : status === 'initiated' ? 'Link sent — customer has not completed yet'
+          : status === 'face_mismatch' ? 'Liveness OK but face did not match KYC photo'
+          : status === 'liveness_failed' ? 'Face matched but liveness check failed'
+          : 'Rejected';
+        const imageUri = selfie.capturedImage || selfie.uri || '';
         return (
-          <Card accent={selfie.matched ? colors.teal : colors.error}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Face Match / Selfie Verification</Text>
-            <View style={{ alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{
-                fontSize: 28, fontWeight: '800',
-                color: selfie.matched ? colors.teal : colors.error,
-              }}>
-                {selfie.faceMatchPercentage || '0%'}
-              </Text>
-              <Text style={{
-                fontSize: 12, fontWeight: '600',
-                color: selfie.matched ? colors.teal : colors.error,
-              }}>
-                {selfie.matched ? 'FACE MATCHED' : 'FACE NOT MATCHED'}
-              </Text>
+          <Card accent={palette.fg}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Selfie Verification</Text>
+
+            {/* Tone-accented status banner — mirrors the customer card */}
+            <View style={{
+              padding: 12, borderRadius: 10, backgroundColor: palette.bg,
+              borderLeftWidth: 4, borderLeftColor: palette.fg, marginBottom: 12,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={{ fontSize: 16, marginRight: 6 }}>{palette.icon}</Text>
+                <Text style={{ color: palette.fg, fontWeight: '700', fontSize: 13 }}>{hdr}</Text>
+              </View>
+              {selfie.message ? (
+                <Text style={{ color: colors.textPrimary, fontSize: 12, lineHeight: 18 }}>
+                  {selfie.message}
+                </Text>
+              ) : null}
             </View>
+
+            {/* Face-match headline */}
+            {(selfie.faceMatchPercentage || selfie.matched !== undefined) ? (
+              <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{
+                  fontSize: 28, fontWeight: '800',
+                  color: selfie.matched ? colors.teal : colors.error,
+                }}>
+                  {selfie.faceMatchPercentage || '—'}
+                </Text>
+                <Text style={{
+                  fontSize: 12, fontWeight: '600',
+                  color: selfie.matched ? colors.teal : colors.error,
+                }}>
+                  {selfie.matched ? 'FACE MATCHED' : 'FACE NOT MATCHED'}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Captured selfie image */}
+            {imageUri && (imageUri.startsWith('http') || imageUri.startsWith('data:')) ? (
+              <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600', marginBottom: 6 }}>
+                  CAPTURED SELFIE
+                </Text>
+                <TouchableOpacity onPress={() => setZoomImage({ uri: imageUri, label: 'Captured Selfie' })}>
+                  <Image
+                    source={{ uri: imageUri }}
+                    style={{ width: 140, height: 140, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder }}
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : imageUri ? (
+              <Text style={{ color: colors.warning, fontSize: 11, fontStyle: 'italic', marginBottom: 8 }}>
+                Selfie captured but not stored — configure Cloudinary / image storage to persist it.
+              </Text>
+            ) : null}
+
+            {/* Liveness link — sales can re-share with the customer */}
+            {selfie.livenessUrl ? (
+              <>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600', marginBottom: 4 }}>
+                  SELFIE / LIVENESS LINK (share with customer if needed)
+                </Text>
+                <TouchableOpacity onPress={() => Linking.openURL(selfie.livenessUrl)}>
+                  <Text
+                    style={{ color: colors.teal, fontSize: 12, textDecorationLine: 'underline', marginBottom: 8 }}
+                    numberOfLines={2}
+                  >
+                    {selfie.livenessUrl}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+
             <InfoRow label="Face Match" value={selfie.matched ? 'Yes' : 'No'} highlight={selfie.matched} />
             <InfoRow label="Match Percentage" value={selfie.faceMatchPercentage || '—'} />
             <InfoRow label="Liveness Verified" value={selfie.livenessVerified ? 'Yes' : 'No'} highlight={selfie.livenessVerified} />
-            {selfie.timestamp ? (
-              <InfoRow label="Captured At" value={formatDate(selfie.timestamp)} />
+            {selfie.livenessScore != null ? (
+              <InfoRow label="Liveness Score" value={String(selfie.livenessScore)} />
+            ) : null}
+            {selfie.livenessToken ? (
+              <InfoRow label="Session Token" value={selfie.livenessToken} />
+            ) : null}
+            {selfie.initiatedAt ? (
+              <InfoRow label="Initiated At" value={formatDate(selfie.initiatedAt)} />
+            ) : null}
+            {selfie.completedAt || selfie.timestamp ? (
+              <InfoRow label="Captured At" value={formatDate(selfie.completedAt || selfie.timestamp)} />
             ) : null}
             {selfie.location ? (
               <InfoRow label="Location" value={selfie.location} />

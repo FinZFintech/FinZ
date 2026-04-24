@@ -487,7 +487,15 @@ const loanReducer = (state, action) => {
       next = { ...state, addressCorrection: action.payload };
       break;
     case 'SET_SELFIE':
-      next = { ...state, selfieData: action.payload };
+      // Merged (not replaced) so the 'initiated' dispatch carrying
+      // livenessUrl / livenessToken / initiatedAt isn't wiped by the
+      // later 'completed' dispatch that carries capturedImage /
+      // matchPercentage / livenessScore. Staff on the admin detail
+      // screen then see the full history (URL + completion details).
+      next = {
+        ...state,
+        selfieData: { ...(state.selfieData || {}), ...(action.payload || {}) },
+      };
       break;
     case 'SET_BANK_DETAILS':
       // Merge, same reasoning as SET_BORROWER_DETAILS — partial updates
