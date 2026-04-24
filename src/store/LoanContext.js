@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LOAN_STATUS, VKYC_AMOUNT_THRESHOLD } from '../config/constants';
+import { LOAN_STATUS, VKYC_AMOUNT_THRESHOLD, getLoanTypeRules } from '../config/constants';
 
 // ─── Helper: derive the requested loan amount from state ─────────────────────
 // Looks through all the places an amount might live (product, tenure variants,
@@ -135,9 +135,12 @@ function getResumeScreen(status, state) {
     case LOAN_STATUS.STUDENT_DETAILS_DONE:
       return 'BorrowerSelection';
 
-    // Borrower selected → need PAN verification
+    // Borrower selected → PAN next, except higher-ed which collects
+    // supporting docs first (offer letter, passport, fee break-up).
     case LOAN_STATUS.BORROWER_SELECTED:
-      return 'PanVerification';
+      return getLoanTypeRules(state?.loanType).requiresExtraDocs
+        ? 'SupportingDocuments'
+        : 'PanVerification';
 
     // PAN / credit done → need income verification
     case LOAN_STATUS.PAN_VERIFIED:
@@ -322,6 +325,56 @@ const loanReducer = (state, action) => {
     case 'SET_INSTITUTE':
       next = { ...state, instituteDetails: action.payload };
       break;
+    case 'SET_HIGHER_EDUCATION_DETAILS':
+      // Abroad-specific structured slice (country / state / university /
+      // course + cost fields). Merged so partial updates from the
+      // selection screen, supporting-docs screen, and admin reviewers
+      // don't wipe each other out.
+      next = {
+        ...state,
+        higherEducationDetails: {
+          ...(state.higherEducationDetails || {}),
+          ...(action.payload || {}),
+        },
+      };
+      break;
+    case 'ADD_SUPPORTING_DOCUMENT': {
+      // Generic store for documents collected outside the KYC flow —
+      // bank statements, salary slips, university offer letter, fund-
+      // transfer proof, anything sales / customer uploads via the
+      // SupportingDocuments screen. Each entry: { id, label, type,
+      // category, uri / data, contentType, source: 'customer'|'sales',
+      // uploadedAt }.
+      const doc = action.payload;
+      if (!doc) { next = state; break; }
+      next = {
+        ...state,
+        supportingDocuments: [
+          ...(state.supportingDocuments || []),
+          { id: doc.id || `sd_${Date.now()}_${Math.random().toString(36).slice(-4)}`, ...doc },
+        ],
+      };
+      break;
+    }
+    case 'REMOVE_SUPPORTING_DOCUMENT':
+      next = {
+        ...state,
+        supportingDocuments: (state.supportingDocuments || []).filter(
+          (d) => d.id !== action.payload,
+        ),
+      };
+      break;
+    case 'SET_GUARANTOR':
+      // Guarantor is a single legal third party the higher-education
+      // policy can require alongside co-applicants. Same minimal
+      // schema as a co-borrower (name + relationship + contact + PAN);
+      // KYC / income for the guarantor is captured via the same
+      // shared screens once the guarantor section is filled.
+      next = { ...state, guarantor: { ...(state.guarantor || {}), ...(action.payload || {}) } };
+      break;
+    case 'CLEAR_GUARANTOR':
+      next = { ...state, guarantor: null };
+      break;
     case 'SET_STUDENT':
       next = { ...state, studentDetails: action.payload };
       break;
@@ -427,12 +480,14 @@ const loanReducer = (state, action) => {
       break;
 
     // ── Co-borrower actions ─────────────────────────────────────────────
-    // Up to 2 co-borrowers per application. Each has the same schema as
+    // Cap is loan-type aware: education / employee = 2, higher_education
+    // = 3 (per LOAN_TYPE_RULES). Each co-borrower has the same schema as
     // the main borrower (name/phone/dob/pan/relationship + the verification
     // fields) and goes through KYC / credit / income / vKYC independently.
     case 'ADD_CO_BORROWER': {
-      if ((state.coBorrowers || []).length >= 2) {
-        next = state; break; // enforce the 2-co-borrower cap
+      const limit = getLoanTypeRules(state.loanType).coBorrowerLimit;
+      if ((state.coBorrowers || []).length >= limit) {
+        next = state; break; // enforce the per-loan-type co-borrower cap
       }
       const id = action.payload?.id || `cb_${Date.now()}_${Math.random().toString(36).slice(-4)}`;
       const newCo = {

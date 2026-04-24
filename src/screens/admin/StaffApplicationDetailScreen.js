@@ -607,6 +607,23 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         {application.borrowerType === 'parent' && (application._rawState?.borrowerDetails?.relation || application.borrowerRelation) ? (
           <InfoRow label="Relation to Student" value={application._rawState?.borrowerDetails?.relation || application.borrowerRelation} />
         ) : null}
+        {/* Father's Name — captured during borrower onboarding (bot or
+            form) before mobile validation; falls back to CKYC's value
+            when the user didn't enter one upfront. */}
+        {(application._rawState?.borrowerDetails?.fatherName
+          || application._rawState?.studentDetails?.fatherName
+          || application._rawState?.kycData?.fatherName
+          || application.fatherName) ? (
+          <InfoRow
+            label="Father's Name"
+            value={
+              application._rawState?.borrowerDetails?.fatherName
+              || application._rawState?.studentDetails?.fatherName
+              || application._rawState?.kycData?.fatherName
+              || application.fatherName
+            }
+          />
+        ) : null}
         <InfoRow label="Phone" value={application.customerPhone} />
         <InfoRow label="Email" value={application.customerEmail} />
         <InfoRow label="Date of Birth" value={application.customerDob} />

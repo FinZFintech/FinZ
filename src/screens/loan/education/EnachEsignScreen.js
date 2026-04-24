@@ -154,7 +154,18 @@ const EnachEsignScreen = ({ navigation }) => {
       // Map CKYC's field names (fatherName / uid / photo / address) onto
       // the Aadhaar-shaped payload; strip 'X' from CKYC's masked UID so
       // we always hand over 4 real digits.
-      const guardianNameAsPerAadhaar = kycData.guardianName || kycData.fatherName || '';
+      // Father / guardian name fallback chain — CKYC first (most
+      // authoritative), then the value the borrower entered during
+      // bot / form onboarding (state.borrowerDetails.fatherName), then
+      // the manual entry on the StudentDetails screen. Without this
+      // chain Digitap rejects the call with the "All external Aadhaar
+      // fields must be provided" 400.
+      const guardianNameAsPerAadhaar =
+        kycData.guardianName
+        || kycData.fatherName
+        || state.borrowerDetails?.fatherName
+        || state.studentDetails?.fatherName
+        || '';
       const uidDigits = String(kycData.uid || '').replace(/[^0-9]/g, '');
       const aadhaarLastFourDigits = uidDigits.slice(-4);
       const addressAsPerAadhaar = kycData.address

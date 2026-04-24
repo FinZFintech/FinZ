@@ -92,6 +92,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.quickActions}>
           {[
             { key: 'edu', label: 'Education\nLoan', icon: '🎓', screen: 'InstituteSelection' },
+            { key: 'highered', label: 'Higher Ed\n(Abroad)', icon: '🌍', screen: 'HigherEducationSelection' },
             { key: 'emp', label: 'Employee\nLoan', icon: '💼', screen: 'EmployeeLoan' },
             { key: 'credit', label: 'Credit\nScore', icon: '📊', screen: 'CreditScore' },
             { key: 'refer', label: 'Refer &\nEarn', icon: '🎁', screen: 'Referral' },
@@ -101,7 +102,9 @@ const HomeScreen = ({ navigation }) => {
               style={styles.quickAction}
               onPress={() => {
                 // For loan screens, start a fresh application without overriding existing ones
-                if (item.screen === 'InstituteSelection' || item.screen === 'EmployeeLoan') {
+                if (item.screen === 'InstituteSelection'
+                    || item.screen === 'EmployeeLoan'
+                    || item.screen === 'HigherEducationSelection') {
                   startNewApplication();
                 }
                 navigation.navigate(item.screen);

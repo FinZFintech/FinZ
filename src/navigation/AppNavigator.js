@@ -31,6 +31,10 @@ import VkycScreen from '../screens/loan/education/VkycScreen';
 import EnachEsignScreen from '../screens/loan/education/EnachEsignScreen';
 import LoanSuccessScreen from '../screens/loan/education/LoanSuccessScreen';
 
+// Higher Education (Abroad) Loan Screens
+import HigherEducationSelectionScreen from '../screens/loan/highered/HigherEducationSelectionScreen';
+import SupportingDocumentsScreen from '../screens/loan/highered/SupportingDocumentsScreen';
+
 // Employee Loan Screens
 import EmployeeLoanScreen from '../screens/loan/employee/EmployeeLoanScreen';
 
@@ -139,6 +143,9 @@ const HomeStack = () => (
     <HomeStackNav.Screen name="VkycScreen" component={VkycScreen} />
     <HomeStackNav.Screen name="EnachEsign" component={EnachEsignScreen} />
     <HomeStackNav.Screen name="LoanSuccess" component={LoanSuccessScreen} />
+    {/* Higher Education (Abroad) Loan */}
+    <HomeStackNav.Screen name="HigherEducationSelection" component={HigherEducationSelectionScreen} />
+    <HomeStackNav.Screen name="SupportingDocuments" component={SupportingDocumentsScreen} />
     {/* Employee Loan */}
     <HomeStackNav.Screen name="EmployeeLoan" component={EmployeeLoanScreen} />
     {/* Risk Monitoring (accessible from loan flow) */}

@@ -94,6 +94,26 @@ function stripImagesForFirestore(payload) {
     }
     out.selfieData = s;
   }
+  // Higher-ed supporting documents (offer letters, fee break-ups, etc.)
+  // share the same 1 MB cap risk: each PDF/image is megabytes when
+  // base64-encoded. Mirror the kyc/selfie strip so a failed upload
+  // doesn't blow the Firestore doc.
+  if (Array.isArray(out.supportingDocuments)) {
+    out.supportingDocuments = out.supportingDocuments.map((d) => {
+      if (!d) return d;
+      const sd = { ...d };
+      if (typeof sd.data === 'string'
+          && sd.data.length > 500
+          && !sd.data.startsWith('http')
+          && !sd.data.startsWith('[')) {
+        sd.data = '[not-uploaded]';
+      }
+      if (typeof sd.uri === 'string' && sd.uri.startsWith('data:')) {
+        sd.uri = sd.storageUrl || '[not-uploaded]';
+      }
+      return sd;
+    });
+  }
   return out;
 }
 
@@ -254,6 +274,37 @@ async function uploadAllImages(appId, payload) {
     if (url) {
       payload.kycData = { ...payload.kycData, photo: url, photoStorageUrl: url };
     }
+  }
+
+  // Supporting documents (offer letter, passport, fee break-up, etc. —
+  // uploaded by the customer via SupportingDocuments screen or by sales
+  // from the admin detail screen). Same shape as kyc images: data is
+  // base64, contentType + fileName carry over so the dashboard can
+  // render PDFs and images correctly.
+  if (storageProviderActive() && Array.isArray(payload.supportingDocuments)) {
+    const uploaded = [];
+    for (let idx = 0; idx < payload.supportingDocuments.length; idx++) {
+      const d = payload.supportingDocuments[idx];
+      if (!d) { continue; }
+      // Already-uploaded entries (storageUrl present) and entries that
+      // never carried base64 (placeholder rows added by other flows)
+      // pass through untouched.
+      if (d.storageUrl || !d.data || d.data.startsWith('http') || d.data.startsWith('[')) {
+        uploaded.push(d); continue;
+      }
+      if (!storageProviderActive()) { uploaded.push(d); continue; }
+      const ext = (d.fileName?.split('.').pop()
+        || (d.contentType?.includes('pdf') ? 'pdf' : 'jpg'));
+      const filename = `support_${d.code || 'misc'}_${idx}.${ext}`;
+      const url = await uploadImageToStorage(appId, filename, d.data, d.contentType || 'image/jpeg');
+      uploaded.push({
+        ...d,
+        uri: url || d.uri,
+        data: url ? `[uploaded:${filename}]` : d.data,
+        storageUrl: url || '',
+      });
+    }
+    payload.supportingDocuments = uploaded;
   }
 
   return payload;

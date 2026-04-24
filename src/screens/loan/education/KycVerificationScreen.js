@@ -1512,7 +1512,12 @@ const KycVerificationScreen = ({ navigation }) => {
                 <InfoRow label="Full Name" value={fetchedKycData.name} />
                 <InfoRow
                   label="Father's Name"
-                  value={fetchedKycData.fatherName || 'Not available in CKYC record'}
+                  value={
+                    fetchedKycData.fatherName
+                    || state.borrowerDetails?.fatherName
+                    || state.studentDetails?.fatherName
+                    || 'Not available in CKYC record'
+                  }
                 />
                 {fetchedKycData.uid && (
                   <InfoRow label="Aadhaar" value={maskUid(fetchedKycData.uid)} />

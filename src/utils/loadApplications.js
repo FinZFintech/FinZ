@@ -84,7 +84,14 @@ export async function loadRealApplications() {
         panNumber: a.panDetails?.panNumber || a.borrowerDetails?.pan || '',
         borrowerType: a.borrowerType || 'Self',
         studentName: a.studentDetails?.studentName || '',
-        fatherName: a.kycData?.fatherName || '',
+        // Father name fallback chain — bot / form captures it on
+        // borrowerDetails first, then student details (manual entry),
+        // then whatever CKYC returned. Using the first real value
+        // keeps the customer-details + KYC + admin views consistent.
+        fatherName: a.borrowerDetails?.fatherName
+          || a.studentDetails?.fatherName
+          || a.kycData?.fatherName
+          || '',
         courseName: a.studentDetails?.courseName || '',
         regNo: a.studentDetails?.regNo || '',
 

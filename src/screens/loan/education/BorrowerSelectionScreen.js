@@ -28,6 +28,7 @@ import {
   validateMobile,
   validateEmail,
 } from '../../../utils/helpers';
+import { getLoanTypeRules } from '../../../config/constants';
 
 const BorrowerSelectionScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -494,7 +495,15 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     dispatch({ type: 'SET_PRODUCT', payload: selectedProduct });
     dispatch({ type: 'SET_TENURE', payload: selectedTenure });
     dispatch({ type: 'SET_STEP', payload: 1 });
-    navigation.navigate('PanVerification');
+    // Higher-education abroad needs the supporting-documents step
+    // before PAN — university offer letter, fee break-up, salary
+    // slips of co-applicants etc. Other loan types go straight to PAN.
+    const rules = getLoanTypeRules(state.loanType);
+    if (rules.requiresExtraDocs) {
+      navigation.navigate('SupportingDocuments');
+    } else {
+      navigation.navigate('PanVerification');
+    }
   };
 
   const loanAmount = student?.balanceFee || 0;
@@ -852,13 +861,17 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         )}
 
         {/* Co-borrowers (optional, up to 2) */}
-        {selectedTenure && (
+        {selectedTenure && (() => {
+          const rules = getLoanTypeRules(state.loanType);
+          const cbLimit = rules.coBorrowerLimit;
+          const cbCount = (state.coBorrowers || []).length;
+          return (
           <Card>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>
-                Co-applicants ({(state.coBorrowers || []).length}/2)
+                Co-applicants ({cbCount}/{cbLimit})
               </Text>
-              {(state.coBorrowers || []).length < 2 ? (
+              {cbCount < cbLimit ? (
                 <TouchableOpacity
                   onPress={() => dispatch({ type: 'ADD_CO_BORROWER', payload: {} })}
                   style={{
@@ -877,9 +890,9 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               and all co-applicants.
             </Text>
 
-            {(state.coBorrowers || []).length === 0 ? (
+            {cbCount === 0 ? (
               <Text style={{ color: colors.textSecondary, fontSize: 13, fontStyle: 'italic' }}>
-                No co-applicants added. You can add up to 2 to strengthen the application.
+                No co-applicants added. You can add up to {cbLimit} to strengthen the application.
               </Text>
             ) : null}
 
@@ -973,6 +986,75 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 </View>
               </View>
             ))}
+          </Card>
+          );
+        })()}
+
+        {/* Guarantor (only when policy permits — currently higher_education) */}
+        {selectedTenure && getLoanTypeRules(state.loanType).allowsGuarantor && (
+          <Card>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>
+                Guarantor {state.guarantor ? '✓' : '(optional but recommended)'}
+              </Text>
+              {state.guarantor ? (
+                <TouchableOpacity onPress={() => dispatch({ type: 'CLEAR_GUARANTOR' })}>
+                  <Text style={{ color: colors.error, fontSize: 12, fontWeight: '600' }}>Remove</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => dispatch({ type: 'SET_GUARANTOR', payload: { name: '', relationship: '', phone: '', pan: '' } })}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+                    borderWidth: 1, borderColor: colors.teal,
+                  }}
+                >
+                  <Text style={{ color: colors.teal, fontSize: 13, fontWeight: '600' }}>+ Add</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10, lineHeight: 18 }}>
+              For higher-education abroad loans, a guarantor strengthens the
+              application. Lender will run a separate credit + KYC check on
+              the guarantor before disbursement.
+            </Text>
+            {state.guarantor && (
+              <View>
+                <Input
+                  label="Full Name (as per PAN)"
+                  value={state.guarantor.name || ''}
+                  onChangeText={(v) => dispatch({ type: 'SET_GUARANTOR', payload: { name: v } })}
+                  placeholder="e.g. Ramesh Sharma"
+                />
+                <Input
+                  label="Relationship to student"
+                  value={state.guarantor.relationship || ''}
+                  onChangeText={(v) => dispatch({ type: 'SET_GUARANTOR', payload: { relationship: v } })}
+                  placeholder="e.g. Uncle, Family friend"
+                />
+                <Input
+                  label="Mobile"
+                  value={state.guarantor.phone || ''}
+                  onChangeText={(v) => dispatch({ type: 'SET_GUARANTOR', payload: { phone: v.replace(/[^0-9]/g, '').slice(0, 10) } })}
+                  placeholder="10-digit"
+                  keyboardType="numeric"
+                />
+                <Input
+                  label="PAN"
+                  value={state.guarantor.pan || ''}
+                  onChangeText={(v) => dispatch({ type: 'SET_GUARANTOR', payload: { pan: v.toUpperCase().slice(0, 10) } })}
+                  placeholder="ABCDE1234F"
+                  autoCapitalize="characters"
+                />
+                <Input
+                  label="Email (optional)"
+                  value={state.guarantor.email || ''}
+                  onChangeText={(v) => dispatch({ type: 'SET_GUARANTOR', payload: { email: v } })}
+                  placeholder="guarantor@example.com"
+                  keyboardType="email-address"
+                />
+              </View>
+            )}
           </Card>
         )}
 
