@@ -15,7 +15,19 @@ import { useTheme } from '../../store/ThemeContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { computeCustomerRiskSegment } from '../../utils/riskSegment';
 import { smsService } from '../../services/smsService';
-import { loadAllRawData } from '../../services/applicationDbService';
+import { signzyService } from '../../services/signzyService';
+import { kycService } from '../../services/kycService';
+import { bankService } from '../../services/bankService';
+import { loadAllRawData, saveApplicationToDb } from '../../services/applicationDbService';
+
+// Verification keys that can be re-fired from the data we already have
+// on state (PAN, phone, name, account number etc.) — no extra customer
+// input needed. CKYC / ITR / form26AS are deliberately excluded because
+// they need a fresh OTP / password from the customer.
+const RETRYABLE_VERIFICATIONS = new Set([
+  'phoneToPan', 'panFetch', 'fraudShieldLite', 'employmentBasic',
+  'gstIncome', 'bankVerification', 'cibilBureau',
+]);
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../../config/firebase';
 
@@ -298,6 +310,10 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
   const [application, setApplication] = useState(() => getFullApplication(appData));
   const [activeTab, setActiveTab] = useState('Details');
   const [refreshing, setRefreshing] = useState(false);
+  // Which verification key is currently being retried, so the
+  // corresponding card disables its button + shows "Retrying…" until
+  // we get a response or error back from the upstream service.
+  const [retryingKey, setRetryingKey] = useState(null);
 
   // Whenever the screen comes into focus, re-fetch the latest version of
   // this application from Firestore / AsyncStorage. Without this the KYC
@@ -629,32 +645,102 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         )}
       </Card>
 
-      {/* Name Match Results */}
-      {application.kycData?.nameMatch && (
-        <Card accent={application.kycData.nameMatch.score >= 70 ? colors.teal : colors.error}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Name Match Verification</Text>
-          <View style={{ alignItems: 'center', marginBottom: 8 }}>
-            <Text style={{
-              fontSize: 32, fontWeight: '800',
-              color: application.kycData.nameMatch.score >= 70 ? colors.teal : colors.error,
-            }}>
-              {application.kycData.nameMatch.score}%
-            </Text>
-            <Text style={{
-              fontSize: 12, fontWeight: '600',
-              color: application.kycData.nameMatch.score >= 70 ? colors.teal : colors.error,
-            }}>
-              {application.kycData.nameMatch.score >= 70 ? 'MATCH' : 'MISMATCH'}
-            </Text>
-          </View>
-          <InfoRow label="PAN Name" value={application.kycData.nameMatch.panName || '—'} />
-          <InfoRow label="KYC Name" value={application.kycData.nameMatch.kycName || '—'} />
-          <InfoRow label="Borrower Name" value={application.kycData.nameMatch.borrowerName || '—'} />
-          {application.kycData.nameMatch.checkedAt ? (
-            <InfoRow label="Checked At" value={formatDate(application.kycData.nameMatch.checkedAt)} />
-          ) : null}
-        </Card>
-      )}
+      {/* Name Match Verification — borrower vs PAN vs Bank vs KYC.
+          Reviewers want one card that flags every mismatch up-front,
+          not the single PAN↔KYC pair the previous block showed. */}
+      {(() => {
+        const raw = application._rawState || {};
+        const sources = [
+          { key: 'borrower', label: 'Borrower Name (entered)', name: application.customerName || raw.borrowerDetails?.name || '' },
+          { key: 'pan',      label: 'PAN Name',                name: application.panName
+            || raw.panDetails?.name
+            || raw.signzyVerifications?.panFetch?.result?.name
+            || raw.signzyVerifications?.phoneToPan?.result?.name
+            || '' },
+          { key: 'bank',     label: 'Bank Account Holder',     name: raw.pennyDropResult?.accountHolderName
+            || raw.signzyVerifications?.bankVerification?.result?.accountHolderName
+            || '' },
+          { key: 'kyc',      label: 'KYC Name',                name: application.kycData?.name || raw.kycData?.name || '' },
+        ].filter((s) => s.name && s.name.trim());
+
+        if (sources.length < 2) return null; // need at least 2 to compare
+
+        // Token-overlap match score: normalize, drop honorifics, split
+        // on whitespace, intersection / union of token sets. Cheap,
+        // works well for "MR RAHUL DWIVEDI" vs "Rahul Dwivedi" etc.
+        const HONORIFICS = new Set(['mr', 'mrs', 'ms', 'miss', 'dr', 'shri', 'smt', 'sri']);
+        const tokenize = (s) => String(s || '')
+          .toLowerCase()
+          .replace(/[^a-z\s]/g, ' ')
+          .split(/\s+/)
+          .filter((t) => t && !HONORIFICS.has(t));
+        const matchScore = (a, b) => {
+          const ta = tokenize(a); const tb = tokenize(b);
+          if (!ta.length || !tb.length) return 0;
+          const setA = new Set(ta); const setB = new Set(tb);
+          let inter = 0; setA.forEach((t) => { if (setB.has(t)) inter++; });
+          const union = new Set([...setA, ...setB]).size;
+          return Math.round((inter / union) * 100);
+        };
+
+        // Pick the borrower entry as the reference; each other source
+        // is compared against it.
+        const ref = sources.find((s) => s.key === 'borrower') || sources[0];
+        const others = sources.filter((s) => s !== ref);
+        const pairScores = others.map((s) => ({
+          ...s,
+          score: matchScore(ref.name, s.name),
+        }));
+        const overall = pairScores.length
+          ? Math.round(pairScores.reduce((sum, p) => sum + p.score, 0) / pairScores.length)
+          : 0;
+        const overallColor = overall >= 80 ? colors.teal : overall >= 60 ? colors.warning : colors.error;
+        const overallLabel = overall >= 80 ? 'MATCH' : overall >= 60 ? 'PARTIAL MATCH' : 'MISMATCH';
+
+        return (
+          <Card accent={overallColor}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Name Match Verification</Text>
+            <View style={{ alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ fontSize: 32, fontWeight: '800', color: overallColor }}>
+                {overall}%
+              </Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: overallColor }}>
+                {overallLabel}
+              </Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>
+                averaged across {pairScores.length} source{pairScores.length === 1 ? '' : 's'}
+              </Text>
+            </View>
+
+            <InfoRow label={ref.label} value={ref.name} />
+            {pairScores.map((p) => {
+              const c = p.score >= 80 ? colors.teal : p.score >= 60 ? colors.warning : colors.error;
+              return (
+                <View
+                  key={p.key}
+                  style={{
+                    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                    paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
+                  }}
+                >
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>{p.label}</Text>
+                    <Text style={{ fontSize: 13, color: colors.textPrimary, fontWeight: '500' }}>{p.name}</Text>
+                  </View>
+                  <View
+                    style={{
+                      paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+                      backgroundColor: `${c}1A`,
+                    }}
+                  >
+                    <Text style={{ color: c, fontSize: 12, fontWeight: '700' }}>{p.score}%</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </Card>
+        );
+      })()}
 
       {/* Face Match / Selfie Results */}
       {(application.selfieData || application._rawState?.selfieData) && (() => {
@@ -1157,23 +1243,52 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
                 renderGenericResult(entry.result)
               )}
 
-              {/* Failure body */}
-              {!isSuccess && entry?.error ? (
-                <View
-                  style={{
-                    backgroundColor: `${colors.warning}14`,
-                    padding: 12,
-                    borderRadius: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.warning, fontWeight: '600', marginBottom: 4 }}>
-                    {entry.error.message || 'Verification failed'}
-                  </Text>
-                  {entry.error.statusCode ? (
-                    <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
-                      HTTP {entry.error.statusCode}
-                    </Text>
+              {/* Failure body — shows the upstream error and, when the
+                  call is replayable from the data we already have on
+                  state (no fresh OTP / password required), a Retry
+                  button so sales / credit can re-fire the API without
+                  asking the customer to come back. Calls that need
+                  user input (CKYC OTP, ITR password) get a hint
+                  instead, telling the reviewer to ask the customer. */}
+              {!isSuccess ? (
+                <View>
+                  {entry?.error ? (
+                    <View
+                      style={{
+                        backgroundColor: `${colors.warning}14`,
+                        padding: 12, borderRadius: 8, marginBottom: 8,
+                      }}
+                    >
+                      <Text style={{ color: colors.warning, fontWeight: '600', marginBottom: 4 }}>
+                        {entry.error.message || 'Verification failed'}
+                      </Text>
+                      {entry.error.statusCode ? (
+                        <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+                          HTTP {entry.error.statusCode}
+                        </Text>
+                      ) : null}
+                    </View>
                   ) : null}
+                  {RETRYABLE_VERIFICATIONS.has(key) ? (
+                    <TouchableOpacity
+                      style={{
+                        paddingVertical: 10, borderRadius: 8, borderWidth: 1,
+                        borderColor: colors.teal, alignItems: 'center',
+                        opacity: retryingKey === key ? 0.6 : 1,
+                      }}
+                      onPress={() => retryVerification(key)}
+                      disabled={retryingKey === key}
+                    >
+                      <Text style={{ color: colors.teal, fontWeight: '700' }}>
+                        {retryingKey === key ? 'Retrying…' : '↻ Retry verification'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, fontStyle: 'italic' }}>
+                      Needs fresh customer input (OTP / password) — please ask the
+                      customer to redo this step from the app.
+                    </Text>
+                  )}
                 </View>
               ) : null}
             </Card>
@@ -2097,6 +2212,102 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
     setActionModalType(type);
     setActionComment('');
     setActionModalVisible(true);
+  };
+
+  /**
+   * Re-fire one of the verification APIs for this application using
+   * data already on state. Persisted via SET_SIGNZY_VERIFICATION
+   * onto _rawState so a Firestore save commits the new outcome and
+   * other dashboards / role views see the update on next focus.
+   */
+  const retryVerification = async (key) => {
+    if (!key || retryingKey) return;
+    setRetryingKey(key);
+    try {
+      const raw = application._rawState || {};
+      const fullName = (application.customerName || raw.borrowerDetails?.name || '').trim();
+      const nameParts = fullName.split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+      const phone = application.customerPhone || raw.borrowerDetails?.phone || '';
+      const pan = application.panNumber || raw.panDetails?.panNumber || raw.borrowerDetails?.pan || '';
+
+      let result = null;
+      let normalised = null;
+
+      if (key === 'phoneToPan') {
+        result = await kycService.fetchPanByMobile(phone, firstName, lastName);
+        normalised = { status: result?.panNumber ? 'success' : 'no_match', result };
+      } else if (key === 'panFetch') {
+        result = await kycService.validatePan(pan);
+        normalised = { status: 'success', result };
+      } else if (key === 'fraudShieldLite') {
+        result = await signzyService.fraudShieldLite({
+          phoneNumber: phone, name: fullName,
+          email: raw.borrowerDetails?.email || '',
+          pincode: raw.kycData?.pincode || '',
+          ipAddress: '',
+        });
+        normalised = { status: 'success', result };
+      } else if (key === 'employmentBasic') {
+        result = await signzyService.getCurrentEmployer(phone, pan);
+        normalised = { status: result?.isEmployed ? 'success' : 'not_employed', result };
+      } else if (key === 'gstIncome') {
+        result = await signzyService.gstIncomeByPan(pan);
+        normalised = { status: result?.gstins?.length ? 'success' : 'no_match', result };
+      } else if (key === 'bankVerification') {
+        result = await bankService.pennyDrop({
+          accountNumber: raw.bankDetails?.accountNumber || '',
+          ifsc: raw.bankDetails?.ifsc || '',
+          name: fullName,
+          mobile: phone,
+        });
+        normalised = { status: result?.verified ? 'success' : 'failed', result };
+      } else if (key === 'cibilBureau') {
+        const credit = await kycService.softPull({
+          pan, name: fullName, firstName, lastName, phone,
+          gender: raw.borrowerDetails?.gender || raw.kycData?.gender || 'Male',
+          dob: raw.borrowerDetails?.dob || raw.kycData?.dob || '',
+          address: raw.borrowerDetails?.address || raw.kycData?.address || '',
+          pincode: raw.borrowerDetails?.pincode || raw.kycData?.pincode || '',
+        });
+        normalised = { status: 'success', result: credit?._signzy || credit };
+      } else {
+        Alert.alert('Cannot retry', `No retry handler is wired for "${key}".`);
+        setRetryingKey(null);
+        return;
+      }
+
+      // Optimistic local update — show the new entry immediately.
+      const updated = {
+        ...raw,
+        signzyVerifications: {
+          ...(raw.signzyVerifications || {}),
+          [key]: { ...normalised, fetchedAt: new Date().toISOString() },
+        },
+      };
+      setApplication((prev) => getFullApplication({ ...prev, _rawState: updated, signzyVerifications: updated.signzyVerifications }));
+
+      // Persist to Firestore so it survives refresh and other roles see it.
+      await saveApplicationToDb(updated);
+      Alert.alert('Verification re-fired', `${key} ${normalised.status === 'success' ? 'succeeded' : `returned: ${normalised.status}`}.`);
+    } catch (err) {
+      console.log('[StaffDetail] retry', key, 'failed:', err?.message);
+      Alert.alert('Retry failed', err?.message || `Couldn't re-fire ${key}.`);
+      // Log the new failure too so the audit trail is honest.
+      const raw = application._rawState || {};
+      const updated = {
+        ...raw,
+        signzyVerifications: {
+          ...(raw.signzyVerifications || {}),
+          [key]: { status: 'failed', error: { message: err?.message || 'retry failed' }, fetchedAt: new Date().toISOString() },
+        },
+      };
+      try { await saveApplicationToDb(updated); } catch (_) { /* ignore */ }
+      setApplication((prev) => getFullApplication({ ...prev, _rawState: updated, signzyVerifications: updated.signzyVerifications }));
+    } finally {
+      setRetryingKey(null);
+    }
   };
 
   const handleActionConfirm = async () => {
