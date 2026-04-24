@@ -196,7 +196,25 @@ export const LOAN_TYPES = {
   EDUCATION: 'education',
   COACHING: 'coaching',
   EMPLOYEE: 'employee',
+  HIGHER_EDUCATION: 'higher_education',
 };
+
+// Per-loan-type business rules. The defaults match the original
+// education flow so any existing loanType picks them up automatically.
+//   coBorrowerLimit  – cap enforced in LoanContext.ADD_CO_BORROWER
+//   allowsGuarantor  – exposes the guarantor capture UI on the
+//                       borrower / supporting-docs screens
+//   requiresExtraDocs – shows the supplementary-documents step
+export const LOAN_TYPE_RULES = {
+  [LOAN_TYPES.EDUCATION]:        { coBorrowerLimit: 2, allowsGuarantor: false, requiresExtraDocs: false },
+  [LOAN_TYPES.COACHING]:         { coBorrowerLimit: 2, allowsGuarantor: false, requiresExtraDocs: false },
+  [LOAN_TYPES.EMPLOYEE]:         { coBorrowerLimit: 2, allowsGuarantor: false, requiresExtraDocs: false },
+  [LOAN_TYPES.HIGHER_EDUCATION]: { coBorrowerLimit: 3, allowsGuarantor: true,  requiresExtraDocs: true  },
+};
+
+export function getLoanTypeRules(loanType) {
+  return LOAN_TYPE_RULES[loanType] || LOAN_TYPE_RULES[LOAN_TYPES.EDUCATION];
+}
 
 // Loans at or above this amount require a VKYC call in place of a selfie.
 // Loans below this amount complete with selfie-only liveness.
