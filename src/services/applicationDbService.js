@@ -10,7 +10,9 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { db, storage, isFirebaseConfigured, STORAGE_UPLOADS_ENABLED } from '../config/firebase';
+import { db, storage, isFirebaseConfigured, STORAGE_UPLOADS_ENABLED, STORAGE_PROVIDER } from '../config/firebase';
+import { uploadImage as supabaseUploadImage } from './supabaseStorageService';
+import { uploadImage as cloudinaryUploadImage } from './cloudinaryStorageService';
 
 // When Cloud Storage uploads are disabled (no Blaze plan, etc.) we must
 // also strip base64 image blobs out of the Firestore payload — otherwise
@@ -66,20 +68,20 @@ function stripImagesForFirestore(payload) {
         if (typeof out.data === 'string'
             && !out.data.startsWith('http')
             && !out.data.startsWith('[')) {
-          out.data = '[storage-disabled]';
+          out.data = '[not-uploaded]';
         }
         if (typeof out.uri === 'string'
             && out.uri.startsWith('data:')) {
-          out.uri = '[storage-disabled]';
+          out.uri = '[not-uploaded]';
         }
         return out;
       });
     }
     if (typeof kyc.photo === 'string' && kyc.photo.length > 1000 && !kyc.photo.startsWith('http')) {
-      kyc.photo = '[storage-disabled]';
+      kyc.photo = '[not-uploaded]';
     }
     if (typeof kyc.signature === 'string' && kyc.signature.length > 1000 && !kyc.signature.startsWith('http')) {
-      kyc.signature = '[storage-disabled]';
+      kyc.signature = '[not-uploaded]';
     }
     out.kycData = kyc;
   }
@@ -87,7 +89,7 @@ function stripImagesForFirestore(payload) {
     const s = { ...out.selfieData };
     for (const k of ['image', 'selfieImage', 'liveImage']) {
       if (typeof s[k] === 'string' && s[k].length > 1000 && !s[k].startsWith('http')) {
-        s[k] = '[storage-disabled]';
+        s[k] = '[not-uploaded]';
       }
     }
     out.selfieData = s;
@@ -139,58 +141,81 @@ export function resetStorageCorsFlag() {
   catch (_) { /* ignore */ }
 }
 
+/**
+ * Dispatches to whichever storage provider is configured in
+ * src/config/firebase.js → STORAGE_PROVIDER. Returns a public URL on
+ * success, null on any failure — callers treat null as "leave as
+ * local / unstored placeholder" so the flow never blocks on storage.
+ */
 async function uploadImageToStorage(appId, filename, base64Data, contentType = 'image/jpeg') {
-  if (!STORAGE_UPLOADS_ENABLED) return null;
-  if (!storage || !base64Data || base64Data.length < 100) return null;
-  if (storageBlockedByCors) return null;
-  try {
-    const storageRef = ref(storage, `applications/${appId}/images/${filename}`);
-    // Handle both raw base64 and data URI formats
-    const isDataUri = base64Data.startsWith('data:');
-    if (isDataUri) {
-      await uploadString(storageRef, base64Data, 'data_url');
-    } else {
-      await uploadString(storageRef, base64Data, 'base64', { contentType });
-    }
-    const url = await getDownloadURL(storageRef);
-    return url;
-  } catch (err) {
-    const msg = err?.message || '';
-    const isCors = err?.code === 'storage/unknown'
-      || /preflight|CORS|cors|ERR_FAILED/i.test(msg)
-      || (err?.serverResponse === undefined && err?.status === undefined);
-    if (isCors) {
-      const first = !storageBlockedByCors;
-      markStorageBlockedByCors();
-      if (first) {
-        console.warn(
-          '[applicationDb] Firebase Storage uploads blocked by CORS. ' +
-          'Apply the bucket policy with:\n' +
-          '  gsutil cors set scripts/storage-cors.json gs://finz-2e9dc.firebasestorage.app\n' +
-          'See scripts/README-storage-cors.md. Continuing without image uploads — ' +
-          'call resetStorageCorsFlag() from applicationDbService after applying the policy.',
-        );
-      }
-    } else {
-      console.log('[applicationDb] Image upload failed:', filename, msg);
-    }
-    return null;
+  if (!base64Data || base64Data.length < 100) return null;
+
+  if (STORAGE_PROVIDER === 'cloudinary') {
+    // Cloudinary unsigned upload preset — fully client-side, base64 in,
+    // secure_url back. Adapter handles its own errors + blocked flag.
+    return cloudinaryUploadImage(appId, filename, base64Data, contentType);
   }
+
+  if (STORAGE_PROVIDER === 'supabase') {
+    // Supabase Storage — adapter handles its own errors + RLS flag.
+    return supabaseUploadImage(appId, filename, base64Data, contentType);
+  }
+
+  if (STORAGE_PROVIDER === 'firebase') {
+    if (!STORAGE_UPLOADS_ENABLED) return null;
+    if (!storage) return null;
+    if (storageBlockedByCors) return null;
+    try {
+      const storageRef = ref(storage, `applications/${appId}/images/${filename}`);
+      const isDataUri = base64Data.startsWith('data:');
+      if (isDataUri) {
+        await uploadString(storageRef, base64Data, 'data_url');
+      } else {
+        await uploadString(storageRef, base64Data, 'base64', { contentType });
+      }
+      return await getDownloadURL(storageRef);
+    } catch (err) {
+      const msg = err?.message || '';
+      const isCors = err?.code === 'storage/unknown'
+        || /preflight|CORS|cors|ERR_FAILED/i.test(msg)
+        || (err?.serverResponse === undefined && err?.status === undefined);
+      if (isCors) {
+        const first = !storageBlockedByCors;
+        markStorageBlockedByCors();
+        if (first) {
+          console.warn(
+            '[applicationDb] Firebase Storage uploads blocked by CORS. ' +
+            'Apply the bucket policy with:\n' +
+            '  gsutil cors set scripts/storage-cors.json gs://finz-2e9dc.firebasestorage.app\n' +
+            'See scripts/README-storage-cors.md. Continuing without image uploads — ' +
+            'call resetStorageCorsFlag() from applicationDbService after applying the policy.',
+          );
+        }
+      } else {
+        console.log('[applicationDb] Image upload failed:', filename, msg);
+      }
+      return null;
+    }
+  }
+
+  // STORAGE_PROVIDER === 'none'
+  return null;
+}
+
+/** True when any storage provider is wired up and willing to take the call. */
+function storageProviderActive() {
+  if (STORAGE_PROVIDER === 'cloudinary') return true;
+  if (STORAGE_PROVIDER === 'supabase') return true;
+  if (STORAGE_PROVIDER === 'firebase') return !!(STORAGE_UPLOADS_ENABLED && storage && !storageBlockedByCors);
+  return false;
 }
 
 /**
  * Upload all images from kycData.images and signzy verifications
- * to Firebase Storage, replacing base64 data with download URLs.
+ * to the active storage provider, replacing base64 data with public URLs.
  */
 async function uploadAllImages(appId, payload) {
-  if (!STORAGE_UPLOADS_ENABLED) return payload;
-  if (!storage) return payload;
-  // Bail early when we already know Storage is blocked by CORS, so we
-  // don't even try to dispatch the batch — the previous parallel
-  // Promise.all meant the flag only kicked in AFTER the first failure,
-  // but every sibling upload had already been fired into the void and
-  // all of them filled the console with the same CORS error.
-  if (storageBlockedByCors) return payload;
+  if (!storageProviderActive()) return payload;
 
   // KYC images (photograph, signature, address proof, etc.)
   // Sequential on purpose — lets the CORS short-circuit in
@@ -203,7 +228,10 @@ async function uploadAllImages(appId, payload) {
         uploaded.push(img);
         continue;
       }
-      if (storageBlockedByCors) { uploaded.push(img); continue; }
+      // Short-circuit the remaining iterations after the active
+      // provider signals it's unavailable — CORS on Firebase, 4xx /
+      // RLS-reject on Supabase.
+      if (!storageProviderActive()) { uploaded.push(img); continue; }
       const ext = img.type === 'png' ? 'png' : 'jpg';
       const filename = `kyc_${img.code || idx}_${img.sequence || idx}.${ext}`;
       const downloadUrl = await uploadImageToStorage(appId, filename, img.data, img.mime || 'image/jpeg');
@@ -218,7 +246,7 @@ async function uploadAllImages(appId, payload) {
   }
 
   // KYC photo field (single base64 string)
-  if (!storageBlockedByCors
+  if (storageProviderActive()
       && payload.kycData?.photo
       && typeof payload.kycData.photo === 'string'
       && payload.kycData.photo.length > 1000) {
@@ -278,14 +306,21 @@ export async function saveApplicationToDb(state) {
     let payload = { ...state };
     delete payload._rawState;
 
-    // ── Upload images to Firebase Storage (or strip them) ──
-    if (STORAGE_UPLOADS_ENABLED) {
+    // ── Upload images (or strip them) ──
+    // Runs whenever any provider is active (Firebase Blaze OR
+    // Supabase). uploadAllImages internally short-circuits per
+    // provider's own block-flag so this stays safe if the provider
+    // rejects mid-batch.
+    if (storageProviderActive()) {
       payload = await uploadAllImages(appId, payload);
+      // After upload, replace any still-base64 image with the sentinel
+      // so the Firestore doc doesn't blow past 1 MB even if one image
+      // failed upload and kept its inline base64 data.
+      payload = stripImagesForFirestore(payload);
     } else {
-      // No Blaze plan → no Cloud Storage. Strip base64 images so the
-      // Firestore doc doesn't blow past the 1 MB per-doc limit on a
-      // CKYC-complete application. Staff tools will show a placeholder
-      // where images would have been.
+      // No upload provider configured → strip base64 images so the
+      // Firestore doc stays under 1 MB. Staff tools show the
+      // consolidated "captured but not stored" banner.
       payload = stripImagesForFirestore(payload);
     }
 

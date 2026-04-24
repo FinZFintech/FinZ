@@ -32,6 +32,17 @@ const firebaseConfig = {
 // on a Blaze-enabled project.
 export const STORAGE_UPLOADS_ENABLED = false;
 
+// Which storage provider the app uses for KYC / selfie images.
+//   'firebase'   → Cloud Storage (requires Blaze; see flag above)
+//   'cloudinary' → Cloudinary via unsigned upload preset
+//                  (see src/services/cloudinaryStorageService.js)
+//   'supabase'   → Supabase Storage (see src/services/supabaseStorageService.js)
+//   'none'       → upload nothing, strip images before Firestore write
+// Cloudinary is the active provider while Firebase Blaze is evaluated —
+// 25 GB free tier, no card required. Flip to 'firebase' when you
+// upgrade (and set STORAGE_UPLOADS_ENABLED to true as well).
+export const STORAGE_PROVIDER = 'cloudinary';
+
 if (!firebaseConfig.apiKey) {
   console.warn(
     '[Firebase] Not configured — set firebaseConfig in src/config/firebase.js. ' +

@@ -920,52 +920,73 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
           </Card>
         )}
 
-      {/* KYC Documents — every image returned by the chosen KYC method */}
-      {Array.isArray(application.kycData?.images) && application.kycData.images.length > 0 && (
-        <Card>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-            KYC Documents ({application.kycData.images.length})
-          </Text>
-          <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 12 }}>
-            All images returned by {application.kycData?.method || application.kycMethod || 'the KYC source'}. Tap to zoom.
-          </Text>
-          {application.kycData.images.map((img, idx) => {
-            const imgUri = img?.uri && !String(img.uri).startsWith('[') ? img.uri : null;
-            if (!imgUri) {
-              // Storage is disabled (no Blaze plan) — we have the image
-              // metadata but not the blob. Render a placeholder card so
-              // the reviewer at least sees which documents were captured.
-              return (
-                <View
-                  key={img.sequence || idx}
-                  style={{
-                    padding: 14, borderRadius: 8, marginBottom: 8,
-                    borderWidth: 1, borderStyle: 'dashed',
-                    borderColor: colors.border, backgroundColor: colors.inputBg,
-                  }}
-                >
-                  <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>
-                    {img.label || `Document ${idx + 1}`}
-                  </Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                    Image captured but not stored — enable Firebase Storage (Blaze plan)
-                    to persist and review the file.
-                  </Text>
-                </View>
-              );
-            }
-            return (
+      {/* KYC Documents — partition into "have a URL we can render" and
+          "captured but not stored". The previous render dropped a
+          full placeholder card per missing image (Photograph, Form,
+          Identity Proof, Signature → 4 separate boxes). When image
+          storage isn't configured, that's just noise — every image is
+          unstored, every banner says the same thing. Now we show one
+          banner per card that lists every captured-but-unstored doc. */}
+      {Array.isArray(application.kycData?.images) && application.kycData.images.length > 0 && (() => {
+        const labelOf = (img, idx) => img.label || `Document ${idx + 1}`;
+        const stored = [];
+        const unstored = [];
+        application.kycData.images.forEach((img, idx) => {
+          const imgUri = img?.uri && !String(img.uri).startsWith('[') ? img.uri : null;
+          if (imgUri) stored.push({ img, idx, uri: imgUri, label: labelOf(img, idx) });
+          else unstored.push({ img, idx, label: labelOf(img, idx) });
+        });
+
+        return (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+              KYC Documents ({application.kycData.images.length})
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 12 }}>
+              All images returned by {application.kycData?.method || application.kycMethod || 'the KYC source'}.
+              {stored.length > 0 ? ' Tap to zoom.' : ''}
+            </Text>
+
+            {/* Stored images render as before */}
+            {stored.map(({ img, idx, uri, label }) => (
               <AspectImage
                 key={img.sequence || idx}
-                uri={imgUri}
-                label={img.label || `Document ${idx + 1}`}
+                uri={uri}
+                label={label}
                 colors={colors}
-                onPress={() => setZoomImage({ uri: imgUri, label: img.label || `Document ${idx + 1}` })}
+                onPress={() => setZoomImage({ uri, label })}
               />
-            );
-          })}
-        </Card>
-      )}
+            ))}
+
+            {/* One consolidated banner for everything that wasn't persisted */}
+            {unstored.length > 0 && (
+              <View
+                style={{
+                  padding: 14, borderRadius: 10, marginTop: stored.length > 0 ? 12 : 0,
+                  borderWidth: 1, borderStyle: 'dashed',
+                  borderColor: colors.border, backgroundColor: colors.inputBg,
+                }}
+              >
+                <Text style={{ color: colors.textPrimary, fontWeight: '700', marginBottom: 6 }}>
+                  ⚠️ {unstored.length} document{unstored.length === 1 ? '' : 's'} captured but not stored
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10, lineHeight: 18 }}>
+                  Image storage isn't configured. Set up free Cloudinary or upgrade
+                  Firebase to Blaze, and the next KYC will persist the files.
+                </Text>
+                <Text style={{ color: colors.textPrimary, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>
+                  Captured documents:
+                </Text>
+                {unstored.map(({ idx, label }) => (
+                  <Text key={idx} style={{ color: colors.textSecondary, fontSize: 12, marginLeft: 8 }}>
+                    • {label}
+                  </Text>
+                ))}
+              </View>
+            )}
+          </Card>
+        );
+      })()}
 
       {/* KYC Failure History — every failed attempt across every method */}
       {Array.isArray(application.kycFailures) && application.kycFailures.length > 0 && (
