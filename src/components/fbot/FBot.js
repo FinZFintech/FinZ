@@ -1709,8 +1709,6 @@ const FBot = () => {
         });
         break;
       }
-        }
-        break;
 
       case 'askMonthlyIncome': {
         const prefilled = state.borrowerDetails?.monthlyIncome || 0;
