@@ -181,6 +181,18 @@ const PanVerificationScreen = ({ navigation }) => {
           status: 'success',
           result: result._signzy,
         }});
+      } else if (result?._signzyError) {
+        // Signzy was attempted and errored — surface the actual reason
+        // so the reviewer can retry with confidence instead of seeing
+        // the ambiguous "no_bureau" banner.
+        dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+          key: 'cibilBureau',
+          status: 'failed',
+          error: {
+            message: result._signzyError,
+            statusCode: result._signzyStatusCode || null,
+          },
+        }});
       } else {
         dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
           key: 'cibilBureau',

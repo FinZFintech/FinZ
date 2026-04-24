@@ -71,8 +71,22 @@ function riskReducer(state, action) {
     case 'PHASE_ERROR':
       return { ...state, isCalculating: false, error: action.payload };
 
-    case 'SET_RISK_PROFILE':
-      return { ...state, riskProfile: action.payload };
+    case 'SET_RISK_PROFILE': {
+      // The profile form can carry a full decision payload — when it
+      // does, keep state.decision / finalScore in sync so downstream
+      // gates (EnachEsign's risk-decline banner, etc.) read the
+      // latest verdict instead of whatever the last executePhase()
+      // left behind.
+      const profile = action.payload || {};
+      const next = { ...state, riskProfile: profile };
+      if (profile.decision) {
+        next.decision = typeof profile.decision === 'object'
+          ? profile.decision
+          : { decision: profile.decision, label: profile.decisionLabel || '' };
+      }
+      if (profile.finalScore != null) next.finalScore = profile.finalScore;
+      return next;
+    }
 
     case 'SET_EXTERNAL_DATA':
       return { ...state, apis: { ...state.apis, ...action.payload } };

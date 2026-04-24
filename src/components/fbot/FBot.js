@@ -1513,6 +1513,15 @@ const FBot = () => {
                 status: 'success',
                 result: credit._signzy,
               }});
+            } else if (credit?._signzyError) {
+              dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+                key: 'cibilBureau',
+                status: 'failed',
+                error: {
+                  message: credit._signzyError,
+                  statusCode: credit._signzyStatusCode || null,
+                },
+              }});
             } else {
               dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
                 key: 'cibilBureau',

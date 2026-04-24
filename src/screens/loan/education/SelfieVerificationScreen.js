@@ -119,7 +119,19 @@ const SelfieVerificationScreen = ({ navigation }) => {
     setError('');
 
     try {
-      const matchImages = kycPhoto ? [kycPhoto] : [];
+      // Signzy's liveness-create-url rejects oversized base64 payloads
+      // (the whole request body is capped). If the KYC photo we'd send
+      // as matchImage is a fat data URI (CKYC sometimes returns 3-5 MB
+      // base64), skip it — liveness still runs, face-match just doesn't
+      // get a reference. Uploaded HTTPS URLs (Cloudinary) pass through
+      // untouched because they're small strings.
+      const usableMatch = kycPhoto
+        && (kycPhoto.startsWith('http') || kycPhoto.length < 1_500_000);
+      const matchImages = usableMatch ? [kycPhoto] : [];
+      if (kycPhoto && !usableMatch) {
+        console.log('[SelfieVerification] Skipping matchImage — KYC photo too large to send inline (',
+          kycPhoto.length, 'bytes). Configure image storage to get a hosted URL.');
+      }
       const result = await kycService.createLivenessUrl(matchImages);
 
       if (!result.videoUrl) {
