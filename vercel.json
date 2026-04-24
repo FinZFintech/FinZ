@@ -38,7 +38,7 @@
       "source": "/proxy/digitap/:path*",
       "destination": "https://svc.digitap.ai/:path*"
     },
-    { "source": "/(.*)", "destination": "/" }
+    { "source": "/((?!proxy/|assets/|_expo/|favicon|.*\\..*).*)", "destination": "/" }
   ],
   "headers": [
     {
