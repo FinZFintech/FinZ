@@ -32,6 +32,15 @@ const firebaseConfig = {
 // on a Blaze-enabled project.
 export const STORAGE_UPLOADS_ENABLED = false;
 
+// Which storage provider the app uses for KYC / selfie images.
+//   'firebase'  → Cloud Storage (requires Blaze; see flag above)
+//   'supabase'  → Supabase Storage (see src/services/supabaseStorageService.js)
+//   'none'      → upload nothing, strip images before Firestore write
+// Supabase is the active provider while Blaze is evaluated — free-tier,
+// no card required. Flip to 'firebase' when you upgrade and flip
+// STORAGE_UPLOADS_ENABLED to true as well.
+export const STORAGE_PROVIDER = 'supabase';
+
 if (!firebaseConfig.apiKey) {
   console.warn(
     '[Firebase] Not configured — set firebaseConfig in src/config/firebase.js. ' +
