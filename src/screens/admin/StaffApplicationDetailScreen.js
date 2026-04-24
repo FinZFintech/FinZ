@@ -1100,8 +1100,24 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
       {/* Income Details */}
       <Card>
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Income Details</Text>
+        {/* Occupation type is the OCCUPATION_CATEGORIES label
+            ("Salaried – Private Sector" etc.), not the employer name.
+            Before this card existed it showed up under "Income Source"
+            which was misleading — moved to its own row and the Income
+            Source row was renamed to Verification Source (where the
+            income number came from: AA / BSA / manual / EPFO). */}
+        <InfoRow label="Occupation Type" value={
+          application._rawState?.bankDetails?.occupationCategory
+          || application._rawState?.borrowerDetails?.occupation
+          || '—'
+        } />
+        <InfoRow label="Employer / Company" value={
+          application._rawState?.borrowerDetails?.employer
+          || application._rawState?.signzyVerifications?.employmentBasic?.result?.recentEmployer?.establishmentName
+          || '—'
+        } />
         <InfoRow label="Monthly Income" value={formatCurrency(application.monthlyIncome)} />
-        <InfoRow label="Income Source" value={application.incomeSource} />
+        <InfoRow label="Verification Source" value={application.incomeSource} />
         <InfoRow label="FOIR Ratio" value={application.foirRatio} />
       </Card>
 
