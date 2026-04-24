@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Linking, TouchableOpacity, Clipboard, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking, TouchableOpacity, Clipboard, Platform, Modal } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
 import Card from '../../../components/common/Card';
@@ -32,6 +32,9 @@ const EnachEsignScreen = ({ navigation }) => {
   const [vkycDone, setVkycDone] = useState(false);
   const [vkycUrl, setVkycUrl] = useState(null);
   const [vkycStatusText, setVkycStatusText] = useState(null);
+  // Missing-Aadhaar-fields modal (shown when KYC didn't yield every
+  // field Digitap's external-Aadhaar vKYC needs).
+  const [missingKycModal, setMissingKycModal] = useState({ visible: false, fields: [] });
 
   // References (two required)
   const emptyRef = { name: '', phone: '', address: '', relation: '' };
@@ -152,18 +155,12 @@ const EnachEsignScreen = ({ navigation }) => {
       if (!aadhaarLastFourDigits || aadhaarLastFourDigits.length < 4) missing.push('Aadhaar last 4 digits');
       if (!imageOfUserBase64 || imageOfUserBase64.length < 100) missing.push('photograph');
       if (missing.length > 0) {
-        const title = 'KYC data incomplete for vKYC';
-        const body = `vKYC needs ${missing.join(', ')} from your Aadhaar. Complete DigiLocker / CKYC fully, or ask the agent to reinitiate KYC.`;
         console.log('[EnachEsign] vKYC blocked — missing fields:', missing, { kycData });
-        // On web Alert.alert is a no-op unless a polyfill is registered,
-        // which is why the button looked dead before — the pre-flight
-        // fired, short-circuited, and the user saw nothing. Use the
-        // browser-native dialog on web; Alert.alert on native.
-        if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
-          window.alert(`${title}\n\n${body}`);
-        } else {
-          Alert.alert(title, body);
-        }
+        // Show the in-app modal instead of Alert.alert (which is a
+        // no-op on react-native-web) so the user sees exactly which
+        // Aadhaar fields the vKYC partner rejected, with a CTA to
+        // redo KYC from the top.
+        setMissingKycModal({ visible: true, fields: missing });
         setVkycLoading(false);
         return;
       }
@@ -564,6 +561,62 @@ const EnachEsignScreen = ({ navigation }) => {
         <View style={styles.bottomSpacer} />
       </ScrollView>
       <FloatingAssistButton />
+
+      {/* Missing-Aadhaar-fields modal — shown when pre-flight catches
+          an incomplete kycData payload. Matches the app's modal style
+          (card-over-overlay, teal primary CTA, themed colors). */}
+      <Modal
+        visible={missingKycModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMissingKycModal({ visible: false, fields: [] })}
+      >
+        <View style={styles.missingModalOverlay}>
+          <View style={[styles.missingModalCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={{ fontSize: 28, textAlign: 'center', marginBottom: 8 }}>⚠️</Text>
+            <Text style={[styles.missingModalTitle, { color: colors.textPrimary }]}>
+              KYC is incomplete
+            </Text>
+            <Text style={[styles.missingModalBody, { color: colors.textSecondary }]}>
+              Video KYC needs the following from your Aadhaar to continue:
+            </Text>
+            <View style={[styles.missingModalList, { backgroundColor: `${colors.warning || '#F5B731'}14`, borderColor: colors.warning || '#F5B731' }]}>
+              {missingKycModal.fields.map((f) => (
+                <Text key={f} style={[styles.missingModalItem, { color: colors.textPrimary }]}>
+                  • {f}
+                </Text>
+              ))}
+            </View>
+            <Text style={[styles.missingModalBody, { color: colors.textSecondary, marginTop: 12 }]}>
+              Please redo KYC so we can capture these details.
+            </Text>
+            <View style={styles.missingModalActions}>
+              <TouchableOpacity
+                style={[styles.missingModalBtnGhost, { borderColor: colors.border }]}
+                onPress={() => setMissingKycModal({ visible: false, fields: [] })}
+              >
+                <Text style={[styles.missingModalBtnGhostText, { color: colors.textSecondary }]}>
+                  Not now
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.missingModalBtnPrimary, { backgroundColor: colors.teal }]}
+                onPress={() => {
+                  setMissingKycModal({ visible: false, fields: [] });
+                  // Wipe the incomplete kycData so the KYC screen starts
+                  // fresh instead of auto-forwarding on the stale state,
+                  // then navigate the user to the KYC step.
+                  dispatch({ type: 'SET_KYC_DATA', payload: null });
+                  dispatch({ type: 'SET_KYC_METHOD', payload: null });
+                  navigation.navigate('KycVerification');
+                }}
+              >
+                <Text style={styles.missingModalBtnPrimaryText}>Redo KYC</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -615,6 +668,32 @@ const styles = StyleSheet.create({
 
   completeBtn: { marginTop: 20 },
   bottomSpacer: { height: 100 },
+
+  // Missing-Aadhaar-fields modal styles
+  missingModalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center', padding: 24,
+  },
+  missingModalCard: {
+    width: '100%', maxWidth: 420, borderRadius: 16, padding: 24, borderWidth: 1,
+  },
+  missingModalTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
+  missingModalBody: { fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  missingModalList: {
+    marginTop: 14, padding: 12, borderRadius: 10, borderWidth: 1,
+  },
+  missingModalItem: { fontSize: 14, lineHeight: 22, fontWeight: '500' },
+  missingModalActions: { flexDirection: 'row', marginTop: 20, gap: 10 },
+  missingModalBtnGhost: {
+    flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  missingModalBtnGhostText: { fontSize: 14, fontWeight: '600' },
+  missingModalBtnPrimary: {
+    flex: 1, paddingVertical: 12, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  missingModalBtnPrimaryText: { fontSize: 14, fontWeight: '700', color: '#fff' },
 });
 
 export default EnachEsignScreen;
