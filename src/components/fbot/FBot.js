@@ -886,11 +886,14 @@ const FBot = () => {
         : getMessage('askNameFresh', lg);
     } else if (next === 'askFatherName') {
       // Prefill from (a) what the user already entered, (b) the student
-      // record (when borrower IS the student), (c) CKYC (when KYC was
-      // done earlier on a previous attempt), (d) memory from a past
-      // session. Only ask cold when none of those apply.
+      // record — but ONLY when the borrower IS the student; for a
+      // parent-borrower the student's father is NOT the borrower's
+      // father (it's the student's grandfather), (c) CKYC (when KYC
+      // was done earlier on a previous attempt), (d) memory from a
+      // past session. Only ask cold when none of those apply.
+      const isStudentBorrower = state.borrowerType !== 'parent';
       const prefillFatherName = state.borrowerDetails?.fatherName
-        || state.studentDetails?.fatherName
+        || (isStudentBorrower ? state.studentDetails?.fatherName : '')
         || state.kycData?.fatherName
         || recall('userFatherName')
         || '';
@@ -1198,9 +1201,12 @@ const FBot = () => {
       case 'askFatherName': {
         // Accept "yes" when we proposed a prefill (from student details /
         // memory / CKYC), accept free text as a fresh name, redirect
-        // "no" back to the fresh prompt.
+        // "no" back to the fresh prompt. Mirrors advanceTo's prefill
+        // resolution — student.fatherName is only honoured when the
+        // borrower is the student themselves.
+        const isStudentBorrower = state.borrowerType !== 'parent';
         const prefill = state.borrowerDetails?.fatherName
-          || state.studentDetails?.fatherName
+          || (isStudentBorrower ? state.studentDetails?.fatherName : '')
           || state.kycData?.fatherName
           || recall('userFatherName')
           || '';

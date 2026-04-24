@@ -47,11 +47,14 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   // Father's name is captured BEFORE phone validation so it's
   // available for downstream KYC / ITR / 26AS calls and so the
   // user doesn't have to back out of an OTP session to add it.
-  // Prefilled from the student record when the borrower IS the
-  // student themselves; CKYC may also populate it later, in which
-  // case the existing value persists through the merge reducer.
+  // The field captures the BORROWER's father — only safe to prefill
+  // from student.fatherName when the borrower IS the student. For
+  // parent / guardian borrowers we leave it blank (their father's
+  // name has nothing to do with the student record on file).
+  const initialBorrowerType = state.borrowerType || null;
   const [borrowerFatherName, setBorrowerFatherName] = useState(
-    prevBorrower?.fatherName || student?.fatherName || ''
+    prevBorrower?.fatherName
+      || (initialBorrowerType !== 'parent' ? (student?.fatherName || '') : '')
   );
   const [borrowerPhone, setBorrowerPhone] = useState(prevBorrower?.phone || '');
   const [borrowerEmail, setBorrowerEmail] = useState(prevBorrower?.email || '');
@@ -184,6 +187,8 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const handleSelfBorrower = () => {
     setBorrowerType('self');
     setBorrowerName(student?.studentName || user?.name || '');
+    // Borrower IS the student → their father is the student's father.
+    setBorrowerFatherName(student?.fatherName || '');
     setBorrowerPhone(student?.phone || user?.phone || '');
     setBorrowerEmail('');
     setBorrowerDob('');
@@ -198,7 +203,14 @@ const BorrowerSelectionScreen = ({ navigation }) => {
 
   const handleParentBorrower = () => {
     setBorrowerType('parent');
+    // Borrower is the parent → their NAME is the parent's name (which
+    // happens to be the student's father in the common case where
+    // 'Father' relationship is selected; the user can change it).
     setBorrowerName(student?.fatherName || '');
+    // Father's-name field captures the BORROWER's father (i.e. the
+    // student's grandfather when this branch fires) — clear it; the
+    // user fills it in.
+    setBorrowerFatherName('');
     setBorrowerPhone('');
     setBorrowerEmail('');
     setBorrowerDob('');
@@ -532,11 +544,15 @@ const BorrowerSelectionScreen = ({ navigation }) => {
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
               {borrowerType === 'parent' ? 'Parent / Guardian Details' : 'Verify Your Identity'}
             </Text>
+            {/* Borrower name label adapts to who is signing:
+                  • student-self  → "Student / Borrower Name"
+                  • parent / guardian → "Borrower Name (Parent Name)"
+                so the field is unambiguous on both flows. */}
             <Input
-              label={borrowerType === 'parent' ? 'Parent / Guardian Name' : 'Borrower Name'}
+              label={borrowerType === 'parent' ? 'Borrower Name (Parent Name)' : 'Student / Borrower Name'}
               value={borrowerName}
               onChangeText={setBorrowerName}
-              placeholder={borrowerType === 'parent' ? 'Enter parent / guardian full name' : 'Enter full name as per PAN'}
+              placeholder={borrowerType === 'parent' ? 'Enter parent / guardian full name as per PAN' : 'Enter student name as per PAN'}
               autoCapitalize="words"
             />
             {borrowerType === 'parent' && (
@@ -563,14 +579,20 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 </View>
               </View>
             )}
-            {/* Father's name — required for KYC / ITR / 26AS / regulator
-                reporting. Captured before mobile validation so the user
-                doesn't have to back out of an OTP session to add it. */}
+            {/* Father's name — captures the BORROWER's father (not the
+                student's). When the student is the borrower this is the
+                student's father; when a parent is the borrower this is
+                the parent's father (i.e. the student's grandfather).
+                Required for KYC / ITR / 26AS / regulator reporting.
+                Captured before mobile validation so the user doesn't
+                have to back out of an OTP session to add it. */}
             <Input
-              label={`Father's Name${student?.fatherName ? ' ★' : ''}`}
+              label={`Father's Name (Parent name of borrower)${student?.fatherName && borrowerType === 'self' ? ' ★' : ''}`}
               value={borrowerFatherName}
               onChangeText={setBorrowerFatherName}
-              placeholder="Enter father's full name"
+              placeholder={borrowerType === 'parent'
+                ? "Enter borrower's father's name (student's grandfather)"
+                : "Enter father's full name"}
               autoCapitalize="words"
             />
             <Input
