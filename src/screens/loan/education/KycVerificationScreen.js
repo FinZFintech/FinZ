@@ -27,6 +27,7 @@ import { useTheme } from '../../../store/ThemeContext';
 import { kycService } from '../../../services/kycService';
 import { useLoan, getRequestedAmount } from '../../../store/LoanContext';
 import { VKYC_AMOUNT_THRESHOLD } from '../../../config/constants';
+import useFocusScroller from '../../../hooks/useFocusScroller';
 import { useAuth } from '../../../store/AuthContext';
 import { useFBot } from '../../../components/fbot/FBotContext';
 import { useRisk } from '../../../store/RiskContext';
@@ -211,6 +212,7 @@ const KycVerificationScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
   const { executePhase } = useRisk();
   const { registerListener } = useFBot();
+  const { scrollRef, anchorProps, scrollToAnchor } = useFocusScroller();
 
   // ── Check if KYC can be skipped (active loan holder via PAN dedupe) ──
   const dedupeResult = state.signzyVerifications?.panDedupe?.result;
@@ -957,6 +959,9 @@ const KycVerificationScreen = ({ navigation }) => {
     clearSessionTimer();
     setFetchedKycData({ ...kycData, method });
     setDetailsReviewStep(true);
+    // The details-review block is the next thing the customer needs
+    // to act on (confirm or fix the KYC fields). Bring it into view.
+    scrollToAnchor('kycReview');
 
     // Pre-fill communication address from fetched data
     if (kycData.splitAddress) {
@@ -1181,7 +1186,7 @@ const KycVerificationScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="KYC Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={4} />
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
         {/* ── Method Selection ── */}
         {/* KYC Skip Banner for active loan holders */}
@@ -1227,7 +1232,7 @@ const KycVerificationScreen = ({ navigation }) => {
             <View style={styles.optionsCol}>
               <TouchableOpacity
                 style={[styles.methodCard, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                onPress={() => setCurrentMethod(KYC_METHODS.CKYC)}
+                onPress={() => { setCurrentMethod(KYC_METHODS.CKYC); scrollToAnchor('methodForm'); }}
               >
                 <View style={styles.methodHeader}>
                   <View style={[styles.methodIconWrap, { backgroundColor: `${colors.purple}20` }]}>
@@ -1249,7 +1254,7 @@ const KycVerificationScreen = ({ navigation }) => {
 
               <TouchableOpacity
                 style={[styles.methodCard, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                onPress={() => setCurrentMethod(KYC_METHODS.DIGILOCKER)}
+                onPress={() => { setCurrentMethod(KYC_METHODS.DIGILOCKER); scrollToAnchor('methodForm'); }}
               >
                 <View style={styles.methodHeader}>
                   <View style={[styles.methodIconWrap, { backgroundColor: `${colors.teal}20` }]}>
@@ -1268,7 +1273,7 @@ const KycVerificationScreen = ({ navigation }) => {
 
               <TouchableOpacity
                 style={[styles.methodCard, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                onPress={() => setCurrentMethod(KYC_METHODS.AADHAAR_XML)}
+                onPress={() => { setCurrentMethod(KYC_METHODS.AADHAAR_XML); scrollToAnchor('methodForm'); }}
               >
                 <View style={styles.methodHeader}>
                   <View style={[styles.methodIconWrap, { backgroundColor: `${colors.warning || '#F5B731'}20` }]}>
@@ -1289,6 +1294,7 @@ const KycVerificationScreen = ({ navigation }) => {
         )}
 
         {/* ── CKYC Flow ── */}
+        <View {...anchorProps('methodForm')} />
         {!kycCompleted && !kycFailed && !sessionExpired && !detailsReviewStep && currentMethod === KYC_METHODS.CKYC && (
           <Card>
             <View style={styles.methodHeaderRow}>
@@ -1378,7 +1384,7 @@ const KycVerificationScreen = ({ navigation }) => {
                 <Button title="Open DigiLocker" onPress={handleInitiateDigilocker} loading={loading} />
                 <Button
                   title="Try CKYC Instead"
-                  onPress={() => setCurrentMethod(KYC_METHODS.CKYC)}
+                  onPress={() => { setCurrentMethod(KYC_METHODS.CKYC); scrollToAnchor('methodForm'); }}
                   variant="outline"
                   style={styles.btn}
                 />
@@ -1496,6 +1502,7 @@ const KycVerificationScreen = ({ navigation }) => {
         )}
 
         {/* ── Details Review + Communication Address ── */}
+        <View {...anchorProps('kycReview')} />
         {detailsReviewStep && fetchedKycData && !kycCompleted && !kycFailed && !sessionExpired && (
           <>
             <Card>

@@ -27,6 +27,7 @@ import { useFBot } from '../../../components/fbot/FBotContext';
 import { useTheme } from '../../../store/ThemeContext';
 import { formatCurrency, validateIfsc, validateAccountNumber } from '../../../utils/helpers';
 import { OCCUPATION_CATEGORIES, getOccupationsForCategory, isOccupationBlocked, BLOCKED_OCCUPATION_MESSAGE } from '../../../utils/occupationData';
+import useFocusScroller from '../../../hooks/useFocusScroller';
 const ACCOUNT_TYPES = ['Savings', 'Current'];
 
 const IncomeVerificationScreen = ({ navigation }) => {
@@ -34,6 +35,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
   const { executePhase, feedBankStatementData } = useRisk();
   const { registerListener } = useFBot();
+  const { scrollRef, anchorProps, scrollToAnchor } = useFocusScroller();
 
   // ── FBot action listener ──
   useEffect(() => {
@@ -660,6 +662,8 @@ const IncomeVerificationScreen = ({ navigation }) => {
       setPennyDropResult(result);
       setPennyDropDone(true);
       dispatch({ type: 'SET_PENNY_DROP', payload: result });
+      // Penny drop succeeded — surface the income-method picker.
+      scrollToAnchor('incomeMethod');
       return result;
     } catch {
       Alert.alert('Error', 'Bank verification (penny drop) failed. Please check your account details.');
@@ -814,6 +818,9 @@ const IncomeVerificationScreen = ({ navigation }) => {
     }
 
     setEligibilityResult(result);
+    // Eligibility verdict is the focal point — bring the result card +
+    // proceed button into view.
+    scrollToAnchor('eligibilityResult');
     dispatch({ type: 'SET_INCOME', payload: income });
     dispatch({ type: 'SET_ELIGIBILITY', payload: result });
 
@@ -959,7 +966,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header title="Income & Bank Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={3} />
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
         {/* Occupation */}
         {!verificationDone && (
@@ -1395,6 +1402,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
         )}
 
         {/* Income Method Selection */}
+        <View {...anchorProps('incomeMethod')} />
         {!verificationDone && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Verify Your Income</Text>
@@ -1591,6 +1599,7 @@ const IncomeVerificationScreen = ({ navigation }) => {
         )}
 
         {/* Eligibility Result */}
+        <View {...anchorProps('eligibilityResult')} />
         {eligibilityResult?.status === 'fully_eligible' && (
           <Card style={[styles.resultCard, { backgroundColor: tealBg }]}>
             <Text style={styles.resultIcon}>🎉</Text>

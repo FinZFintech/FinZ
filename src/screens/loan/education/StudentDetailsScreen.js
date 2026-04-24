@@ -18,6 +18,7 @@ import { useTheme } from '../../../store/ThemeContext';
 import { loanService } from '../../../services/loanService';
 import { useLoan } from '../../../store/LoanContext';
 import { formatCurrency } from '../../../utils/helpers';
+import useFocusScroller from '../../../hooks/useFocusScroller';
 
 const StudentDetailsScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -28,6 +29,7 @@ const StudentDetailsScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [studentData, setStudentData] = useState(null);
   const [fetched, setFetched] = useState(false);
+  const { scrollRef, anchorProps, scrollToAnchor } = useFocusScroller();
 
   // Manual entry fields
   const [manualStudentName, setManualStudentName] = useState('');
@@ -48,6 +50,9 @@ const StudentDetailsScreen = ({ navigation }) => {
       setStudentData(data);
       dispatch({ type: 'SET_STUDENT', payload: data });
       setFetched(true);
+      // Once we have the student record, take the user straight to the
+      // review block so the next action (Continue) is in view.
+      scrollToAnchor('review');
     } catch {
       Alert.alert('Error', 'Failed to fetch student details. Please try again.');
     } finally {
@@ -92,6 +97,7 @@ const StudentDetailsScreen = ({ navigation }) => {
     setStudentData(data);
     dispatch({ type: 'SET_STUDENT', payload: data });
     setFetched(true);
+    scrollToAnchor('review');
   };
 
   const handleProceed = () => {
@@ -108,6 +114,7 @@ const StudentDetailsScreen = ({ navigation }) => {
       />
       <StepIndicator currentStep={0} />
       <ScrollView
+        ref={scrollRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -196,6 +203,7 @@ const StudentDetailsScreen = ({ navigation }) => {
           </Card>
         ) : null}
 
+        <View {...anchorProps('review')} />
         {fetched && studentData && (
           <Card style={styles.detailsCard}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Student Information</Text>

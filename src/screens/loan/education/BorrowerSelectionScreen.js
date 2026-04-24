@@ -29,6 +29,7 @@ import {
   validateEmail,
 } from '../../../utils/helpers';
 import { getLoanTypeRules } from '../../../config/constants';
+import useFocusScroller from '../../../hooks/useFocusScroller';
 
 const BorrowerSelectionScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -36,6 +37,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
   const { state, dispatch } = useLoan();
   const { user } = useAuth();
   const { registerListener } = useFBot();
+  const { scrollRef, anchorProps, scrollToAnchor } = useFocusScroller();
   const student = state.studentDetails;
 
   // ── Restore from persisted state so the user resumes where they left off ──
@@ -200,6 +202,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     setPrefillDone(false);
     setPrefillSource({});
     setEmailVerification(null);
+    scrollToAnchor('borrowerForm');
   };
 
   const handleParentBorrower = () => {
@@ -222,6 +225,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     setPrefillDone(false);
     setPrefillSource({});
     setEmailVerification(null);
+    scrollToAnchor('borrowerForm');
   };
 
   const handleVerifyPhone = async () => {
@@ -495,9 +499,11 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     dispatch({ type: 'SET_PRODUCT', payload: selectedProduct });
     dispatch({ type: 'SET_TENURE', payload: selectedTenure });
     dispatch({ type: 'SET_STEP', payload: 1 });
-    // Higher-education abroad needs the supporting-documents step
-    // before PAN — university offer letter, fee break-up, salary
-    // slips of co-applicants etc. Other loan types go straight to PAN.
+    // Higher-education needs the supporting-documents step before PAN —
+    // university offer letter, fee break-up, salary slips of co-
+    // applicants, collateral & self-contribution proof, etc. Applies
+    // to both domestic and abroad higher-ed. Other loan types go
+    // straight to PAN.
     const rules = getLoanTypeRules(state.loanType);
     if (rules.requiresExtraDocs) {
       navigation.navigate('SupportingDocuments');
@@ -517,12 +523,14 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       />
       <StepIndicator currentStep={1} />
       <ScrollView
+        ref={scrollRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         {/* Borrower Type Selection */}
+        <View {...anchorProps('borrowerType')} />
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Who is the Borrower?</Text>
           <View style={styles.optionsRow}>
@@ -548,6 +556,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         </Card>
 
         {/* Step 1: Name + Mobile verification */}
+        <View {...anchorProps('borrowerForm')} />
         {borrowerType && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
@@ -771,6 +780,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         )}
 
         {/* Loan Products — shown after phone verified + borrower name filled + email verified */}
+        <View {...anchorProps('product')} />
         {borrowerType && phoneVerified && !prefillLoading && borrowerName.trim() && borrowerEmail && emailVerification && !emailVerification.isRisky && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Loan Product</Text>
@@ -784,6 +794,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 onPress={() => {
                   setSelectedProduct(product);
                   setSelectedTenure(null);
+                  scrollToAnchor('tenure');
                 }}
               >
                 <Text style={[styles.productName, { color: colors.textPrimary }]}>{product.name}</Text>
@@ -802,6 +813,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         )}
 
         {/* Tenure Selection */}
+        <View {...anchorProps('tenure')} />
         {selectedProduct && (
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Tenure</Text>
@@ -813,7 +825,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                     styles.tenureChip,
                     selectedTenure === tenure && styles.selectedTenure,
                   ]}
-                  onPress={() => setSelectedTenure(tenure)}
+                  onPress={() => { setSelectedTenure(tenure); scrollToAnchor('coApplicants'); }}
                 >
                   <Text
                     style={[
@@ -861,6 +873,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         )}
 
         {/* Co-borrowers (optional, up to 2) */}
+        <View {...anchorProps('coApplicants')} />
         {selectedTenure && (() => {
           const rules = getLoanTypeRules(state.loanType);
           const cbLimit = rules.coBorrowerLimit;
@@ -873,7 +886,10 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               </Text>
               {cbCount < cbLimit ? (
                 <TouchableOpacity
-                  onPress={() => dispatch({ type: 'ADD_CO_BORROWER', payload: {} })}
+                  onPress={() => {
+                    dispatch({ type: 'ADD_CO_BORROWER', payload: {} });
+                    scrollToAnchor('guarantor');
+                  }}
                   style={{
                     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
                     borderWidth: 1, borderColor: colors.teal,
@@ -991,6 +1007,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         })()}
 
         {/* Guarantor (only when policy permits — currently higher_education) */}
+        <View {...anchorProps('guarantor')} />
         {selectedTenure && getLoanTypeRules(state.loanType).allowsGuarantor && (
           <Card>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -1003,7 +1020,10 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  onPress={() => dispatch({ type: 'SET_GUARANTOR', payload: { name: '', relationship: '', phone: '', pan: '' } })}
+                  onPress={() => {
+                    dispatch({ type: 'SET_GUARANTOR', payload: { name: '', relationship: '', phone: '', pan: '' } });
+                    scrollToAnchor('apply');
+                  }}
                   style={{
                     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
                     borderWidth: 1, borderColor: colors.teal,
@@ -1014,9 +1034,9 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               )}
             </View>
             <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10, lineHeight: 18 }}>
-              For higher-education abroad loans, a guarantor strengthens the
-              application. Lender will run a separate credit + KYC check on
-              the guarantor before disbursement.
+              For higher-education loans (domestic or abroad), a guarantor
+              strengthens the application. Lender will run a separate credit
+              + KYC check on the guarantor before disbursement.
             </Text>
             {state.guarantor && (
               <View>
@@ -1059,6 +1079,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         )}
 
         {/* Apply Button */}
+        <View {...anchorProps('apply')} />
         {selectedTenure && (
           <Button
             title="Apply for Loan"
