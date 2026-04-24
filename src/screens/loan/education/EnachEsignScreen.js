@@ -72,6 +72,15 @@ const EnachEsignScreen = ({ navigation }) => {
       setVkycDone(true);
       setVkycInitiated(true);
     }
+    // Rehydrate eNACH + eSign from persisted state so a refresh /
+    // resume doesn't re-show the action buttons for mandates / signs
+    // the customer already completed. Accepts both the legacy
+    // 'completed' string and the new object shape carrying mandateId
+    // / sessionId / redirectUrl / completedAt.
+    const enachDoneNow = state.enachStatus === 'completed' || state.enachStatus?.completed === true;
+    if (enachDoneNow) setEnachDone(true);
+    const esignDoneNow = state.esignStatus === 'completed' || state.esignStatus?.completed === true;
+    if (esignDoneNow) setEsignDone(true);
   }, []);
 
   const riskDecision = riskState.decision?.decision;
@@ -124,15 +133,34 @@ const EnachEsignScreen = ({ navigation }) => {
 
   const handleEnach = async () => {
     setEnachLoading(true);
+    let enachResult;
     try {
-      const result = await loanService.initiateEnach(state.currentLoan?.id, {
+      enachResult = await loanService.initiateEnach(state.currentLoan?.id, {
         accountNumber: state.bankDetails?.accountNumber,
         ifsc: state.bankDetails?.ifsc,
         emiAmount: emi,
         frequency: 'monthly',
       });
-      if (result.redirectUrl) {
-        Linking.openURL(result.redirectUrl);
+      // Persist the mandate + redirect URL immediately so a refresh /
+      // resume doesn't lose the in-progress mandate. Status 'initiated'
+      // flips to 'completed' after the 2-second mock settlement below.
+      dispatch({
+        type: 'SET_ENACH',
+        payload: {
+          status: 'initiated',
+          mandateId: enachResult?.mandateId || '',
+          redirectUrl: enachResult?.url || enachResult?.redirectUrl || '',
+          accountNumber: state.bankDetails?.accountNumber || '',
+          accountNumberLast4: (state.bankDetails?.accountNumber || '').slice(-4),
+          ifsc: state.bankDetails?.ifsc || '',
+          bankName: state.bankDetails?.bankName || '',
+          emiAmount: emi,
+          frequency: 'monthly',
+          initiatedAt: new Date().toISOString(),
+        },
+      });
+      if (enachResult?.redirectUrl || enachResult?.url) {
+        Linking.openURL(enachResult.redirectUrl || enachResult.url);
       }
     } catch {
       setEnachLoading(false);
@@ -141,7 +169,16 @@ const EnachEsignScreen = ({ navigation }) => {
     }
     setTimeout(() => {
       setEnachDone(true);
-      dispatch({ type: 'SET_ENACH', payload: 'completed' });
+      dispatch({
+        type: 'SET_ENACH',
+        payload: {
+          status: 'completed',
+          completed: true,
+          completedAt: new Date().toISOString(),
+          mandateId: enachResult?.mandateId || '',
+          bankRefNo: enachResult?.bankRefNo || enachResult?.mandateId || '',
+        },
+      });
       setEnachLoading(false);
       // eNACH done — eSign is the next gated action.
       scrollToAnchor('esign');
@@ -150,10 +187,34 @@ const EnachEsignScreen = ({ navigation }) => {
 
   const handleEsign = async () => {
     setEsignLoading(true);
+    let esignResult;
+    // Build the final signer list from main applicant + co-applicants
+    // so the admin detail can show every signature slot.
+    const signers = [
+      { role: 'main', name: state.borrowerDetails?.name || 'Main applicant', pan: state.panDetails?.panNumber || state.borrowerDetails?.pan || '' },
+      ...(state.coBorrowers || []).map((cb, i) => ({
+        role: 'co_applicant',
+        index: i + 1,
+        name: cb.name || `Co-applicant ${i + 1}`,
+        pan: cb.pan || cb.panDetails?.panNumber || '',
+      })),
+    ];
     try {
-      const result = await loanService.initiateEsign(state.currentLoan?.id);
-      if (result.redirectUrl) {
-        Linking.openURL(result.redirectUrl);
+      esignResult = await loanService.initiateEsign(state.currentLoan?.id);
+      // Persist the session + redirect URL on initiation so staff can
+      // share the link and customer can resume without a fresh request.
+      dispatch({
+        type: 'SET_ESIGN',
+        payload: {
+          status: 'initiated',
+          sessionId: esignResult?.sessionId || '',
+          redirectUrl: esignResult?.url || esignResult?.redirectUrl || '',
+          signers,
+          initiatedAt: new Date().toISOString(),
+        },
+      });
+      if (esignResult?.redirectUrl || esignResult?.url) {
+        Linking.openURL(esignResult.redirectUrl || esignResult.url);
       }
     } catch {
       setEsignLoading(false);
@@ -162,7 +223,16 @@ const EnachEsignScreen = ({ navigation }) => {
     }
     setTimeout(() => {
       setEsignDone(true);
-      dispatch({ type: 'SET_ESIGN', payload: 'completed' });
+      dispatch({
+        type: 'SET_ESIGN',
+        payload: {
+          status: 'completed',
+          completed: true,
+          completedAt: new Date().toISOString(),
+          sessionId: esignResult?.sessionId || '',
+          signers: signers.map((s) => ({ ...s, signedAt: new Date().toISOString() })),
+        },
+      });
       setEsignLoading(false);
       // eSign done — references / vKYC are next.
       scrollToAnchor(requiresVkyc ? 'vkyc' : 'references');
