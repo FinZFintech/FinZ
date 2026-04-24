@@ -28,6 +28,10 @@ const RESTRICTED_TABS = ['Details', 'Documents', 'Verifications', 'Comments', 'C
 const SIGNZY_VERIFICATION_LABELS = {
   employmentBasic: 'Employment (UAN Basic)',
   phonePrefill: 'Phone Prefill',
+  phoneToPan: 'Phone → PAN (Signzy)',
+  panFetch: 'PAN Verification (Signzy)',
+  bankVerification: 'Bank Account Verification (Penny Drop)',
+  ckyc: 'CKYC',
   fraudShieldLite: 'FraudShield Lite',
   gstIncome: 'GST Income (PAN → GSTIN)',
   itrPull: 'Income Tax Returns',
@@ -1087,14 +1091,16 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
               {/* Success body: type-specific rendering */}
               {isSuccess && key === 'employmentBasic' && renderEmploymentBasic(entry.result)}
               {isSuccess && key === 'phonePrefill' && renderPhonePrefill(entry.result)}
+              {isSuccess && key === 'phoneToPan' && renderPhoneToPan(entry.result)}
+              {isSuccess && key === 'panFetch' && renderPanFetch(entry.result)}
+              {isSuccess && key === 'bankVerification' && renderBankVerification(entry.result)}
+              {isSuccess && key === 'ckyc' && renderCkycResult(entry.result)}
               {isSuccess && key === 'fraudShieldLite' && renderFraudShield(entry.result)}
               {isSuccess && key === 'gstIncome' && renderGstIncome(entry.result)}
               {isSuccess && key === 'itrPull' && renderItrPull(entry.result)}
               {isSuccess && key === 'form26AS' && renderForm26AS(entry.result)}
-              {isSuccess && !['employmentBasic', 'phonePrefill', 'fraudShieldLite', 'gstIncome', 'itrPull', 'form26AS'].includes(key) && (
-                <Text style={{ color: colors.textSecondary }}>
-                  {JSON.stringify(entry.result, null, 2)}
-                </Text>
+              {isSuccess && !['employmentBasic', 'phonePrefill', 'phoneToPan', 'panFetch', 'bankVerification', 'ckyc', 'fraudShieldLite', 'gstIncome', 'itrPull', 'form26AS'].includes(key) && (
+                renderGenericResult(entry.result)
               )}
 
               {/* Failure body */}
@@ -1212,6 +1218,127 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
               </View>
             ))}
           </>
+        ) : null}
+      </>
+    );
+  };
+
+  /**
+   * Fallback structured render for any Signzy result the screen doesn't
+   * have a dedicated renderer for yet. Walks the object and emits one
+   * InfoRow per scalar field so staff sees a readable key/value list
+   * instead of raw JSON.
+   */
+  const renderGenericResult = (result) => {
+    if (result == null || typeof result !== 'object') {
+      return (
+        <Text style={{ color: colors.textSecondary }}>
+          {String(result ?? '—')}
+        </Text>
+      );
+    }
+    const rows = [];
+    const walk = (obj, prefix = '') => {
+      for (const [k, v] of Object.entries(obj || {})) {
+        if (v == null) continue;
+        if (/^(rawResponse|raw|image|photo|signature|photograph|images|rawJson|pdfBase64)$/i.test(k)) continue;
+        const keyLabel = (prefix ? prefix + ' · ' : '') + k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+        if (typeof v === 'object' && !Array.isArray(v)) {
+          walk(v, keyLabel);
+        } else if (Array.isArray(v)) {
+          rows.push([keyLabel, `${v.length} item(s)`]);
+        } else {
+          rows.push([keyLabel, String(v)]);
+        }
+        if (rows.length > 40) break; // keep the card bounded
+      }
+    };
+    walk(result);
+    return (
+      <>
+        {rows.map(([k, v]) => (
+          <InfoRow key={k} label={k} value={v} />
+        ))}
+      </>
+    );
+  };
+
+  /**
+   * Phone → PAN (Signzy phoneToPan) — shows just the resolved PAN and
+   * the demographic fields the gateway returned.
+   */
+  const renderPhoneToPan = (result) => {
+    if (!result) return null;
+    return (
+      <>
+        <InfoRow label="PAN" value={result.panNumber || '—'} />
+        <InfoRow label="Name" value={result.name || '—'} />
+        {result.dateOfBirth ? <InfoRow label="Date of Birth" value={result.dateOfBirth} /> : null}
+        {result.gender ? <InfoRow label="Gender" value={result.gender} /> : null}
+      </>
+    );
+  };
+
+  /**
+   * PAN Verification (Signzy verifyPan / panFetch).
+   */
+  const renderPanFetch = (result) => {
+    if (!result) return null;
+    return (
+      <>
+        <InfoRow label="PAN Status" value={result.panStatus || result.status || '—'} />
+        {result.panStatusLabel ? <InfoRow label="Status Label" value={result.panStatusLabel} /> : null}
+        <InfoRow label="Name on PAN" value={result.name || '—'} />
+        <InfoRow label="Holder Type" value={result.typeOfHolder || (result.isIndividual ? 'Individual' : '—')} />
+        <InfoRow label="Aadhaar Linked" value={result.aadhaarSeedingStatus || '—'} highlight={result.aadhaarSeedingStatus === 'Y'} />
+        {result.individualTaxComplianceStatus ? (
+          <InfoRow label="Tax Compliance" value={result.individualTaxComplianceStatus} />
+        ) : null}
+      </>
+    );
+  };
+
+  /**
+   * Bank account verification (penny drop).
+   */
+  const renderBankVerification = (result) => {
+    if (!result) return null;
+    return (
+      <>
+        <InfoRow label="Verified" value={result.verified ? 'Yes' : 'No'} highlight={!!result.verified} />
+        <InfoRow label="Account Holder" value={result.accountHolderName || '—'} />
+        <InfoRow label="Name Match" value={result.nameMatch ? 'Yes' : 'No'} highlight={!!result.nameMatch} />
+        {result.nameMatchScore != null ? (
+          <InfoRow label="Name Match Score" value={String(result.nameMatchScore)} />
+        ) : null}
+        {result.bankRefNo ? <InfoRow label="Bank Reference" value={result.bankRefNo} /> : null}
+        {result.accountNumberLast4 ? (
+          <InfoRow label="Account (last 4)" value={result.accountNumberLast4} />
+        ) : null}
+      </>
+    );
+  };
+
+  /**
+   * CKYC verification — name / DOB / address / documents pulled from
+   * CERSAI. Keeps it compact; full doc list is in the Details tab.
+   */
+  const renderCkycResult = (result) => {
+    if (!result) return null;
+    return (
+      <>
+        <InfoRow label="CKYC Number" value={result.ckycNumber || '—'} />
+        <InfoRow label="Reference No." value={result.ckycReferenceNo || '—'} />
+        <InfoRow label="Name" value={result.name || '—'} />
+        {result.fatherName ? <InfoRow label="Father's Name" value={result.fatherName} /> : null}
+        {result.dob ? <InfoRow label="Date of Birth" value={result.dob} /> : null}
+        {result.gender ? <InfoRow label="Gender" value={result.gender} /> : null}
+        {result.address || result.addressLine ? (
+          <InfoRow label="Address" value={result.address || result.addressLine} />
+        ) : null}
+        {result.pincode ? <InfoRow label="Pincode" value={result.pincode} /> : null}
+        {Array.isArray(result.documents) && result.documents.length > 0 ? (
+          <InfoRow label="Documents" value={`${result.documents.length} on file`} />
         ) : null}
       </>
     );

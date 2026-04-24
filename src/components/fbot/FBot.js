@@ -105,6 +105,18 @@ function quickRepliesForStep(step, lang) {
         { label: L('no', lg), value: 'no' },
         ...base,
       ];
+    case 'askItrOffer':
+      return [
+        { label: L('yes', lg), value: 'yes' },
+        { label: L('skip', lg), value: 'skip' },
+        ...base,
+      ];
+    case 'askItrOtp':
+      return [
+        { label: L('skip', lg), value: 'skip' },
+        { label: L('help', lg), value: 'help' },
+        { label: L('back', lg), value: 'back' },
+      ];
     case 'askOccupation':
       return [
         { label: L('salaried', lg), value: 'salaried' },
@@ -285,6 +297,8 @@ const screenForStep = (step) => {
     case 'askOccupation':
     case 'askEmployer':
     case 'askMonthlyIncome':
+    case 'askItrOffer':
+    case 'askItrOtp':
     case 'askLoanAmount':
     case 'askTenure':
     case 'askBankDetails':
@@ -358,6 +372,10 @@ const FBot = () => {
   // re-render on every mutation and so stale-closure issues around the
   // async OTP flow don't drop the requestId.
   const ckycRef = useRef({ requestId: '', referenceNo: '' });
+  // Holds the ITR-portal password-reset session between askItrOffer
+  // (forget-password) and askItrOtp (authorise-new-password + pull).
+  // Same reasoning as ckycRef — async flow across multiple bot steps.
+  const itrRef = useRef({ sessionId: '', username: '', password: '' });
   // Institute search results the user is choosing from (askInstitute → pick).
   const instituteSearchRef = useRef([]);
   const [minimized, setMinimized] = useState(false);
@@ -867,6 +885,19 @@ const FBot = () => {
             : `Aapki balance fee ₹${proposed.toLocaleString('en-IN')} hai. Itna hi loan chahiye? (haan ya alag amount type karein)`;
       } else {
         prompt = getMessage('askLoanAmount', lg);
+      }
+    } else if (next === 'askMonthlyIncome') {
+      // ITR / GST / EPFO may have already populated a monthly figure —
+      // propose it so the user confirms instead of re-typing.
+      const proposed = state.borrowerDetails?.monthlyIncome || 0;
+      if (proposed) {
+        prompt = lg === 'hi'
+          ? `मुझे आपकी मासिक आय ₹${proposed.toLocaleString('en-IN')} मिली (स्रोत: ITR/GST/EPFO)। क्या यह सही है? (हाँ / अलग राशि टाइप करें)`
+          : lg === 'en'
+            ? `I estimate your monthly income at ₹${proposed.toLocaleString('en-IN')} (from ITR/GST/EPFO). Is this right? (reply "yes" or type a different amount)`
+            : `Aapki monthly income mili ₹${proposed.toLocaleString('en-IN')} (ITR/GST/EPFO). Sahi hai? (haan ya alag amount type karein)`;
+      } else {
+        prompt = getMessage('askMonthlyIncome', lg);
       }
     } else {
       prompt = getMessage(next, lg);
@@ -1460,22 +1491,243 @@ const FBot = () => {
       case 'askEmployer':
         if (detected.type === 'text') {
           onAction?.({ type: 'SET_EMPLOYER', value: rawText });
-          advanceTo('askMonthlyIncome');
+          // For self-employed borrowers, try a GST lookup on their PAN —
+          // same call the IncomeVerification screen makes. Logged to
+          // signzyVerifications.gstIncome so staff can audit the trace.
+          const pan = state.panDetails?.panNumber || state.borrowerDetails?.pan || '';
+          const occ = state.borrowerDetails?.occupation || '';
+          const isSelfEmployed = /self.?employed|business/i.test(occ);
+          const isSalaried = /salaried/i.test(occ);
+
+          if (pan && isSelfEmployed) {
+            signzyService.gstIncomeByPan(pan).then((gst) => {
+              dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+                key: 'gstIncome',
+                status: gst?.gstins?.length ? 'success' : 'no_match',
+                result: gst,
+              }});
+              const estimate = gst?.estimatedAnnualIncome;
+              if (estimate) {
+                // Pre-fill monthly income from GST so the next question can
+                // be a confirmation rather than a fresh ask.
+                dispatch({ type: 'SET_BORROWER_DETAILS', payload: {
+                  monthlyIncome: Math.round(estimate / 12),
+                }});
+              }
+            }).catch((err) => console.log('[FBot] gstIncomeByPan failed:', err?.message));
+          }
+
+          // For both salaried and self-employed applicants, ITR + 26AS
+          // give the strongest income signal the system has. Offer the
+          // optional ITR flow before manually asking monthly income.
+          if (pan && (isSalaried || isSelfEmployed)) {
+            setCurrentStep('askItrOffer');
+            const msg = {
+              en: "For a faster decision, I can pull your ITR + Form 26AS straight from the Income Tax portal. You'll receive an OTP on your PAN-registered mobile. Should I try? (yes / skip)",
+              hinglish: "Faster decision ke liye main aapka ITR + 26AS directly IT portal se pull kar sakta hoon. Aapke PAN-registered mobile pe OTP aayega. Try karoon? (yes / skip)",
+              hi: "तेज़ निर्णय के लिए मैं आपका ITR + 26AS सीधे IT पोर्टल से ला सकता हूँ। आपके PAN-पंजीकृत मोबाइल पर OTP आएगा। कोशिश करूँ? (yes / skip)",
+            };
+            addBotMessage(msg[l] || msg.hinglish);
+          } else {
+            advanceTo('askMonthlyIncome');
+          }
+          break;
         }
         break;
 
-      case 'askMonthlyIncome':
+      case 'askItrOffer': {
+        if (detected.type === 'skip' || detected.type === 'deny') {
+          addBotMessage(l === 'hi' ? 'ठीक है, आप अपनी आय खुद बता सकते हैं।'
+            : l === 'en' ? 'No problem — you can tell me your income directly.'
+            : 'Koi baat nahi, aap apni income khud bata sakte hain.');
+          advanceTo('askMonthlyIncome');
+          break;
+        }
+        if (detected.type !== 'confirm' && detected.type !== 'text') {
+          addBotMessage(l === 'hi' ? 'कृपया "हाँ" या "skip" बताएं।'
+            : 'Please reply with "yes" or "skip".');
+          break;
+        }
+        const pan = state.panDetails?.panNumber || state.borrowerDetails?.pan || '';
+        if (!pan) {
+          addBotMessage(l === 'hi' ? 'PAN नहीं मिला — ITR पुल के लिए PAN चाहिए।'
+            : 'I need your PAN to pull ITR. Skipping to manual income.');
+          advanceTo('askMonthlyIncome');
+          break;
+        }
+        // Signzy's ITR flow requires the caller to supply a brand-new
+        // password — the portal's forget-password API resets to this and
+        // sends an OTP. We generate a one-off password (never persisted)
+        // and stash the session handle in itrRef for the OTP step.
+        const randomPwd = `Fbot@${Math.random().toString(36).slice(-6)}${Math.floor(Math.random() * 90 + 10)}`;
+        itrRef.current = { sessionId: '', username: pan, password: randomPwd };
+        addBotMessage(getMessage('waiting', l));
+        signzyService.itrForgetPassword(pan, randomPwd).then((res) => {
+          if (!res?.sessionId) {
+            addBotMessage(l === 'hi'
+              ? `ITR पोर्टल ने OTP नहीं भेजा: ${res?.message || 'कृपया मैन्युअल बताएं'}`
+              : `ITR portal didn't send an OTP: ${res?.message || 'please tell me manually'}`);
+            dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+              key: 'itrPull',
+              status: 'failed',
+              error: { message: res?.message || 'No sessionId' },
+            }});
+            advanceTo('askMonthlyIncome');
+            return;
+          }
+          itrRef.current.sessionId = res.sessionId;
+          addBotMessage(l === 'hi'
+            ? 'आपके PAN-रजिस्टर्ड मोबाइल पर OTP भेजा गया है। 6 अंकों का OTP बताइए।'
+            : l === 'en'
+              ? 'An OTP has been sent to the mobile registered on your PAN. Please share the 6-digit OTP.'
+              : 'Aapke PAN-registered mobile pe OTP aa gaya hoga. 6-digit OTP share karein.');
+          setCurrentStep('askItrOtp');
+        }).catch((err) => {
+          console.log('[FBot] itrForgetPassword failed:', err?.message);
+          addBotMessage(l === 'hi'
+            ? `ITR OTP ट्रिगर विफल: ${err?.message || 'मैन्युअल बताएं'}`
+            : `Couldn't trigger ITR OTP: ${err?.message || 'will ask manually'}`);
+          dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+            key: 'itrPull',
+            status: 'failed',
+            error: { message: err?.message || 'itrForgetPassword failed' },
+          }});
+          advanceTo('askMonthlyIncome');
+        });
+        break;
+      }
+
+      case 'askItrOtp': {
+        if (detected.type === 'skip' || detected.type === 'deny') {
+          itrRef.current = { sessionId: '', username: '', password: '' };
+          advanceTo('askMonthlyIncome');
+          break;
+        }
+        if (detected.type !== 'otp') {
+          addBotMessage(invalid('invalidOtp'));
+          break;
+        }
+        if (!itrRef.current.sessionId) {
+          addBotMessage(l === 'hi' ? 'ITR सत्र नहीं मिला — मैन्युअल बताएं।'
+            : 'ITR session missing — falling back to manual income.');
+          advanceTo('askMonthlyIncome');
+          break;
+        }
+        addBotMessage(getMessage('waiting', l));
+        signzyService.itrAuthoriseNewPassword(itrRef.current.sessionId, detected.value).then(async (authRes) => {
+          if (!authRes?.success && !authRes?.passwordResetStatus) {
+            throw new Error(authRes?.message || 'OTP authorisation failed');
+          }
+          // Kick off ITR + 26AS in parallel — they use the same session.
+          const { username, password, sessionId } = itrRef.current;
+          const [itr, form26] = await Promise.allSettled([
+            signzyService.itrPull({ username, password, sessionId }),
+            signzyService.form26ASPull({ username, password, sessionId, range: 3 }),
+          ]);
+
+          // ITR result
+          if (itr.status === 'fulfilled' && itr.value) {
+            dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+              key: 'itrPull',
+              status: 'success',
+              result: itr.value,
+            }});
+            const byYear = itr.value.itrByYear || [];
+            const latest = byYear[0];
+            if (latest?.grossSalary) {
+              dispatch({ type: 'SET_BORROWER_DETAILS', payload: {
+                monthlyIncome: Math.round(latest.grossSalary / 12),
+              }});
+            }
+          } else {
+            dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+              key: 'itrPull',
+              status: 'failed',
+              error: { message: itr.reason?.message || 'ITR pull failed' },
+            }});
+          }
+
+          // 26AS result
+          if (form26.status === 'fulfilled' && form26.value) {
+            dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+              key: 'form26AS',
+              status: 'success',
+              result: form26.value,
+            }});
+          } else {
+            dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+              key: 'form26AS',
+              status: 'failed',
+              error: { message: form26.reason?.message || '26AS pull failed' },
+            }});
+          }
+
+          // Summarise what we found in chat.
+          const summary = [];
+          if (itr.status === 'fulfilled') {
+            const years = (itr.value?.itrByYear || []).slice(0, 3);
+            summary.push(l === 'hi' ? `ITR पाए: ${years.length} वर्ष` : `ITR fetched: ${years.length} year(s)`);
+            for (const y of years) {
+              const income = y.grossTotalIncome || y.totalIncome || y.grossSalary || 0;
+              if (income) {
+                summary.push(l === 'hi'
+                  ? `  ${y.assessmentYear}: ₹${Number(income).toLocaleString('en-IN')}`
+                  : `  AY ${y.assessmentYear}: ₹${Number(income).toLocaleString('en-IN')}`);
+              }
+            }
+          }
+          if (form26.status === 'fulfilled' && form26.value) {
+            const totalTds = form26.value.totalTdsDeducted || form26.value.totalTds || 0;
+            if (totalTds) {
+              summary.push(l === 'hi'
+                ? `26AS में TDS: ₹${Number(totalTds).toLocaleString('en-IN')}`
+                : `26AS TDS deducted: ₹${Number(totalTds).toLocaleString('en-IN')}`);
+            }
+          }
+          if (summary.length > 0) {
+            addBotMessage(summary.join('\n'));
+          } else {
+            addBotMessage(l === 'hi'
+              ? 'ITR/26AS से कोई डेटा नहीं मिला। कृपया अपनी आय बताएं।'
+              : "I didn't get anything useful from ITR/26AS — please share your income manually.");
+          }
+
+          itrRef.current = { sessionId: '', username: '', password: '' };
+          advanceTo('askMonthlyIncome');
+        }).catch((err) => {
+          console.log('[FBot] ITR auth/pull failed:', err?.message);
+          addBotMessage(l === 'hi'
+            ? `ITR सत्यापन विफल: ${err?.message || 'मैन्युअल बताएं'}`
+            : `ITR verification failed: ${err?.message || 'falling back to manual income'}`);
+          dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+            key: 'itrPull',
+            status: 'failed',
+            error: { message: err?.message || 'ITR auth/pull failed' },
+          }});
+          itrRef.current = { sessionId: '', username: '', password: '' };
+          advanceTo('askMonthlyIncome');
+        });
+        break;
+      }
+
+      case 'askMonthlyIncome': {
+        const prefilled = state.borrowerDetails?.monthlyIncome || 0;
+        if (detected.type === 'confirm' && prefilled) {
+          // Confirm the pre-filled value from ITR / GST / EPFO.
+          onAction?.({ type: 'SET_MONTHLY_INCOME', value: prefilled });
+          advanceTo('askBankDetails');
+          return;
+        }
         if (detected.type === 'amount' || detected.type === 'tenure') {
-          // tenure detection can swallow small numbers; accept either here
+          // tenure detection can swallow small numbers; accept either here.
           const income = detected.value;
           onAction?.({ type: 'SET_MONTHLY_INCOME', value: income });
-          // Loan amount + tenure are now captured earlier (right after
-          // student details), so after income → straight to bank details.
           advanceTo('askBankDetails');
         } else {
           addBotMessage(invalid('invalidAmount'));
         }
         break;
+      }
 
       case 'askLoanAmount':
         if (detected.type === 'confirm') {
