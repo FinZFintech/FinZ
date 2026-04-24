@@ -1485,8 +1485,54 @@ const FBot = () => {
           });
           onAction?.({ type: 'VERIFY_PAN', value: pan });
           addBotMessage(getMessage('panVerified', l));
-          // Credit-bureau check isn't integrated yet — bot proceeds
-          // assuming pass (PanVerification screen offers a simulator).
+          // Fire the CIBIL bureau call (same kycService.softPull the
+          // PAN screen uses; toggleable via vendorConfig.cibilBureau).
+          // Fire-and-forget — the bot keeps advancing while the score
+          // lands on state.creditScore + signzyVerifications.cibilBureau
+          // in the background, so reviewers see it on the Verification
+          // + Raw Data tabs identically to a form-initiated app.
+          const borrowerFullName = (state.borrowerDetails?.name || '').trim();
+          const bNameParts = borrowerFullName.split(/\s+/);
+          const bFirst = bNameParts[0] || '';
+          const bLast = bNameParts.length > 1 ? bNameParts[bNameParts.length - 1] : '';
+          kycService.softPull({
+            pan,
+            name: borrowerFullName,
+            firstName: bFirst,
+            lastName: bLast,
+            phone: state.borrowerDetails?.phone || '',
+            gender: state.borrowerDetails?.gender || state.kycData?.gender || 'Male',
+            dob: state.borrowerDetails?.dob || state.kycData?.dob || '',
+            address: state.borrowerDetails?.address || state.kycData?.address || '',
+            pincode: state.borrowerDetails?.pincode || state.kycData?.pincode || '',
+          }).then((credit) => {
+            dispatch({ type: 'SET_CREDIT_SCORE', payload: credit });
+            if (credit?._signzy) {
+              dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+                key: 'cibilBureau',
+                status: 'success',
+                result: credit._signzy,
+              }});
+            } else {
+              dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+                key: 'cibilBureau',
+                status: 'no_bureau',
+                result: {
+                  source: credit?.source || 'mock',
+                  cibilScore: credit?.cibilScore,
+                  gatingPassed: credit?.gatingPassed,
+                  note: 'Signzy CIBIL call did not return a payload — using mock values.',
+                },
+              }});
+            }
+          }).catch((err) => {
+            console.log('[FBot] CIBIL softPull failed:', err?.message);
+            dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+              key: 'cibilBureau',
+              status: 'failed',
+              error: { message: err?.message || 'CIBIL bureau call failed' },
+            }});
+          });
           setTimeout(() => {
             addBotMessage(getMessage('creditPassed', l));
             // EPFO / UAN lookup runs the same way the IncomeVerification

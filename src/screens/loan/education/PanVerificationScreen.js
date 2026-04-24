@@ -165,13 +165,32 @@ const PanVerificationScreen = ({ navigation }) => {
       setCreditPassed(passed);
       dispatch({ type: 'SET_CREDIT_SCORE', payload: result });
 
-      // Stash the raw CIBIL Signzy payload on signzyVerifications so
-      // staff / credit can review it under Verifications + Raw Data.
+      // Stash the CIBIL attempt on signzyVerifications so staff can
+      // see on the Verification + Raw Data tabs whether the bureau
+      // was actually hit this time. Three outcomes:
+      //   success      → Signzy CIBIL returned a score; result._signzy
+      //                   carries the normalised payload + PDF URL.
+      //   no_bureau    → softPull fell back to the deterministic mock
+      //                   (Signzy call failed or toggle is off); the
+      //                   credit_score on the app is mock data, not a
+      //                   real bureau pull.
+      //   Neither path loses the audit trail.
       if (result?._signzy) {
         dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
           key: 'cibilBureau',
           status: 'success',
           result: result._signzy,
+        }});
+      } else {
+        dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+          key: 'cibilBureau',
+          status: 'no_bureau',
+          result: {
+            source: result?.source || 'mock',
+            cibilScore: result?.cibilScore,
+            gatingPassed: result?.gatingPassed,
+            note: 'Signzy CIBIL call did not return a payload — using mock values. Check the cibilBureau vendor toggle and Signzy credentials.',
+          },
         }});
       }
 
