@@ -54,6 +54,16 @@ const MESSAGES = {
     hinglish: "Kya aap apna poora naam bata sakte hain jo aapke PAN card pe hai?",
     hi: "क्या आप अपना पूरा नाम बता सकते हैं जो आपके PAN कार्ड पर है?",
   },
+  askFatherName: {
+    en: "What is your father's name? I found it as {prefillFatherName}. Is this correct?",
+    hinglish: "Aapke pita ka naam kya hai? Mujhe mila: {prefillFatherName}. Kya ye sahi hai?",
+    hi: "आपके पिता का नाम क्या है? मुझे मिला: {prefillFatherName}। क्या यह सही है?",
+  },
+  askFatherNameFresh: {
+    en: "Please share your father's full name (as it appears on official records).",
+    hinglish: "Kripya apne pita ka poora naam batayein (jaisa official records mein hai).",
+    hi: "कृपया अपने पिता का पूरा नाम बताएं (जैसा आधिकारिक रिकॉर्ड्स में है)।",
+  },
   askPhone: {
     en: "I'll need your mobile number for verification. It's best if this is the number linked to your PAN and bank account.",
     hinglish: "Verification ke liye aapka phone number chahiye hoga. Ye phone number wahi ho to behtar hoga jis se aapka PAN aur bank account link ho.",
@@ -510,6 +520,7 @@ export const FBOT_STEPS = [
   'askBorrowerType',
   'askRelationship',
   'askName',
+  'askFatherName',
   'askPhone',
   'askOtp',
   'askPan',

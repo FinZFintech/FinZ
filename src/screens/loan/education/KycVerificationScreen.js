@@ -212,26 +212,6 @@ const KycVerificationScreen = ({ navigation }) => {
   const { executePhase } = useRisk();
   const { registerListener } = useFBot();
 
-  // ── FBot action listener ──
-  useEffect(() => {
-    return registerListener('kycScreen', (action) => {
-      switch (action.type) {
-        case 'START_KYC':
-          if (!currentMethod) {
-            setCurrentMethod('ckyc');
-            handleInitiateCkyc();
-          }
-          break;
-        case 'VERIFY_KYC_OTP':
-          if (action.value && action.value.length === 6) {
-            setOtp(action.value);
-            setTimeout(() => handleVerifyCkycOtp(action.value), 200);
-          }
-          break;
-      }
-    });
-  }, [registerListener, currentMethod]);
-
   // ── Check if KYC can be skipped (active loan holder via PAN dedupe) ──
   const dedupeResult = state.signzyVerifications?.panDedupe?.result;
   const canSkipKyc = dedupeResult?.canSkipKyc && dedupeResult?.previousKyc;
@@ -296,6 +276,32 @@ const KycVerificationScreen = ({ navigation }) => {
   const [ckycError, setCkycError] = useState('');
   const [ckycResendSecs, setCkycResendSecs] = useState(0);
   const ckycResendTimerRef = useRef(null);
+
+  // ── FBot action listener ──
+  // Moved below the useState declarations because its deps array
+  // references currentMethod; keeping the useEffect above the useState
+  // raised "Cannot access 'currentMethod' before initialization" (TDZ)
+  // whenever the screen mounted without an auto-forward short-circuit
+  // (e.g. after the user taps Redo KYC from EnachEsign's missing-
+  // fields modal, which clears kycData and lands here fresh).
+  useEffect(() => {
+    return registerListener('kycScreen', (action) => {
+      switch (action.type) {
+        case 'START_KYC':
+          if (!currentMethod) {
+            setCurrentMethod('ckyc');
+            handleInitiateCkyc();
+          }
+          break;
+        case 'VERIFY_KYC_OTP':
+          if (action.value && action.value.length === 6) {
+            setOtp(action.value);
+            setTimeout(() => handleVerifyCkycOtp(action.value), 200);
+          }
+          break;
+      }
+    });
+  }, [registerListener, currentMethod]);
 
   // Image zoom modal state
   const [zoomImage, setZoomImage] = useState(null); // { uri, label } | null

@@ -44,6 +44,15 @@ const BorrowerSelectionScreen = ({ navigation }) => {
 
   const [borrowerType, setBorrowerType] = useState(state.borrowerType || null);
   const [borrowerName, setBorrowerName] = useState(prevBorrower?.name || '');
+  // Father's name is captured BEFORE phone validation so it's
+  // available for downstream KYC / ITR / 26AS calls and so the
+  // user doesn't have to back out of an OTP session to add it.
+  // Prefilled from the student record when the borrower IS the
+  // student themselves; CKYC may also populate it later, in which
+  // case the existing value persists through the merge reducer.
+  const [borrowerFatherName, setBorrowerFatherName] = useState(
+    prevBorrower?.fatherName || student?.fatherName || ''
+  );
   const [borrowerPhone, setBorrowerPhone] = useState(prevBorrower?.phone || '');
   const [borrowerEmail, setBorrowerEmail] = useState(prevBorrower?.email || '');
   const [phoneVerified, setPhoneVerified] = useState(prevBorrower?.phoneVerified || false);
@@ -121,6 +130,9 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       switch (action.type) {
         case 'SET_NAME':
           setBorrowerName(action.value || '');
+          break;
+        case 'SET_FATHER_NAME':
+          setBorrowerFatherName(action.value || '');
           break;
         case 'SET_PHONE':
           setBorrowerPhone(action.value || '');
@@ -455,6 +467,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
       type: 'SET_BORROWER_DETAILS',
       payload: {
         name: borrowerName,
+        fatherName: borrowerFatherName,
         phone: borrowerPhone,
         email: borrowerEmail,
         dob: borrowerDob,
@@ -550,6 +563,16 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                 </View>
               </View>
             )}
+            {/* Father's name — required for KYC / ITR / 26AS / regulator
+                reporting. Captured before mobile validation so the user
+                doesn't have to back out of an OTP session to add it. */}
+            <Input
+              label={`Father's Name${student?.fatherName ? ' ★' : ''}`}
+              value={borrowerFatherName}
+              onChangeText={setBorrowerFatherName}
+              placeholder="Enter father's full name"
+              autoCapitalize="words"
+            />
             <Input
               label="Mobile Number"
               value={borrowerPhone}
@@ -865,6 +888,13 @@ const BorrowerSelectionScreen = ({ navigation }) => {
                   value={cb.relationship}
                   onChangeText={(v) => dispatch({ type: 'UPDATE_CO_BORROWER', payload: { id: cb.id, relationship: v } })}
                   placeholder="e.g. Mother, Spouse, Guardian"
+                />
+                <Input
+                  label="Father's Name"
+                  value={cb.fatherName || ''}
+                  onChangeText={(v) => dispatch({ type: 'UPDATE_CO_BORROWER', payload: { id: cb.id, fatherName: v } })}
+                  placeholder="Enter father's full name"
+                  autoCapitalize="words"
                 />
                 <Input
                   label="Mobile Number"
