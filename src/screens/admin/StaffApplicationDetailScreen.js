@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { loadRealApplications } from '../../utils/loadApplications';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
   TextInput, Alert, RefreshControl, Linking, Image, Dimensions, Platform,
@@ -295,6 +297,30 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
   const [application, setApplication] = useState(() => getFullApplication(appData));
   const [activeTab, setActiveTab] = useState('Details');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Whenever the screen comes into focus, re-fetch the latest version of
+  // this application from Firestore / AsyncStorage. Without this the KYC
+  // status / captured images / downstream API verifications that the
+  // customer (or the bot) completed after the dashboard row was opened
+  // still show as "Pending" because we're rendering the stale route-
+  // params snapshot.
+  useFocusEffect(useCallback(() => {
+    const wantedId = appData?.id || appData?.applicationId;
+    if (!wantedId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const all = await loadRealApplications();
+        const fresh = all.find((a) => a.id === wantedId || a.applicationId === wantedId);
+        if (!cancelled && fresh) {
+          setApplication(getFullApplication(fresh));
+        }
+      } catch (err) {
+        console.log('[StaffDetail] refresh failed:', err?.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [appData?.id, appData?.applicationId]));
 
   // KYC image zoom modal state
   const [zoomImage, setZoomImage] = useState(null); // { uri, label } | null
@@ -816,15 +842,41 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
           <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 12 }}>
             All images returned by {application.kycData?.method || application.kycMethod || 'the KYC source'}. Tap to zoom.
           </Text>
-          {application.kycData.images.map((img, idx) => (
-            <AspectImage
-              key={img.sequence || idx}
-              uri={img.uri}
-              label={img.label || `Document ${idx + 1}`}
-              colors={colors}
-              onPress={() => setZoomImage({ uri: img.uri, label: img.label || `Document ${idx + 1}` })}
-            />
-          ))}
+          {application.kycData.images.map((img, idx) => {
+            const imgUri = img?.uri && !String(img.uri).startsWith('[') ? img.uri : null;
+            if (!imgUri) {
+              // Storage is disabled (no Blaze plan) — we have the image
+              // metadata but not the blob. Render a placeholder card so
+              // the reviewer at least sees which documents were captured.
+              return (
+                <View
+                  key={img.sequence || idx}
+                  style={{
+                    padding: 14, borderRadius: 8, marginBottom: 8,
+                    borderWidth: 1, borderStyle: 'dashed',
+                    borderColor: colors.border, backgroundColor: colors.inputBg,
+                  }}
+                >
+                  <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>
+                    {img.label || `Document ${idx + 1}`}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+                    Image captured but not stored — enable Firebase Storage (Blaze plan)
+                    to persist and review the file.
+                  </Text>
+                </View>
+              );
+            }
+            return (
+              <AspectImage
+                key={img.sequence || idx}
+                uri={imgUri}
+                label={img.label || `Document ${idx + 1}`}
+                colors={colors}
+                onPress={() => setZoomImage({ uri: imgUri, label: img.label || `Document ${idx + 1}` })}
+              />
+            );
+          })}
         </Card>
       )}
 
