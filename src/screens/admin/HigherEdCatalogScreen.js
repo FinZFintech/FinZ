@@ -1,25 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert,
 } from 'react-native';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
+import { EntityFormModal, ConfirmModal } from '../../components/common/CatalogModals';
 import { useTheme } from '../../store/ThemeContext';
 import {
   loadActiveCatalog, saveCatalogOverride, clearCatalogOverride,
 } from '../../services/higherEducationCatalogService';
-
-// Web-only browser prompts. On mobile we degrade to a non-interactive
-// path (returns null / true) — admin tooling realistically runs on web.
-const webPrompt = (msg, def = '') =>
-  (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.prompt === 'function')
-    ? window.prompt(msg, def)
-    : null;
-const webConfirm = (msg) =>
-  (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.confirm === 'function')
-    ? window.confirm(msg)
-    : true;
 
 /**
  * Admin editor for the Higher Education catalog.
@@ -58,6 +48,37 @@ const HigherEdCatalogScreen = ({ navigation }) => {
   const [openState, setOpenState] = useState(null);
   const [openUni, setOpenUni] = useState(null);
 
+  // Themed "add entity" modal. `kind` selects which field config to
+  // render (country / state / university / course) and `scope` carries
+  // the parent-entity codes the new entity is nested under (e.g. for a
+  // course: { countryCode, stateCode, uniId }). `onSubmit` and
+  // `onCancel` are bound by the opener helpers below.
+  const [entityModal, setEntityModal] = useState({ visible: false, kind: null, scope: {}, initial: {} });
+  // Themed confirm dialog — replaces window.confirm for deletes /
+  // reset-to-bundled.
+  const [confirmModal, setConfirmModal] = useState({ visible: false });
+
+  const openEntityModal = (kind, scope = {}, initial = {}) => {
+    setEntityModal({ visible: true, kind, scope, initial });
+  };
+  const closeEntityModal = () => setEntityModal((m) => ({ ...m, visible: false }));
+
+  const askConfirm = (cfg, onConfirm) => {
+    setConfirmModal({
+      visible: true,
+      destructive: true,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      emoji: '🗑️',
+      ...cfg,
+      onConfirm: () => {
+        setConfirmModal({ visible: false });
+        onConfirm?.();
+      },
+      onCancel: () => setConfirmModal({ visible: false }),
+    });
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -70,6 +91,159 @@ const HigherEdCatalogScreen = ({ navigation }) => {
     })();
   }, []);
 
+  // ── Field configs for each entity kind ──
+  // Each block shapes the EntityFormModal — declarative so the same
+  // modal component renders country / state / university / course.
+  const fieldConfigs = useMemo(() => ({
+    country: {
+      title: 'Add Country',
+      subtitle: 'Country becomes a top-level option in the higher-ed picker.',
+      emoji: '🌍',
+      fields: [
+        { key: 'code',        label: 'Country code', hint: 'ISO-like 2-letter code (e.g. IN, US, FR)', required: true, upperCase: true, maxLength: 3, placeholder: 'IN' },
+        { key: 'countryName', label: 'Country name', required: true, placeholder: 'India' },
+        { key: 'flag',        label: 'Flag emoji',   placeholder: '🇮🇳', default: '🌐' },
+        { key: 'isDomestic',  label: 'Mark as domestic', hint: 'India-based programs show without USD conversion.', type: 'toggle', trueLabel: 'Domestic', falseLabel: 'Abroad' },
+      ],
+    },
+    state: {
+      title: 'Add State / Region',
+      subtitle: 'Nested under the selected country.',
+      emoji: '📍',
+      fields: [
+        { key: 'code',      label: 'State code', hint: 'Short code (e.g. KA, CA, NY)', required: true, upperCase: true, maxLength: 4, placeholder: 'KA' },
+        { key: 'stateName', label: 'State name', required: true, placeholder: 'Karnataka' },
+      ],
+    },
+    university: {
+      title: 'Add University / College',
+      subtitle: 'Creates a new university within this state. Add courses afterwards.',
+      emoji: '🏛️',
+      fields: [
+        { key: 'name',    label: 'University / College name', required: true, placeholder: 'Indian Institute of Science' },
+        { key: 'city',    label: 'City', placeholder: 'Bangalore' },
+        { key: 'ranking', label: 'Ranking (optional)', type: 'number', placeholder: 'e.g. 225', hint: 'Global / local rank — leave blank to skip.' },
+      ],
+    },
+    course: {
+      title: 'Add Course',
+      subtitle: 'Course offered under this university.',
+      emoji: '🎓',
+      fields: [
+        { key: 'name',                 label: 'Course name',     required: true, placeholder: 'M.Tech Computer Science' },
+        { key: 'durationMonths',       label: 'Duration (months)', required: true, type: 'number', placeholder: '24', default: 24 },
+        { key: 'feeCurrency',          label: 'Fee currency',    type: 'segmented',
+          default: 'INR',
+          options: [
+            { value: 'INR', label: '₹ INR' },
+            { value: 'USD', label: '$ USD' },
+          ],
+        },
+        { key: 'indicativeAnnualFee',  label: 'Indicative annual fee', required: true, type: 'number', placeholder: '250000', hint: 'In the chosen currency.' },
+      ],
+    },
+  }), []);
+
+  // ── Modal submit handlers ──
+  const submitEntity = useCallback((values) => {
+    const kind = entityModal.kind;
+    const scope = entityModal.scope || {};
+
+    if (kind === 'country') {
+      const code = String(values.code || '').toUpperCase();
+      if (!code) { closeEntityModal(); return; }
+      if (catalog[code]) {
+        Alert.alert('Already exists', `Country ${code} is already in the catalog.`);
+        return;
+      }
+      setCatalog((prev) => ({
+        ...prev,
+        [code]: {
+          countryName: values.countryName || code,
+          flag: values.flag || '🌐',
+          isDomestic: !!values.isDomestic,
+          states: {},
+        },
+      }));
+      setOpenCountry(code);
+    } else if (kind === 'state') {
+      const code = String(values.code || '').toUpperCase();
+      const { countryCode } = scope;
+      if (!code || !countryCode) { closeEntityModal(); return; }
+      if (catalog[countryCode]?.states?.[code]) {
+        Alert.alert('Already exists', `State ${code} is already in this country.`);
+        return;
+      }
+      setCatalog((prev) => ({
+        ...prev,
+        [countryCode]: {
+          ...prev[countryCode],
+          states: {
+            ...prev[countryCode].states,
+            [code]: { stateName: values.stateName || code, universities: [] },
+          },
+        },
+      }));
+      setOpenState(`${countryCode}/${code}`);
+    } else if (kind === 'university') {
+      const { countryCode, stateCode } = scope;
+      if (!countryCode || !stateCode) { closeEntityModal(); return; }
+      const id = `${countryCode}_${stateCode}_${Date.now()}`.toLowerCase();
+      const newUni = {
+        ...blankUniversity(),
+        id,
+        name: values.name || '',
+        city: values.city || '',
+        ranking: values.ranking || null,
+        courses: [],
+      };
+      setCatalog((prev) => {
+        const st = prev[countryCode].states[stateCode];
+        return {
+          ...prev,
+          [countryCode]: {
+            ...prev[countryCode],
+            states: {
+              ...prev[countryCode].states,
+              [stateCode]: { ...st, universities: [...st.universities, newUni] },
+            },
+          },
+        };
+      });
+      setOpenUni(id);
+    } else if (kind === 'course') {
+      const { countryCode, stateCode, uniId } = scope;
+      if (!countryCode || !stateCode || !uniId) { closeEntityModal(); return; }
+      const id = `course_${Date.now()}`;
+      const newCourse = {
+        id,
+        name: values.name || '',
+        durationMonths: values.durationMonths || 24,
+        feeCurrency: values.feeCurrency || 'INR',
+        indicativeAnnualFee: values.indicativeAnnualFee || 0,
+      };
+      setCatalog((prev) => ({
+        ...prev,
+        [countryCode]: {
+          ...prev[countryCode],
+          states: {
+            ...prev[countryCode].states,
+            [stateCode]: {
+              ...prev[countryCode].states[stateCode],
+              universities: prev[countryCode].states[stateCode].universities.map((u) => {
+                if (u.id !== uniId) return u;
+                return { ...u, courses: [...u.courses, newCourse] };
+              }),
+            },
+          },
+        },
+      }));
+    }
+
+    closeEntityModal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityModal.kind, entityModal.scope, catalog]);
+
   const updateCountry = (code, patch) => {
     setCatalog((prev) => ({
       ...prev,
@@ -77,44 +251,23 @@ const HigherEdCatalogScreen = ({ navigation }) => {
     }));
   };
 
-  const addCountry = () => {
-    const code = webPrompt('Country code (2 letters, e.g. IN, US, FR):');
-    if (!code) return;
-    const upper = code.toUpperCase();
-    if (catalog[upper]) { Alert.alert('Already exists', `Country ${upper} is already in the catalog.`); return; }
-    setCatalog((prev) => ({
-      ...prev,
-      [upper]: { countryName: upper, flag: '🌐', isDomestic: false, states: {} },
-    }));
-    setOpenCountry(upper);
-  };
+  const addCountry = () => openEntityModal('country');
 
   const deleteCountry = (code) => {
-    if (!webConfirm(`Delete country "${catalog[code].countryName}" and everything under it?`)) return;
-    setCatalog((prev) => {
-      const out = { ...prev };
-      delete out[code];
-      return out;
-    });
+    askConfirm(
+      {
+        title: `Delete ${catalog[code].countryName}?`,
+        message: 'This removes the country along with every state, university and course nested under it. Customers will no longer see these options.',
+      },
+      () => setCatalog((prev) => {
+        const out = { ...prev };
+        delete out[code];
+        return out;
+      }),
+    );
   };
 
-  const addState = (countryCode) => {
-    const code = webPrompt('State code (e.g. CA, KA, DL):');
-    if (!code) return;
-    const upper = code.toUpperCase();
-    setCatalog((prev) => {
-      const country = prev[countryCode];
-      if (country.states[upper]) { Alert.alert('Already exists', `State ${upper} is already in this country.`); return prev; }
-      return {
-        ...prev,
-        [countryCode]: {
-          ...country,
-          states: { ...country.states, [upper]: { stateName: upper, universities: [] } },
-        },
-      };
-    });
-    setOpenState(`${countryCode}/${upper}`);
-  };
+  const addState = (countryCode) => openEntityModal('state', { countryCode });
 
   const updateState = (countryCode, stateCode, patch) => {
     setCatalog((prev) => ({
@@ -130,30 +283,20 @@ const HigherEdCatalogScreen = ({ navigation }) => {
   };
 
   const deleteState = (countryCode, stateCode) => {
-    if (!webConfirm(`Delete state "${catalog[countryCode].states[stateCode].stateName}"?`)) return;
-    setCatalog((prev) => {
-      const states = { ...prev[countryCode].states };
-      delete states[stateCode];
-      return { ...prev, [countryCode]: { ...prev[countryCode], states } };
-    });
+    askConfirm(
+      {
+        title: `Delete ${catalog[countryCode].states[stateCode].stateName}?`,
+        message: 'Universities and courses under this state will also be removed.',
+      },
+      () => setCatalog((prev) => {
+        const states = { ...prev[countryCode].states };
+        delete states[stateCode];
+        return { ...prev, [countryCode]: { ...prev[countryCode], states } };
+      }),
+    );
   };
 
-  const addUniversity = (countryCode, stateCode) => {
-    setCatalog((prev) => {
-      const stateObj = prev[countryCode].states[stateCode];
-      const newUni = { ...blankUniversity(), id: `${countryCode}_${stateCode}_${Date.now()}`.toLowerCase() };
-      return {
-        ...prev,
-        [countryCode]: {
-          ...prev[countryCode],
-          states: {
-            ...prev[countryCode].states,
-            [stateCode]: { ...stateObj, universities: [...stateObj.universities, newUni] },
-          },
-        },
-      };
-    });
-  };
+  const addUniversity = (countryCode, stateCode) => openEntityModal('university', { countryCode, stateCode });
 
   const updateUniversity = (countryCode, stateCode, uniId, patch) => {
     setCatalog((prev) => ({
@@ -174,20 +317,27 @@ const HigherEdCatalogScreen = ({ navigation }) => {
   };
 
   const deleteUniversity = (countryCode, stateCode, uniId) => {
-    if (!webConfirm('Delete this university and all its courses?')) return;
-    setCatalog((prev) => ({
-      ...prev,
-      [countryCode]: {
-        ...prev[countryCode],
-        states: {
-          ...prev[countryCode].states,
-          [stateCode]: {
-            ...prev[countryCode].states[stateCode],
-            universities: prev[countryCode].states[stateCode].universities.filter((u) => u.id !== uniId),
+    const uniName = (catalog?.[countryCode]?.states?.[stateCode]?.universities || [])
+      .find((u) => u.id === uniId)?.name || 'this university';
+    askConfirm(
+      {
+        title: `Delete ${uniName}?`,
+        message: 'All courses under this university will be removed.',
+      },
+      () => setCatalog((prev) => ({
+        ...prev,
+        [countryCode]: {
+          ...prev[countryCode],
+          states: {
+            ...prev[countryCode].states,
+            [stateCode]: {
+              ...prev[countryCode].states[stateCode],
+              universities: prev[countryCode].states[stateCode].universities.filter((u) => u.id !== uniId),
+            },
           },
         },
-      },
-    }));
+      })),
+    );
   };
 
   const updateCourse = (countryCode, stateCode, uniId, courseIdx, patch) => {
@@ -212,42 +362,34 @@ const HigherEdCatalogScreen = ({ navigation }) => {
     }));
   };
 
-  const addCourse = (countryCode, stateCode, uniId) => {
-    setCatalog((prev) => ({
-      ...prev,
-      [countryCode]: {
-        ...prev[countryCode],
-        states: {
-          ...prev[countryCode].states,
-          [stateCode]: {
-            ...prev[countryCode].states[stateCode],
-            universities: prev[countryCode].states[stateCode].universities.map((u) => {
-              if (u.id !== uniId) return u;
-              return { ...u, courses: [...u.courses, blankCourse()] };
-            }),
-          },
-        },
-      },
-    }));
-  };
+  const addCourse = (countryCode, stateCode, uniId) => openEntityModal('course', { countryCode, stateCode, uniId });
 
   const deleteCourse = (countryCode, stateCode, uniId, courseIdx) => {
-    setCatalog((prev) => ({
-      ...prev,
-      [countryCode]: {
-        ...prev[countryCode],
-        states: {
-          ...prev[countryCode].states,
-          [stateCode]: {
-            ...prev[countryCode].states[stateCode],
-            universities: prev[countryCode].states[stateCode].universities.map((u) => {
-              if (u.id !== uniId) return u;
-              return { ...u, courses: u.courses.filter((_, i) => i !== courseIdx) };
-            }),
+    const uni = (catalog?.[countryCode]?.states?.[stateCode]?.universities || [])
+      .find((u) => u.id === uniId);
+    const courseName = uni?.courses?.[courseIdx]?.name || `course #${courseIdx + 1}`;
+    askConfirm(
+      {
+        title: `Delete "${courseName}"?`,
+        message: 'Customers will no longer see this course on the picker.',
+      },
+      () => setCatalog((prev) => ({
+        ...prev,
+        [countryCode]: {
+          ...prev[countryCode],
+          states: {
+            ...prev[countryCode].states,
+            [stateCode]: {
+              ...prev[countryCode].states[stateCode],
+              universities: prev[countryCode].states[stateCode].universities.map((u) => {
+                if (u.id !== uniId) return u;
+                return { ...u, courses: u.courses.filter((_, i) => i !== courseIdx) };
+              }),
+            },
           },
         },
-      },
-    }));
+      })),
+    );
   };
 
   const handleSave = async () => {
@@ -262,17 +404,27 @@ const HigherEdCatalogScreen = ({ navigation }) => {
     }
   };
 
-  const handleResetToBundled = async () => {
-    if (!webConfirm('Reset to the bundled catalog (your overrides will be lost)?')) return;
-    setSaving(true);
-    try {
-      await clearCatalogOverride();
-      const fresh = await loadActiveCatalog();
-      setCatalog(JSON.parse(JSON.stringify(fresh)));
-      Alert.alert('Reset', 'Reset to the bundled catalog.');
-    } finally {
-      setSaving(false);
-    }
+  const handleResetToBundled = () => {
+    askConfirm(
+      {
+        title: 'Reset to bundled catalog?',
+        message: 'Your overrides will be discarded and the default country / state / university list will be restored. Customers see the bundled list on their next pick.',
+        emoji: '↺',
+        destructive: false,
+        confirmLabel: 'Reset',
+      },
+      async () => {
+        setSaving(true);
+        try {
+          await clearCatalogOverride();
+          const fresh = await loadActiveCatalog();
+          setCatalog(JSON.parse(JSON.stringify(fresh)));
+          Alert.alert('Reset', 'Reset to the bundled catalog.');
+        } finally {
+          setSaving(false);
+        }
+      },
+    );
   };
 
   if (loading || !catalog) {
@@ -520,6 +672,24 @@ const HigherEdCatalogScreen = ({ navigation }) => {
           );
         })}
       </ScrollView>
+
+      {/* Themed add-entity modal — country / state / university / course */}
+      {entityModal.kind ? (
+        <EntityFormModal
+          visible={entityModal.visible}
+          title={fieldConfigs[entityModal.kind].title}
+          subtitle={fieldConfigs[entityModal.kind].subtitle}
+          emoji={fieldConfigs[entityModal.kind].emoji}
+          fields={fieldConfigs[entityModal.kind].fields}
+          initial={entityModal.initial}
+          submitLabel="Add"
+          onCancel={closeEntityModal}
+          onSubmit={submitEntity}
+        />
+      ) : null}
+
+      {/* Themed confirm dialog — used for deletes + reset-to-bundled */}
+      <ConfirmModal {...confirmModal} />
     </View>
   );
 };
