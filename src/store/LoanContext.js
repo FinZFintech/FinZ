@@ -4,7 +4,8 @@ import { LOAN_STATUS, VKYC_AMOUNT_THRESHOLD } from '../config/constants';
 
 // ─── Helper: derive the requested loan amount from state ─────────────────────
 // Looks through all the places an amount might live (product, tenure variants,
-// borrowerDetails) so consumer screens don't have to duplicate this logic.
+// borrowerDetails, education balanceFee) so consumer screens — and the
+// resume-router's VKYC threshold check — don't have to duplicate this logic.
 function getRequestedAmount(state) {
   if (!state) return 0;
   return (
@@ -13,6 +14,7 @@ function getRequestedAmount(state) {
     state.selectedProduct?.loanAmount ||
     state.selectedTenure?.amount ||
     state.borrowerDetails?.requestedAmount ||
+    state.studentDetails?.balanceFee ||
     0
   );
 }

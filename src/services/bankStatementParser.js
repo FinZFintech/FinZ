@@ -19,6 +19,16 @@ export function parseAccountAggregatorData(aaData) {
   const transactions = aaData.transactions || [];
   const summary = aaData.summary || aaData;
 
+  // When the AA response is aggregate-only (no raw transaction list —
+  // e.g. our AA simulator, or a BSA provider that returns only summary
+  // metrics), delegate to the upload parser which reads monthlyIncome /
+  // averageBalance / bounceCount aggregates directly. This keeps the
+  // risk engine's scoreBankStatement() from seeing "no salary" whenever
+  // the provider doesn't expose transactions.
+  if (!transactions.length && (summary.monthlyIncome || summary.averageBalance || summary.totalCredits)) {
+    return parseBankStatementUpload(summary);
+  }
+
   // Detect salary credits
   const salaryCredits = detectSalaryPattern(transactions, summary);
 

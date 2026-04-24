@@ -179,7 +179,21 @@ export const kycService = {
         };
       } catch (err) {
         console.log('[kycService] CIBIL softPull failed, falling back to mock:', err?.message);
-        // Fall through to the mock below so the flow still completes.
+        // Fall through to the mock below so the flow still completes —
+        // but thread the Signzy error through so the UI can tell the
+        // reviewer WHY the bureau wasn't hit (instead of the generic
+        // "no_bureau / mock" banner).
+        return {
+          score: 720,
+          cibilScore: 720,
+          gatingPassed: true,
+          enquiryCount: 2,
+          activeAccounts: 3,
+          overdueAccounts: 0,
+          source: 'mock',
+          _signzyError: err?.message || 'CIBIL bureau call failed',
+          _signzyStatusCode: err?.statusCode || err?.response?.status || null,
+        };
       }
     }
 

@@ -49,8 +49,15 @@ const EnachEsignScreen = ({ navigation }) => {
   }, []);
 
   const riskDecision = riskState.decision?.decision;
-  const isRiskDeclined = riskDecision === 'decline';
-  const isManualReview = riskDecision === 'review' || riskDecision === 'elevated';
+  // Eligibility is the customer-facing gate: once the AA / bank-
+  // statement analysis says "eligible", the risk engine's advisory
+  // decline is a reviewer flag, not a hard block. Only hard-block when
+  // eligibility itself said no (state.eligibilityResult.eligible ===
+  // false), which the IncomeVerification screen sets explicitly.
+  const eligibilityPassed = state.eligibilityResult?.eligible === true;
+  const eligibilityFailed = state.eligibilityResult?.eligible === false;
+  const isRiskDeclined = !eligibilityPassed && (riskDecision === 'decline' || eligibilityFailed);
+  const isManualReview = !eligibilityPassed && (riskDecision === 'review' || riskDecision === 'elevated');
 
   const loanAmount = state.studentDetails?.balanceFee || 0;
   const requiresVkyc = loanAmount >= 60000;
@@ -58,16 +65,32 @@ const EnachEsignScreen = ({ navigation }) => {
     ? calculateEmi(loanAmount, state.selectedProduct.interestRate, state.selectedTenure)
     : 0;
 
-  // Trigger Phase D risk scoring on mount (mocked as approved for testing)
+  // When the final gate actually declines (eligibility failed OR risk
+  // said decline without eligibility's override), persist the verdict
+  // on the application so the auto-rejected bucket on the admin /
+  // credit / sales / ops dashboards picks it up. Previously the
+  // decline only rendered a banner, leaving status at fully_eligible
+  // which kept the app in the in-progress bucket forever.
   useEffect(() => {
-    const mockApproval = {
-      decision: { decision: 'approve', label: 'AUTO-APPROVE', reason: null },
-      finalScore: 850,
-      gate: 'pass',
-      completedAt: new Date().toISOString(),
-    };
-    dispatch({ type: 'SET_RISK_PROFILE', payload: mockApproval });
-  }, []);
+    if (!isRiskDeclined) return;
+    if (state.eligibilityResult?.eligible === false) return; // already not_eligible
+    dispatch({
+      type: 'SET_ELIGIBILITY',
+      payload: {
+        status: 'not_eligible',
+        eligible: false,
+        source: 'risk_engine',
+        reason: riskState.reasonCodes?.[0] || 'Risk assessment declined',
+        reasonCodes: riskState.reasonCodes || [],
+        riskScore: riskState.finalScore || null,
+        finalisedAt: new Date().toISOString(),
+        // Keep whatever foir / emiCapacity we already had so downstream
+        // screens and dashboards don't lose those numbers.
+        ...(state.eligibilityResult || {}),
+        eligible: false,
+      },
+    });
+  }, [isRiskDeclined]);
 
   const tealBg = `${colors.teal}14`;
   const errorBg = `${colors.error}14`;
