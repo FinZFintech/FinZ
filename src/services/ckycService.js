@@ -750,13 +750,15 @@ export const ckycService = {
       email,
       residentialPhone,
       officePhone,
-      // The details-review screen reads splitAddress in this nested shape:
-      //   sa.state[0]?.[0] || sa.state[0]
-      // so wrap state in a nested array and city in a flat array.
+      // splitAddress: kept as flat arrays — Firestore rejects nested
+      // arrays ("Function setDoc() called with invalid data. Nested
+      // arrays are not supported"). The two existing consumers already
+      // use the `(sa.state || [])[0]?.[0] || (sa.state || [])[0]`
+      // fallback chain, so a flat array reads correctly.
       splitAddress: {
         addressLine,
         city: city ? [city] : [],
-        state: stateName ? [[stateName]] : [],
+        state: stateName ? [stateName] : [],
         pincode,
       },
       // `record` is the unwrapped donwload_json container; `rawResponse`

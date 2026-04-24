@@ -17,6 +17,39 @@ import { db, storage, isFirebaseConfigured, STORAGE_UPLOADS_ENABLED } from '../c
 // the application doc can blow past Firestore's 1 MB per-doc limit the
 // moment a CKYC response comes in. Kept close to stripHeavyBlobs in
 // LoanContext so we don't drift.
+/**
+ * Firestore documents can't store nested arrays — `[[a, b]]` raises
+ * `Function setDoc() called with invalid data. Nested arrays are not
+ * supported`, killing the whole save and leaving the dashboards stuck
+ * on stale data. Walk the payload and convert any inner array to an
+ * indexed object ({0: …, 1: …}) so the write succeeds. Read-side
+ * consumers already use `(arr || [])[0]?.[0] || (arr || [])[0]` style
+ * fallbacks, so the conversion is transparent for the few legacy
+ * shapes that ever wanted nesting.
+ */
+function flattenNestedArraysForFirestore(value, depth = 0) {
+  if (depth > 8) return value; // cap recursion
+  if (Array.isArray(value)) {
+    return value.map((v) => {
+      if (Array.isArray(v)) {
+        // Convert inner array → indexed object so Firestore accepts it.
+        const obj = {};
+        v.forEach((inner, i) => { obj[i] = flattenNestedArraysForFirestore(inner, depth + 1); });
+        return obj;
+      }
+      return flattenNestedArraysForFirestore(v, depth + 1);
+    });
+  }
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = flattenNestedArraysForFirestore(v, depth + 1);
+    }
+    return out;
+  }
+  return value;
+}
+
 function stripImagesForFirestore(payload) {
   if (!payload || typeof payload !== 'object') return payload;
   const out = { ...payload };
@@ -327,8 +360,14 @@ export async function saveApplicationToDb(state) {
     payload._updatedAt = serverTimestamp();
     if (!payload._createdAt) payload._createdAt = serverTimestamp();
 
+    // Defence-in-depth: Firestore rejects nested arrays. CKYC + future
+    // verification responses can shape addresses / tags / matrices as
+    // [[a, b]] which kills the whole save. Walk the payload and convert
+    // any inner array to an indexed object so the write succeeds.
+    const writePayload = flattenNestedArraysForFirestore(payload);
+
     const ref = doc(db, COLLECTION, appId);
-    await setDoc(ref, payload, { merge: true });
+    await setDoc(ref, writePayload, { merge: true });
     console.log('[applicationDb] Saved:', appId, '→', state.status);
   } catch (err) {
     console.log('[applicationDb] Save failed:', err?.message);
@@ -361,7 +400,7 @@ export async function saveApplicationToDb(state) {
         minPayload._updatedAt = serverTimestamp();
         minPayload._savedWithoutImages = true;
         const ref = doc(db, COLLECTION, state.applicationId);
-        await setDoc(ref, minPayload, { merge: true });
+        await setDoc(ref, flattenNestedArraysForFirestore(minPayload), { merge: true });
         console.log('[applicationDb] Saved (without images):', state.applicationId);
       } catch (retryErr) {
         console.log('[applicationDb] Retry save also failed:', retryErr?.message);
