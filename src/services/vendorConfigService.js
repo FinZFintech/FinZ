@@ -21,6 +21,10 @@ const CONFIG_COLLECTION = 'settings';
 const DEFAULT_CONFIG = {
   apis: {
     panVerification:    { label: 'PAN Verification',          signzy: true, digitap: false },
+    // Bureau soft pull. Signzy's CIBIL is the active vendor while CRIF
+    // hard-pull is pending integration. When CRIF goes live, flip the
+    // signzy column off from the admin Vendor Config screen.
+    cibilBureau:        { label: 'CIBIL Bureau (Soft Pull)',   signzy: true, crif: false },
     phonePrefill:       { label: 'Phone Prefill',             signzy: true, digitap: false },
     emailValidation:    { label: 'Email Validation',          signzy: true, digitap: false },
     fraudShield:        { label: 'FraudShield Lite',          signzy: true, digitap: false },

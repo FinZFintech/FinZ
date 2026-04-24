@@ -53,6 +53,11 @@ export const SIGNZY_CONFIG = {
     DIGITAL_IDENTITY_SCORE: '/digital-identity-score',
     FRAUDSHIELD_LITE: '/fraudshield-advanced-score',
 
+    // Credit bureau (CIBIL — soft pull). Used while CRIF hard-pull is
+    // pending integration; toggle off in vendorConfigService once CRIF
+    // is live.
+    CIBIL_CONSUMER_REPORT: '/bureau/cibil-consumer-report',
+
     // Banking (Hybrid Bank Account Verification — penny drop / penniless)
     BANK_ACCOUNT_VERIFICATION: '/bankaccountverification/bankaccountverifications',
     IFSC_SEARCH: '/ifsc/search',
