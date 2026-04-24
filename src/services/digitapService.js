@@ -95,7 +95,12 @@ export const digitapService = {
     if (params.redirectionUrl) body.redirectionUrl = params.redirectionUrl;
     if (params.verificationQuestions) body.verificationQuestions = params.verificationQuestions;
 
-    return digitapRequest('/vkyc/v2/integration/leads/', { body });
+    // Trailing slash intentionally dropped — Vercel's path-to-regexp
+    // `:path*` capture in the /proxy/digitap/ rewrite doesn't preserve
+    // a trailing slash cleanly, causing a 404 before the request even
+    // leaves Vercel. Digitap's API accepts both forms, so we use the
+    // no-slash variant everywhere.
+    return digitapRequest('/vkyc/v2/integration/leads', { body });
   },
 
   /**
@@ -106,7 +111,7 @@ export const digitapService = {
    */
   async getStatusByUniqueId(uniqueIds) {
     const ids = Array.isArray(uniqueIds) ? uniqueIds : [uniqueIds];
-    return digitapRequest('/vkyc/v2/integration/sessions/unique-id/', {
+    return digitapRequest('/vkyc/v2/integration/sessions/unique-id', {
       body: { uniqueIds: ids },
     });
   },
@@ -119,7 +124,7 @@ export const digitapService = {
    */
   async getSessionDetails(sessionIds) {
     const ids = Array.isArray(sessionIds) ? sessionIds : [sessionIds];
-    return digitapRequest('/vkyc/v2/integration/sessions/details/', {
+    return digitapRequest('/vkyc/v2/integration/sessions/details', {
       body: { sessionIds: ids },
     });
   },
@@ -129,7 +134,7 @@ export const digitapService = {
    * @returns {Promise<Array<{tagId, tagName, agentCount, status}>>}
    */
   async getTags() {
-    return digitapRequest('/vkyc/v2/integration/tags/', { method: 'GET' });
+    return digitapRequest('/vkyc/v2/integration/tags', { method: 'GET' });
   },
 
   /**
