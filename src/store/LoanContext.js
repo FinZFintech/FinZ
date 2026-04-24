@@ -556,6 +556,26 @@ function isExpired(app) {
   return age > AUTO_DISCARD_DAYS * 24 * 60 * 60 * 1000;
 }
 
+// ─── Auto-discard expired system rejections ─────────────────────────────────
+// System rejections (CIBIL / FOIR / KYC auto-fails) should drop out of
+// the customer's view after AUTO_DISCARD_DAYS so a closed decision
+// doesn't linger in MyLoans forever. We DON'T delete the record — it
+// gets re-stamped to status:'discarded' with discardedAt + an
+// autoDiscardReason so admin / ops / credit dashboards still see it
+// under the Discarded filter. Manual rejections are NOT auto-discarded
+// because those are a human call; the reviewer can discard them
+// explicitly if they want.
+function shouldAutoDiscardAutoRejection(app) {
+  if (!app || !app.status) return false;
+  if (app.status === 'discarded') return false;
+  if (!REJECTED_STATUSES.has(app.status)) return false;
+  if (app.adminAction?.action === 'reject') return false; // manual rejection
+  const rejectedAt = app.lastUpdated || app.createdAt;
+  if (!rejectedAt) return false;
+  const age = Date.now() - new Date(rejectedAt).getTime();
+  return age > AUTO_DISCARD_DAYS * 24 * 60 * 60 * 1000;
+}
+
 async function loadAllApplications() {
   try {
     // Migrate from legacy single-application key if present
@@ -576,6 +596,7 @@ async function loadAllApplications() {
     // sales dashboards can see the full pipeline when they read from
     // the same AsyncStorage key via loadRealApplications().
     const before = apps.length;
+    let mutated = false;
     apps = apps.filter((a) => {
       if (isExpired(a)) {
         console.log('[LoanContext] Auto-discarded expired:', a.applicationId);
@@ -584,7 +605,27 @@ async function loadAllApplications() {
       return true;
     });
 
-    if (apps.length !== before) {
+    // Auto-discard expired SYSTEM rejections in-place (don't drop the
+    // record — the dashboards still surface it under the Discarded
+    // filter, but the customer's MyLoans / HomeScreen resume banner
+    // stops showing it thanks to the DISCARDED_STATUSES exclusion).
+    apps = apps.map((a) => {
+      if (!shouldAutoDiscardAutoRejection(a)) return a;
+      mutated = true;
+      console.log('[LoanContext] Auto-discarding expired auto-rejection:', a.applicationId, '→', a.status, '(was rejected at', a.lastUpdated || a.createdAt, ')');
+      return {
+        ...a,
+        status: 'discarded',
+        discardedAt: new Date().toISOString(),
+        autoDiscardReason: 'auto_rejected_expired',
+        // Keep the previous rejected status visible so ops / credit can
+        // see why the system closed the loop.
+        previousStatus: a.status,
+        previousStatusChangedAt: a.lastUpdated || a.createdAt,
+      };
+    });
+
+    if (apps.length !== before || mutated) {
       await AsyncStorage.setItem(MULTI_STORAGE_KEY, JSON.stringify(apps));
     }
     console.log('[LoanContext] Loaded', apps.length, 'application(s)');
