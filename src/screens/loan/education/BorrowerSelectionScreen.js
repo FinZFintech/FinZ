@@ -530,7 +530,7 @@ const BorrowerSelectionScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         {/* Borrower Type Selection */}
-        <View {...anchorProps('borrowerType')}>
+        <View {...anchorProps('borrowerType')} />
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Who is the Borrower?</Text>
           <View style={styles.optionsRow}>
@@ -554,11 +554,10 @@ const BorrowerSelectionScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </Card>
-        </View>
 
         {/* Step 1: Name + Mobile verification */}
+        <View {...anchorProps('borrowerForm')} />
         {borrowerType && (
-          <View {...anchorProps('borrowerForm')}>
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
               {borrowerType === 'parent' ? 'Parent / Guardian Details' : 'Verify Your Identity'}
@@ -778,12 +777,11 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               multiline
             />
           </Card>
-          </View>
         )}
 
         {/* Loan Products — shown after phone verified + borrower name filled + email verified */}
+        <View {...anchorProps('product')} />
         {borrowerType && phoneVerified && !prefillLoading && borrowerName.trim() && borrowerEmail && emailVerification && !emailVerification.isRisky && (
-          <View {...anchorProps('product')}>
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Loan Product</Text>
             {products.map((product) => (
@@ -812,12 +810,11 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               </TouchableOpacity>
             ))}
           </Card>
-          </View>
         )}
 
         {/* Tenure Selection */}
+        <View {...anchorProps('tenure')} />
         {selectedProduct && (
-          <View {...anchorProps('tenure')}>
           <Card>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Tenure</Text>
             <View style={styles.tenureRow}>
@@ -843,7 +840,6 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               ))}
             </View>
           </Card>
-          </View>
         )}
 
         {/* EMI Preview */}
