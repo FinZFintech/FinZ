@@ -806,6 +806,124 @@ const BorrowerSelectionScreen = ({ navigation }) => {
           </Card>
         )}
 
+        {/* Co-borrowers (optional, up to 2) */}
+        {selectedTenure && (
+          <Card>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>
+                Co-applicants ({(state.coBorrowers || []).length}/2)
+              </Text>
+              {(state.coBorrowers || []).length < 2 ? (
+                <TouchableOpacity
+                  onPress={() => dispatch({ type: 'ADD_CO_BORROWER', payload: {} })}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+                    borderWidth: 1, borderColor: colors.teal,
+                  }}
+                >
+                  <Text style={{ color: colors.teal, fontSize: 13, fontWeight: '600' }}>+ Add</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12, lineHeight: 18 }}>
+              Each co-applicant will complete their own KYC, credit assessment, and
+              bank / income verification. For loans ₹60,000 and above they also go
+              through vKYC. The final agreement is e-signed by the main applicant
+              and all co-applicants.
+            </Text>
+
+            {(state.coBorrowers || []).length === 0 ? (
+              <Text style={{ color: colors.textSecondary, fontSize: 13, fontStyle: 'italic' }}>
+                No co-applicants added. You can add up to 2 to strengthen the application.
+              </Text>
+            ) : null}
+
+            {(state.coBorrowers || []).map((cb, idx) => (
+              <View
+                key={cb.id}
+                style={{
+                  padding: 14, borderRadius: 10, borderWidth: 1,
+                  borderColor: colors.border, marginTop: idx === 0 ? 4 : 10,
+                }}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: '700' }}>
+                    Co-applicant {idx + 1}
+                  </Text>
+                  <TouchableOpacity onPress={() => dispatch({ type: 'REMOVE_CO_BORROWER', payload: cb.id })}>
+                    <Text style={{ color: colors.error, fontSize: 12, fontWeight: '600' }}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+                <Input
+                  label="Full Name (as per PAN)"
+                  value={cb.name}
+                  onChangeText={(v) => dispatch({ type: 'UPDATE_CO_BORROWER', payload: { id: cb.id, name: v } })}
+                  placeholder="e.g. Sunita Sharma"
+                />
+                <Input
+                  label="Relationship to student"
+                  value={cb.relationship}
+                  onChangeText={(v) => dispatch({ type: 'UPDATE_CO_BORROWER', payload: { id: cb.id, relationship: v } })}
+                  placeholder="e.g. Mother, Spouse, Guardian"
+                />
+                <Input
+                  label="Mobile Number"
+                  value={cb.phone}
+                  onChangeText={(v) => dispatch({ type: 'UPDATE_CO_BORROWER', payload: { id: cb.id, phone: v.replace(/[^0-9]/g, '').slice(0, 10) } })}
+                  keyboardType="phone-pad"
+                  placeholder="10-digit mobile"
+                />
+                <Input
+                  label="Date of Birth (DD/MM/YYYY)"
+                  value={cb.dob}
+                  onChangeText={(v) => dispatch({ type: 'UPDATE_CO_BORROWER', payload: { id: cb.id, dob: v } })}
+                  placeholder="e.g. 15/08/1975"
+                />
+                <Input
+                  label="PAN"
+                  value={cb.pan}
+                  autoCapitalize="characters"
+                  onChangeText={(v) => dispatch({ type: 'UPDATE_CO_BORROWER', payload: { id: cb.id, pan: v.toUpperCase().slice(0, 10) } })}
+                  placeholder="e.g. ABCDE1234F"
+                />
+                <Input
+                  label="Email (optional)"
+                  value={cb.email}
+                  onChangeText={(v) => dispatch({ type: 'UPDATE_CO_BORROWER', payload: { id: cb.id, email: v } })}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholder="name@example.com"
+                />
+
+                {/* Per-co-borrower verification status pills */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
+                  {[
+                    { label: 'PAN + Credit', ok: !!cb.panDetails?.panNumber && !!cb.creditScore },
+                    { label: 'KYC', ok: !!cb.kycData && !!cb.kycMethod },
+                    { label: 'Income / Bank', ok: !!cb.incomeData && !!cb.pennyDropResult },
+                    ...(selectedTenure && (selectedProduct?.requestedAmount || 0) >= 60000
+                      ? [{ label: 'vKYC', ok: cb.vkycStatus === 'completed' }]
+                      : []),
+                    { label: 'eSign', ok: cb.esignStatus === 'completed' },
+                  ].map((pill) => (
+                    <View
+                      key={pill.label}
+                      style={{
+                        paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginRight: 6, marginTop: 6,
+                        backgroundColor: pill.ok ? `${colors.teal}22` : `${colors.warning || '#F5B731'}18`,
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: pill.ok ? colors.teal : (colors.warning || '#F5B731') }}>
+                        {pill.ok ? '✓' : '○'} {pill.label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </Card>
+        )}
+
         {/* Apply Button */}
         {selectedTenure && (
           <Button

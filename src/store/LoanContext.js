@@ -261,6 +261,20 @@ const initialState = {
   employeeDetails: null,
   borrowerType: null,
   borrowerDetails: null,
+  // Up to 2 co-borrowers can be attached to a single application. Each
+  // one is a standalone verification subject: own PAN + credit score,
+  // own KYC, own income / bank details, own penny drop, own vKYC when
+  // the loan amount crosses ₹60k, and own signature on the final
+  // agreement. Populated by the BorrowerSelection screen; each entry
+  // has its own { id, name, phone, dob, email, pan, relationship,
+  // panDetails, creditScore, kycData, kycMethod, incomeData,
+  // bankDetails, pennyDropResult, vkycStatus, esignStatus, signzyVerifications }.
+  coBorrowers: [],
+  // Points at the co-borrower whose verification flow is currently
+  // being driven on screen. When null, the screens read / write the
+  // main-borrower slice. Set by the BorrowerSelection "Complete KYC
+  // for co-borrower" CTA and cleared on return.
+  activeCoBorrowerId: null,
   selectedProduct: null,
   selectedTenure: null,
   panDetails: null,
@@ -409,6 +423,71 @@ const loanReducer = (state, action) => {
     case 'SET_REFERENCES':
       next = { ...state, references: action.payload };
       break;
+
+    // ── Co-borrower actions ─────────────────────────────────────────────
+    // Up to 2 co-borrowers per application. Each has the same schema as
+    // the main borrower (name/phone/dob/pan/relationship + the verification
+    // fields) and goes through KYC / credit / income / vKYC independently.
+    case 'ADD_CO_BORROWER': {
+      if ((state.coBorrowers || []).length >= 2) {
+        next = state; break; // enforce the 2-co-borrower cap
+      }
+      const id = action.payload?.id || `cb_${Date.now()}_${Math.random().toString(36).slice(-4)}`;
+      const newCo = {
+        id,
+        name: '', phone: '', dob: '', email: '', pan: '',
+        relationship: '',
+        panDetails: null,
+        creditScore: null,
+        kycData: null,
+        kycMethod: null,
+        incomeData: null,
+        bankDetails: null,
+        pennyDropResult: null,
+        vkycStatus: null,
+        esignStatus: null,
+        signzyVerifications: {},
+        ...action.payload,
+      };
+      next = { ...state, coBorrowers: [...(state.coBorrowers || []), newCo] };
+      break;
+    }
+    case 'UPDATE_CO_BORROWER': {
+      // Merge — same reasoning as SET_BORROWER_DETAILS. Payload:
+      // { id, ...fieldsToMerge }. Fields with dotted paths (e.g.
+      // 'panDetails') are merged one level deep so partial updates
+      // don't wipe sibling keys.
+      const { id, ...patch } = action.payload || {};
+      if (!id) { next = state; break; }
+      const merged = (state.coBorrowers || []).map((cb) => {
+        if (cb.id !== id) return cb;
+        const out = { ...cb };
+        for (const [k, v] of Object.entries(patch)) {
+          if (v && typeof v === 'object' && !Array.isArray(v) && cb[k] && typeof cb[k] === 'object') {
+            out[k] = { ...cb[k], ...v };
+          } else {
+            out[k] = v;
+          }
+        }
+        return out;
+      });
+      next = { ...state, coBorrowers: merged };
+      break;
+    }
+    case 'REMOVE_CO_BORROWER': {
+      const id = action.payload;
+      const remaining = (state.coBorrowers || []).filter((cb) => cb.id !== id);
+      const activeId = state.activeCoBorrowerId === id ? null : state.activeCoBorrowerId;
+      next = { ...state, coBorrowers: remaining, activeCoBorrowerId: activeId };
+      break;
+    }
+    case 'SET_ACTIVE_CO_BORROWER': {
+      // Switches the "current verification subject" — screens read this
+      // and route their read/write into the co-borrower slice. payload =
+      // null ⇒ main borrower, else co-borrower id.
+      next = { ...state, activeCoBorrowerId: action.payload || null };
+      break;
+    }
     case 'SET_SUBMITTED':
       next = { ...state, submittedAt: action.payload };
       break;
@@ -809,6 +888,75 @@ export const useLoan = () => {
   if (!context) throw new Error('useLoan must be used within LoanProvider');
   return context;
 };
+
+// Returns the borrower "slice" that verification screens should read
+// from / write to. When a co-borrower is active (user tapped
+// "Complete KYC for co-borrower X") this returns that co-borrower's
+// row and an updater callback bound to UPDATE_CO_BORROWER. Otherwise
+// it returns the main-borrower fields on state.
+export function getActiveBorrower(state) {
+  if (state?.activeCoBorrowerId) {
+    const cb = (state.coBorrowers || []).find((c) => c.id === state.activeCoBorrowerId);
+    if (cb) {
+      return {
+        isCoBorrower: true,
+        id: cb.id,
+        name: cb.name,
+        phone: cb.phone,
+        dob: cb.dob,
+        email: cb.email,
+        pan: cb.pan,
+        relationship: cb.relationship,
+        panDetails: cb.panDetails,
+        creditScore: cb.creditScore,
+        kycData: cb.kycData,
+        kycMethod: cb.kycMethod,
+        incomeData: cb.incomeData,
+        bankDetails: cb.bankDetails,
+        pennyDropResult: cb.pennyDropResult,
+        vkycStatus: cb.vkycStatus,
+        esignStatus: cb.esignStatus,
+        signzyVerifications: cb.signzyVerifications,
+      };
+    }
+  }
+  return {
+    isCoBorrower: false,
+    id: null,
+    name: state?.borrowerDetails?.name,
+    phone: state?.borrowerDetails?.phone,
+    dob: state?.borrowerDetails?.dob,
+    email: state?.borrowerDetails?.email,
+    pan: state?.panDetails?.panNumber || state?.borrowerDetails?.pan,
+    relationship: state?.borrowerDetails?.relationship || null,
+    panDetails: state?.panDetails,
+    creditScore: state?.creditScore,
+    kycData: state?.kycData,
+    kycMethod: state?.kycMethod,
+    incomeData: state?.incomeData,
+    bankDetails: state?.bankDetails,
+    pennyDropResult: state?.pennyDropResult,
+    vkycStatus: state?.vkycStatus,
+    esignStatus: state?.esignStatus,
+    signzyVerifications: state?.signzyVerifications,
+  };
+}
+
+// True once a given borrower slice (main OR co-borrower) has completed
+// every gate the application needs: PAN + credit, KYC, income, and —
+// when the loan amount crosses the VKYC threshold — vKYC.
+export function isBorrowerFullyVerified(borrowerSlice, loanAmount) {
+  if (!borrowerSlice) return false;
+  const panOk = !!borrowerSlice.panDetails?.panNumber;
+  const creditOk = !!borrowerSlice.creditScore
+    && (borrowerSlice.creditScore.gatingPassed
+      || (borrowerSlice.creditScore.cibilScore || borrowerSlice.creditScore.score || 0) >= 500);
+  const kycOk = !!borrowerSlice.kycData && !!borrowerSlice.kycMethod;
+  const incomeOk = !!borrowerSlice.incomeData;
+  const needsVkyc = (loanAmount || 0) >= 60000;
+  const vkycOk = !needsVkyc || borrowerSlice.vkycStatus === 'completed';
+  return panOk && creditOk && kycOk && incomeOk && vkycOk;
+}
 
 export {
   computeStatus,

@@ -379,6 +379,48 @@ const EnachEsignScreen = ({ navigation }) => {
             Digitally sign your loan agreement document using Aadhaar eSign.
           </Text>
 
+          {/* Signer list — main applicant + any co-applicants on the
+              application. The agreement is legally binding only when
+              every signer has eSigned. The per-signer eSign launcher
+              is a follow-up (requires the eSign API to accept a
+              signer context); for now this panel shows the required-
+              signers state so reviewers / user know the scope. */}
+          {(state.coBorrowers || []).length > 0 ? (
+            <View style={{ marginTop: 12, marginBottom: 12 }}>
+              <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>
+                Required signers
+              </Text>
+              {[
+                { label: state.borrowerDetails?.name || 'Main applicant', done: esignDone, isMain: true },
+                ...(state.coBorrowers || []).map((cb, i) => ({
+                  label: cb.name || `Co-applicant ${i + 1}`,
+                  done: cb.esignStatus === 'completed',
+                  isMain: false,
+                })),
+              ].map((s, i) => (
+                <View
+                  key={i}
+                  style={{
+                    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                    paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8,
+                    backgroundColor: s.done ? tealBg : `${colors.warning || '#F5B731'}14`,
+                    marginBottom: 4,
+                  }}
+                >
+                  <Text style={{ color: colors.textPrimary, fontSize: 13 }}>
+                    {s.isMain ? '👤 ' : '👥 '}{s.label}
+                  </Text>
+                  <Text style={{
+                    fontSize: 11, fontWeight: '700',
+                    color: s.done ? colors.teal : (colors.warning || '#F5B731'),
+                  }}>
+                    {s.done ? '✓ SIGNED' : 'PENDING'}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {!esignDone ? (
             <Button
               title="eSign Agreement"
