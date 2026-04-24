@@ -12,7 +12,7 @@ import InfoRow from '../../components/common/InfoRow';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadRealApplications } from '../../utils/loadApplications';
 import {
-  SALES_DRAFT_STATUSES, SALES_SUBMITTED_STATUSES, isInProgress,
+  SALES_DRAFT_STATUSES, SALES_SUBMITTED_STATUSES, isInProgress, isAutoRejected,
 } from '../../utils/statusBuckets';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
@@ -34,7 +34,7 @@ const STATUS_LABELS = {
   disbursed: 'Disbursed',
 };
 
-const FILTERS = ['All', 'Draft', 'In Progress', 'Submitted'];
+const FILTERS = ['All', 'Draft', 'In Progress', 'Submitted', 'Auto Rejected'];
 
 const SalesDashboardScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
@@ -76,6 +76,7 @@ const SalesDashboardScreen = ({ navigation }) => {
     if (activeFilter === 'All') return applications;
     if (activeFilter === 'Draft') return applications.filter(a => SALES_DRAFT_STATUSES.has(a.status));
     if (activeFilter === 'Submitted') return applications.filter(a => SALES_SUBMITTED_STATUSES.has(a.status));
+    if (activeFilter === 'Auto Rejected') return applications.filter(isAutoRejected);
     // In Progress = alive and past the draft stages.
     return applications.filter(a => isInProgress(a.status) && !SALES_DRAFT_STATUSES.has(a.status));
   };
@@ -126,6 +127,7 @@ const SalesDashboardScreen = ({ navigation }) => {
     total: applications.length,
     draft: applications.filter(a => SALES_DRAFT_STATUSES.has(a.status)).length,
     inProgress: applications.filter(a => isInProgress(a.status) && !SALES_DRAFT_STATUSES.has(a.status)).length,
+    autoRejected: applications.filter(isAutoRejected).length,
     submitted: applications.filter(a => SALES_SUBMITTED_STATUSES.has(a.status)).length,
   };
 
@@ -154,6 +156,7 @@ const SalesDashboardScreen = ({ navigation }) => {
             { label: 'Draft', value: stats.draft, color: colors.warning },
             { label: 'In Progress', value: stats.inProgress, color: colors.info },
             { label: 'Submitted', value: stats.submitted, color: colors.teal },
+            { label: 'Auto Rejected', value: stats.autoRejected, color: colors.error },
           ].map(s => (
             <View key={s.label} style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderLeftColor: s.color }]}>
               <Text style={[styles.statValue, { color: colors.textPrimary }]}>{s.value}</Text>

@@ -13,7 +13,7 @@ import { loadRealApplications } from '../../utils/loadApplications';
 import { saveApplicationToDb } from '../../services/applicationDbService';
 import {
   OPS_ALL_STATUSES, OPS_PENDING_STATUSES, OPS_DISBURSED_STATUSES,
-  OPS_COMPLETED_STATUSES,
+  OPS_COMPLETED_STATUSES, isAutoRejected,
 } from '../../utils/statusBuckets';
 import { useAuth } from '../../store/AuthContext';
 import { useTheme } from '../../store/ThemeContext';
@@ -35,7 +35,7 @@ const OPS_TASK_BY_STATUS = {
   closed:              { task: 'Closed',                taskStatus: 'completed' },
 };
 
-const FILTERS = ['All', 'Pending Tasks', 'Disbursement', 'Completed'];
+const FILTERS = ['All', 'Pending Tasks', 'Disbursement', 'Completed', 'Auto Rejected'];
 
 const OperationsDashboardScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
@@ -84,8 +84,11 @@ const OperationsDashboardScreen = ({ navigation }) => {
   const getFilteredApps = () => {
     // "All" on the ops dashboard means "everything in the ops bucket" —
     // not every app in the system. Apps still in sales / credit stages
-    // shouldn't appear as rows here.
+    // shouldn't appear as rows here. Auto Rejected is an exception —
+    // we let ops see those so they know which pipeline slots are
+    // closed out regardless of stage.
     const opsApps = applications.filter(a => OPS_ALL_STATUSES.has(a.status));
+    if (activeFilter === 'Auto Rejected') return applications.filter(isAutoRejected);
     if (activeFilter === 'All') return opsApps;
     if (activeFilter === 'Pending Tasks') return opsApps.filter(a => OPS_PENDING_STATUSES.has(a.status));
     if (activeFilter === 'Disbursement') return opsApps.filter(a => a.status === 'esign_done' || OPS_DISBURSED_STATUSES.has(a.status));
@@ -158,6 +161,9 @@ const OperationsDashboardScreen = ({ navigation }) => {
     pendingTasks: opsApps.filter(a => OPS_PENDING_STATUSES.has(a.status)).length,
     disbursed: opsApps.filter(a => OPS_DISBURSED_STATUSES.has(a.status)).length,
     completed: opsApps.filter(a => OPS_COMPLETED_STATUSES.has(a.status)).length,
+    // Auto Rejected evaluated over the full pipeline so ops knows
+    // which applications dropped out regardless of stage.
+    autoRejected: applications.filter(isAutoRejected).length,
   };
 
   const filteredApps = getFilteredApps();
@@ -186,6 +192,7 @@ const OperationsDashboardScreen = ({ navigation }) => {
             { label: 'Pending', value: stats.pendingTasks, color: colors.warning },
             { label: 'Disbursed', value: stats.disbursed, color: colors.teal },
             { label: 'Completed', value: stats.completed, color: colors.info },
+            { label: 'Auto Rejected', value: stats.autoRejected, color: colors.error },
           ].map(s => (
             <View key={s.label} style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderLeftColor: s.color }]}>
               <Text style={[styles.statValue, { color: colors.textPrimary }]}>{s.value}</Text>

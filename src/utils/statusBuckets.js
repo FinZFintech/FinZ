@@ -19,10 +19,40 @@ export const TERMINAL_STATUSES = new Set([
 ]);
 
 // ─── Rejected ────────────────────────────────────────────────────────────────
-// Application failed a gate and cannot continue.
+// Application failed a gate and cannot continue. "Rejected" is either
+// auto (system hit a rule — CIBIL too low, FOIR too high, KYC name
+// mismatch) or manual (admin / credit officer clicked Reject on the
+// staff-detail screen, which stamps adminAction.action = 'reject').
+// Use isAutoRejected / isManuallyRejected below to distinguish.
 export const REJECTED_STATUSES = new Set([
   'credit_check_failed', 'not_eligible', 'kyc_failed',
 ]);
+
+/**
+ * An application was rejected by a human reviewer — credit / admin
+ * tapped Reject on the staff detail screen, which stamps
+ * adminAction.action = 'reject' before updating status.
+ */
+export const isManuallyRejected = (a) => {
+  if (!a) return false;
+  const status = typeof a === 'string' ? a : a.status;
+  if (!REJECTED_STATUSES.has(status)) return false;
+  return a.adminAction?.action === 'reject';
+};
+
+/**
+ * An application was rejected by the system — no manual reviewer touch.
+ * Use this to populate the "Auto Rejected" bucket on the dashboards so
+ * sales / credit / ops can see which rejections they might want to
+ * follow up on (override, ask the customer to retry, etc.) vs the
+ * manual rejections which are closed decisions.
+ */
+export const isAutoRejected = (a) => {
+  if (!a) return false;
+  const status = typeof a === 'string' ? a : a.status;
+  if (!REJECTED_STATUSES.has(status)) return false;
+  return a.adminAction?.action !== 'reject';
+};
 
 // ─── Discarded ───────────────────────────────────────────────────────────────
 // Customer explicitly threw the draft away.
