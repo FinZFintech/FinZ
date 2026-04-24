@@ -53,11 +53,24 @@ const EnachEsignScreen = ({ navigation }) => {
     if (state.references?.[0]) setRef1(state.references[0]);
     if (state.references?.[1]) setRef2(state.references[1]);
     // Rehydrate the last-seen vKYC status so a page refresh doesn't
-    // blank the status card. The customer (and sales / credit later)
-    // sees the same message they left the screen with.
-    if (state.vkycStatusDetail?.label) {
-      setVkycStatusText(state.vkycStatusDetail.label);
-      setVkycStatusDetail(state.vkycStatusDetail);
+    // blank the status card or drop the user back to "Initiate vKYC"
+    // after a link has already been sent. The persisted
+    // vkycStatusDetail holds the URL + initiated flag (stashed on
+    // initiate) AND the most recent tone/label/message (stashed on
+    // every status check). Sales / credit see the same link on the
+    // admin detail screen.
+    const detail = state.vkycStatusDetail;
+    if (detail) {
+      if (detail.label) setVkycStatusText(detail.label);
+      setVkycStatusDetail(detail);
+      if (detail.vkycUrl) setVkycUrl(detail.vkycUrl);
+      if (detail.initiated) setVkycInitiated(true);
+    }
+    // Keep the existing `vkycStatus === 'completed'` semantics in
+    // sync — if that flag is set, skip straight to the done state.
+    if (state.vkycStatus === 'completed' || state.vkycStatus?.completed) {
+      setVkycDone(true);
+      setVkycInitiated(true);
     }
   }, []);
 
@@ -292,6 +305,25 @@ const EnachEsignScreen = ({ navigation }) => {
       setVkycUrl(result.url);
       setVkycInitiated(true);
 
+      // Persist the lead (url + initiatedAt) on the application so a
+      // page refresh / resume can re-hydrate it instead of dropping
+      // the user back to "Initiate vKYC". Sales / credit see the same
+      // link on the admin detail screen.
+      dispatch({
+        type: 'SET_VKYC_STATUS_DETAIL',
+        payload: {
+          vkycUrl: result.url || '',
+          leadId: result.leadId || result.sessionId || '',
+          initiated: true,
+          initiatedAt: new Date().toISOString(),
+          tone: result.vkycCompleted ? 'ok' : 'pending',
+          label: result.vkycCompleted ? 'Approved' : 'vKYC link sent',
+          message: result.vkycCompleted
+            ? 'Video KYC was already completed for this application. You can proceed with the rest of the flow.'
+            : 'A Video KYC link has been sent to your registered mobile and email. Open it any time within 24 hours to start the call.',
+        },
+      });
+
       if (result.vkycCompleted) {
         setVkycDone(true);
         dispatch({ type: 'SET_VKYC', payload: 'completed' });
@@ -436,8 +468,14 @@ const EnachEsignScreen = ({ navigation }) => {
         setVkycDone(true);
         dispatch({ type: 'SET_VKYC', payload: 'completed' });
       } else if (decoded.tone === 'rejected') {
+        // Rejected → drop the persisted lead too so the next render
+        // shows "Initiate vKYC" again instead of an orphaned link.
         setVkycInitiated(false);
         setVkycUrl(null);
+        dispatch({
+          type: 'SET_VKYC_STATUS_DETAIL',
+          payload: { vkycUrl: '', initiated: false },
+        });
       }
     } catch (err) {
       console.log('[EnachEsign] vKYC status check error:', err.message);

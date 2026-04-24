@@ -1021,6 +1021,21 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
                 </Text>
               ) : null}
             </View>
+            {detail.vkycUrl ? (
+              <>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600', marginBottom: 4 }}>
+                  vKYC LINK (share with customer if needed)
+                </Text>
+                <TouchableOpacity onPress={() => Linking.openURL(detail.vkycUrl)}>
+                  <Text
+                    style={{ color: colors.teal, fontSize: 12, textDecorationLine: 'underline', marginBottom: 8 }}
+                    numberOfLines={2}
+                  >
+                    {detail.vkycUrl}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
             {detail.digitapStatus ? (
               <InfoRow label="Digitap status" value={detail.digitapStatus} />
             ) : null}
