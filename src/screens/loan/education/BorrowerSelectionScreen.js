@@ -495,9 +495,11 @@ const BorrowerSelectionScreen = ({ navigation }) => {
     dispatch({ type: 'SET_PRODUCT', payload: selectedProduct });
     dispatch({ type: 'SET_TENURE', payload: selectedTenure });
     dispatch({ type: 'SET_STEP', payload: 1 });
-    // Higher-education abroad needs the supporting-documents step
-    // before PAN — university offer letter, fee break-up, salary
-    // slips of co-applicants etc. Other loan types go straight to PAN.
+    // Higher-education needs the supporting-documents step before PAN —
+    // university offer letter, fee break-up, salary slips of co-
+    // applicants, collateral & self-contribution proof, etc. Applies
+    // to both domestic and abroad higher-ed. Other loan types go
+    // straight to PAN.
     const rules = getLoanTypeRules(state.loanType);
     if (rules.requiresExtraDocs) {
       navigation.navigate('SupportingDocuments');
@@ -1014,9 +1016,9 @@ const BorrowerSelectionScreen = ({ navigation }) => {
               )}
             </View>
             <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10, lineHeight: 18 }}>
-              For higher-education abroad loans, a guarantor strengthens the
-              application. Lender will run a separate credit + KYC check on
-              the guarantor before disbursement.
+              For higher-education loans (domestic or abroad), a guarantor
+              strengthens the application. Lender will run a separate credit
+              + KYC check on the guarantor before disbursement.
             </Text>
             {state.guarantor && (
               <View>

@@ -640,7 +640,86 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         <InfoRow label="Student Name" value={application.studentName} />
         <InfoRow label="Father's Name" value={application.fatherName} />
         <InfoRow label="Borrower Type" value={application.borrowerType} />
+        {application._rawState?.higherEducationDetails ? (() => {
+          const h = application._rawState.higherEducationDetails;
+          return (
+            <>
+              <InfoRow label="Country" value={`${h.country?.flag || ''} ${h.country?.name || ''}`.trim()} />
+              <InfoRow label="State / Region" value={h.state?.name} />
+              <InfoRow label="University" value={h.university?.name} />
+              <InfoRow label="Years of course" value={h.yearsOfCourse ? String(h.yearsOfCourse) : '—'} />
+              <InfoRow
+                label="Indicative annual fee"
+                value={h.indicativeAnnualFee
+                  ? (h.feeCurrency === 'USD'
+                      ? `$${h.indicativeAnnualFee.toLocaleString()}`
+                      : `₹${h.indicativeAnnualFee.toLocaleString('en-IN')}`)
+                  : '—'}
+              />
+              <InfoRow label="Domestic / Abroad" value={h.isDomestic ? 'Domestic (India)' : 'Abroad'} />
+            </>
+          );
+        })() : null}
       </Card>
+
+      {/* Higher-Ed: Moratorium / Self-Contribution / Collateral */}
+      {(application._rawState?.moratorium
+        || application._rawState?.selfContribution
+        || application._rawState?.collateral) ? (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            Higher-Ed Loan Structure
+          </Text>
+          {application._rawState?.moratorium?.optedIn ? (
+            <>
+              <InfoRow label="Moratorium opted" value="Yes" />
+              <InfoRow label="Type" value={application._rawState.moratorium.type || '—'} />
+              <InfoRow label="Months requested" value={String(application._rawState.moratorium.monthsRequested || '—')} />
+            </>
+          ) : (
+            <InfoRow label="Moratorium opted" value="No" />
+          )}
+          {application._rawState?.selfContribution?.amountInr > 0 ? (
+            <>
+              <InfoRow
+                label="Self-contribution"
+                value={formatCurrency(application._rawState.selfContribution.amountInr)}
+              />
+              <InfoRow label="Source" value={application._rawState.selfContribution.sourceType || '—'} />
+              {application._rawState.selfContribution.sourceDescription ? (
+                <InfoRow
+                  label="Source notes"
+                  value={application._rawState.selfContribution.sourceDescription}
+                />
+              ) : null}
+            </>
+          ) : null}
+          {application._rawState?.collateral?.offered ? (
+            <>
+              <InfoRow label="Collateral offered" value="Yes" />
+              <InfoRow label="Collateral type" value={application._rawState.collateral.type || '—'} />
+              {application._rawState.collateral.marketValue ? (
+                <InfoRow
+                  label="Indicative market value"
+                  value={formatCurrency(application._rawState.collateral.marketValue)}
+                />
+              ) : null}
+              {application._rawState.collateral.ownerName ? (
+                <InfoRow
+                  label="Owner"
+                  value={`${application._rawState.collateral.ownerName}${application._rawState.collateral.ownerRelationship ? ` (${application._rawState.collateral.ownerRelationship})` : ''}`}
+                />
+              ) : null}
+              {application._rawState.collateral.identifier ? (
+                <InfoRow label="Identifier" value={application._rawState.collateral.identifier} />
+              ) : null}
+              {application._rawState.collateral.encumbrance ? (
+                <InfoRow label="Existing encumbrance" value={application._rawState.collateral.encumbrance} />
+              ) : null}
+            </>
+          ) : null}
+        </Card>
+      ) : null}
 
       {/* PAN & Credit */}
       <Card>
@@ -1204,6 +1283,46 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
           );
         })}
       </Card>
+
+      {/* Higher-Ed Supporting Documents (uploaded by customer or sales
+          via the SupportingDocuments screen). Surfaces every file the
+          customer attached for offer letter, fee break-up, collateral,
+          self-contribution proof, etc. */}
+      {(application._rawState?.supportingDocuments || []).length > 0 && (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            Higher-Ed Supporting Documents ({application._rawState.supportingDocuments.length})
+          </Text>
+          {application._rawState.supportingDocuments.map((d) => {
+            const url = d.storageUrl
+              || (typeof d.uri === 'string' && d.uri.startsWith('http') ? d.uri : null);
+            return (
+              <View key={d.id} style={[styles.docRow, { borderBottomColor: colors.border }]}>
+                <View style={styles.docInfo}>
+                  <Text style={[styles.docName, { color: colors.textPrimary }]}>
+                    {d.label || d.code || d.fileName}
+                  </Text>
+                  <Text style={[styles.docMeta, { color: colors.textSecondary }]}>
+                    {d.fileName || '—'}{d.source ? ` — by ${d.source}` : ''}
+                    {d.uploadedAt ? ` — ${formatDate(d.uploadedAt)}` : ''}
+                  </Text>
+                  {url ? (
+                    <TouchableOpacity onPress={() => Linking.openURL(url)}>
+                      <Text style={{ color: colors.teal, fontSize: 12, marginTop: 4 }}>
+                        View / download →
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={{ color: colors.warning, fontSize: 11, marginTop: 4, fontStyle: 'italic' }}>
+                      Captured but not stored — set up image storage to persist.
+                    </Text>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </Card>
+      )}
 
       {/* Staff Uploaded Documents */}
       <Card>

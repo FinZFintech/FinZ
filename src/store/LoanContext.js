@@ -136,7 +136,9 @@ function getResumeScreen(status, state) {
       return 'BorrowerSelection';
 
     // Borrower selected → PAN next, except higher-ed which collects
-    // supporting docs first (offer letter, passport, fee break-up).
+    // supporting docs first (offer letter, fee break-up, collateral,
+    // self-contribution proof, etc.). Applies to both domestic and
+    // abroad higher-ed applications.
     case LOAN_STATUS.BORROWER_SELECTED:
       return getLoanTypeRules(state?.loanType).requiresExtraDocs
         ? 'SupportingDocuments'
@@ -326,10 +328,11 @@ const loanReducer = (state, action) => {
       next = { ...state, instituteDetails: action.payload };
       break;
     case 'SET_HIGHER_EDUCATION_DETAILS':
-      // Abroad-specific structured slice (country / state / university /
-      // course + cost fields). Merged so partial updates from the
-      // selection screen, supporting-docs screen, and admin reviewers
-      // don't wipe each other out.
+      // Higher-ed structured slice (country / state / university /
+      // course + cost fields). Covers both domestic + abroad — the
+      // isDomestic flag inside the payload differentiates. Merged so
+      // partial updates from the selection screen, supporting-docs
+      // screen, and admin reviewers don't wipe each other out.
       next = {
         ...state,
         higherEducationDetails: {
@@ -374,6 +377,43 @@ const loanReducer = (state, action) => {
       break;
     case 'CLEAR_GUARANTOR':
       next = { ...state, guarantor: null };
+      break;
+    case 'SET_MORATORIUM':
+      // Moratorium choice for higher-ed loans: { optedIn, type, monthsRequested }.
+      //   type: 'principal_only' | 'principal_and_interest' | 'simple_interest'
+      // 'simple_interest' = customer pays interest during course; principal
+      // EMIs start after moratorium ends. Default policy ceiling of 60 months
+      // is enforced on the screen, not here, so admins can override.
+      next = { ...state, moratorium: { ...(state.moratorium || {}), ...(action.payload || {}) } };
+      break;
+    case 'CLEAR_MORATORIUM':
+      next = { ...state, moratorium: null };
+      break;
+    case 'SET_COLLATERAL':
+      // Collateral details for secured higher-ed loans.
+      //   { offered, type, marketValue, ownerName, ownerRelationship,
+      //     identifier, address, valuationCurrency, encumbrance }
+      // type: 'property' | 'fixed_deposit' | 'lic_policy' | 'shares' |
+      //       'mutual_funds' | 'gold' | 'other'
+      // Documents proving each go onto state.supportingDocuments
+      // (collateral_doc + collateral_valuation codes).
+      next = { ...state, collateral: { ...(state.collateral || {}), ...(action.payload || {}) } };
+      break;
+    case 'CLEAR_COLLATERAL':
+      next = { ...state, collateral: null };
+      break;
+    case 'SET_SELF_CONTRIBUTION':
+      // Self-contribution = the share of total course cost the borrower
+      // funds without the loan (own savings / family / scholarship).
+      //   { amountInr, sourceType, sourceDescription, proofPending }
+      // sourceType: 'own_savings' | 'family' | 'scholarship' | 'sponsor' |
+      //             'fixed_deposit_release' | 'mixed'
+      // Proof is collected as a supportingDocuments entry with code
+      // 'self_contribution_proof'.
+      next = { ...state, selfContribution: { ...(state.selfContribution || {}), ...(action.payload || {}) } };
+      break;
+    case 'CLEAR_SELF_CONTRIBUTION':
+      next = { ...state, selfContribution: null };
       break;
     case 'SET_STUDENT':
       next = { ...state, studentDetails: action.payload };

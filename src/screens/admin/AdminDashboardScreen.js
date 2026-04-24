@@ -231,6 +231,21 @@ const AdminDashboardScreen = ({ navigation }) => {
           />
         </Card>
 
+        {/* Higher Education Catalog */}
+        <Card>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Higher Education Catalog</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>
+            Add or edit countries, states, universities, colleges, and courses
+            shown to customers in the Higher Education flow. Changes apply to
+            all devices via Firestore.
+          </Text>
+          <Button
+            title="Edit Higher Ed Catalog"
+            onPress={() => navigation.navigate('HigherEdCatalog')}
+            variant="outline"
+          />
+        </Card>
+
         {/* User Management */}
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Staff Management</Text>

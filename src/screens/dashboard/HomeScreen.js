@@ -92,7 +92,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.quickActions}>
           {[
             { key: 'edu', label: 'Education\nLoan', icon: '🎓', screen: 'InstituteSelection' },
-            { key: 'highered', label: 'Higher Ed\n(Abroad)', icon: '🌍', screen: 'HigherEducationSelection' },
+            { key: 'highered', label: 'Higher\nEducation', icon: '🎓', screen: 'HigherEducationSelection' },
             { key: 'emp', label: 'Employee\nLoan', icon: '💼', screen: 'EmployeeLoan' },
             { key: 'credit', label: 'Credit\nScore', icon: '📊', screen: 'CreditScore' },
             { key: 'refer', label: 'Refer &\nEarn', icon: '🎁', screen: 'Referral' },

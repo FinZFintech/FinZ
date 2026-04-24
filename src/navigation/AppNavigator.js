@@ -31,7 +31,7 @@ import VkycScreen from '../screens/loan/education/VkycScreen';
 import EnachEsignScreen from '../screens/loan/education/EnachEsignScreen';
 import LoanSuccessScreen from '../screens/loan/education/LoanSuccessScreen';
 
-// Higher Education (Abroad) Loan Screens
+// Higher Education Loan Screens (domestic + abroad)
 import HigherEducationSelectionScreen from '../screens/loan/highered/HigherEducationSelectionScreen';
 import SupportingDocumentsScreen from '../screens/loan/highered/SupportingDocumentsScreen';
 
@@ -66,6 +66,7 @@ import AuditTrailViewerScreen from '../screens/admin/AuditTrailViewerScreen';
 import StaffApplicationDetailScreen from '../screens/admin/StaffApplicationDetailScreen';
 import UserManagementScreen from '../screens/admin/UserManagementScreen';
 import VendorConfigScreen from '../screens/admin/VendorConfigScreen';
+import HigherEdCatalogScreen from '../screens/admin/HigherEdCatalogScreen';
 import FBot from '../components/fbot/FBot';
 
 const RootStack = createStackNavigator();
@@ -143,7 +144,7 @@ const HomeStack = () => (
     <HomeStackNav.Screen name="VkycScreen" component={VkycScreen} />
     <HomeStackNav.Screen name="EnachEsign" component={EnachEsignScreen} />
     <HomeStackNav.Screen name="LoanSuccess" component={LoanSuccessScreen} />
-    {/* Higher Education (Abroad) Loan */}
+    {/* Higher Education Loan (domestic + abroad) */}
     <HomeStackNav.Screen name="HigherEducationSelection" component={HigherEducationSelectionScreen} />
     <HomeStackNav.Screen name="SupportingDocuments" component={SupportingDocumentsScreen} />
     {/* Employee Loan */}
@@ -318,6 +319,7 @@ const AdminHomeStack = () => (
     <AdminHomeStackNav.Screen name="StaffApplicationDetail" component={StaffApplicationDetailScreen} />
     <AdminHomeStackNav.Screen name="UserManagement" component={UserManagementScreen} />
     <AdminHomeStackNav.Screen name="VendorConfig" component={VendorConfigScreen} />
+    <AdminHomeStackNav.Screen name="HigherEdCatalog" component={HigherEdCatalogScreen} />
   </AdminHomeStackNav.Navigator>
 );
 

@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image,
+  TextInput,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Header from '../../../components/common/Header';
 import Card from '../../../components/common/Card';
 import Button from '../../../components/common/Button';
+import Input from '../../../components/common/Input';
 import StepIndicator from '../../../components/common/StepIndicator';
 import FloatingAssistButton from '../../../components/common/FloatingAssistButton';
 import { useTheme } from '../../../store/ThemeContext';
 import { useLoan } from '../../../store/LoanContext';
 import { useAuth } from '../../../store/AuthContext';
+import { formatCurrency } from '../../../utils/helpers';
 
 /**
  * Supporting documents step for higher-education (abroad) loans.
@@ -27,18 +30,70 @@ import { useAuth } from '../../../store/AuthContext';
  * KYC images take).
  */
 
-const REQUIRED_DOCS = [
-  { code: 'offer_letter',    label: 'University Offer Letter',     required: true,  hint: 'Conditional or unconditional admission letter' },
-  { code: 'passport',        label: 'Passport (front + back)',     required: true },
-  { code: 'visa',            label: 'Student Visa / I-20 / CAS',   required: false, hint: 'Optional at application; required before disbursement' },
-  { code: 'fee_breakup',     label: 'Tuition Fee Break-up',         required: true },
-  { code: 'gre_gmat',        label: 'GRE / GMAT / IELTS Score',    required: false },
-  { code: 'bank_statements', label: 'Last 12 months bank statements (PDF)', required: true },
-  { code: 'salary_slips',    label: 'Last 6 months salary slips',  required: true,  hint: 'Of co-applicants / guarantor' },
-  { code: 'itr',             label: 'ITR (last 2 years)',           required: true,  hint: 'Of co-applicants / guarantor' },
-  { code: 'collateral_doc',  label: 'Collateral / Property docs',   required: false, hint: 'If pledging collateral' },
-  { code: 'sponsor_letter',  label: 'Sponsor Affidavit / Letter',   required: false },
+const COLLATERAL_TYPES = [
+  { code: 'property',          label: 'Property (Residential / Commercial)' },
+  { code: 'fixed_deposit',     label: 'Fixed Deposit' },
+  { code: 'lic_policy',        label: 'LIC Policy' },
+  { code: 'shares',            label: 'Shares' },
+  { code: 'mutual_funds',      label: 'Mutual Funds' },
+  { code: 'gold',              label: 'Gold' },
+  { code: 'other',             label: 'Other' },
 ];
+
+const SELF_CONTRIBUTION_SOURCES = [
+  { code: 'own_savings',          label: 'Own Savings' },
+  { code: 'family',               label: 'Family Contribution' },
+  { code: 'scholarship',          label: 'Scholarship / Grant' },
+  { code: 'sponsor',              label: 'Sponsor Funded' },
+  { code: 'fixed_deposit_release',label: 'Fixed Deposit Release' },
+  { code: 'mixed',                label: 'Mixed Sources' },
+];
+
+const MORATORIUM_TYPES = [
+  { code: 'principal_only',          label: 'Principal moratorium', hint: 'Pay interest during course; principal EMIs start later' },
+  { code: 'simple_interest',         label: 'Simple interest only', hint: 'Pay simple interest monthly during the course period' },
+  { code: 'principal_and_interest',  label: 'Full moratorium',      hint: 'No payments during course; interest accrues' },
+];
+
+// Build the document checklist dynamically — collateral and self-
+// contribution proofs become required only when the user actually
+// pledges collateral / declares contribution above ₹0.
+function buildDocChecklist(collateral, selfContribution) {
+  const list = [
+    { code: 'offer_letter',    label: 'University / College Offer Letter',     required: true,  hint: 'Conditional or unconditional admission letter' },
+    { code: 'fee_breakup',     label: 'Tuition Fee Break-up',                  required: true },
+    { code: 'bank_statements', label: 'Last 12 months bank statements (PDF)',  required: true },
+    { code: 'salary_slips',    label: 'Last 6 months salary slips',            required: true,  hint: 'Of co-applicants / guarantor' },
+    { code: 'itr',             label: 'ITR (last 2 years)',                    required: true,  hint: 'Of co-applicants / guarantor' },
+    { code: 'passport',        label: 'Passport (front + back)',               required: false, hint: 'Required for abroad programs' },
+    { code: 'visa',            label: 'Student Visa / I-20 / CAS',             required: false, hint: 'For abroad — required before disbursement' },
+    { code: 'gre_gmat',        label: 'GRE / GMAT / IELTS Score',              required: false },
+    { code: 'sponsor_letter',  label: 'Sponsor Affidavit / Letter',            required: false },
+  ];
+  if (collateral?.offered) {
+    list.push({
+      code: 'collateral_doc',
+      label: 'Collateral Title / Ownership Documents',
+      required: true,
+      hint: 'Sale deed, FD certificate, share statement, etc.',
+    });
+    list.push({
+      code: 'collateral_valuation',
+      label: 'Collateral Valuation Report',
+      required: false,
+      hint: 'Optional — bank may commission its own valuer',
+    });
+  }
+  if (selfContribution?.amountInr && selfContribution.amountInr > 0) {
+    list.push({
+      code: 'self_contribution_proof',
+      label: 'Self-Contribution Proof',
+      required: true,
+      hint: 'Bank statement / FD / scholarship letter showing the declared amount',
+    });
+  }
+  return list;
+}
 
 const SupportingDocumentsScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -56,6 +111,17 @@ const SupportingDocumentsScreen = ({ navigation }) => {
   }, {});
 
   const sourceTag = user?.role && user.role !== 'customer' ? user.role : 'customer';
+
+  const moratorium = state.moratorium || { optedIn: false };
+  const collateral = state.collateral || { offered: false };
+  const selfContribution = state.selfContribution || { amountInr: 0 };
+
+  // Required-docs list reacts to collateral / self-contribution choices.
+  const REQUIRED_DOCS = buildDocChecklist(collateral, selfContribution);
+
+  const totalCost = state.studentDetails?.balanceFee || 0;
+  const declaredContribution = Number(selfContribution.amountInr) || 0;
+  const balanceLoanAmount = Math.max(totalCost - declaredContribution, 0);
 
   const pickAndAttach = async (def) => {
     try {
@@ -138,10 +204,229 @@ const SupportingDocumentsScreen = ({ navigation }) => {
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
         <Card>
           <Text style={[styles.intro, { color: colors.textSecondary }]}>
-            Higher-education (abroad) loans need extra underwriting evidence.
-            Upload the documents below — PDFs and images both work. You can
-            return here later to add anything you missed.
+            Higher-education loans need extra underwriting evidence.
+            Declare any collateral and self-contribution below, pick a
+            moratorium option if applicable, and upload the documents.
+            PDFs and images both work — you can return here later to add
+            anything you missed.
           </Text>
+        </Card>
+
+        {/* ── Moratorium ── */}
+        <Card>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>
+              Moratorium {moratorium.optedIn ? '✓' : '(optional)'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => dispatch({
+                type: 'SET_MORATORIUM',
+                payload: { optedIn: !moratorium.optedIn, type: moratorium.type || 'simple_interest', monthsRequested: moratorium.monthsRequested || (state.studentDetails?.courseDurationMonths || 24) },
+              })}
+              style={{
+                paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+                borderWidth: 1, borderColor: colors.teal,
+              }}
+            >
+              <Text style={{ color: colors.teal, fontSize: 12, fontWeight: '700' }}>
+                {moratorium.optedIn ? 'Disable' : '+ Enable'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 6, lineHeight: 18 }}>
+            Defer EMI repayments while the course is ongoing (and optionally
+            for a buffer period after). Lender's actual policy ceiling
+            applies; sales / credit will confirm the final approved
+            moratorium during processing.
+          </Text>
+
+          {moratorium.optedIn && (
+            <View style={{ marginTop: 10 }}>
+              {MORATORIUM_TYPES.map((t) => {
+                const isSel = (moratorium.type || 'simple_interest') === t.code;
+                return (
+                  <TouchableOpacity
+                    key={t.code}
+                    onPress={() => dispatch({ type: 'SET_MORATORIUM', payload: { type: t.code } })}
+                    style={{
+                      padding: 10, borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: isSel ? colors.teal : colors.cardBorder,
+                      backgroundColor: isSel ? `${colors.teal}14` : 'transparent',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: '600' }}>
+                      {isSel ? '◉' : '○'}  {t.label}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                      {t.hint}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+              <Input
+                label="Moratorium duration requested (months)"
+                keyboardType="numeric"
+                value={String(moratorium.monthsRequested || '')}
+                onChangeText={(v) => dispatch({ type: 'SET_MORATORIUM', payload: { monthsRequested: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 } })}
+                placeholder="e.g. 24"
+              />
+            </View>
+          )}
+        </Card>
+
+        {/* ── Self-contribution ── */}
+        <Card>
+          <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>Self-Contribution</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 6, marginBottom: 10, lineHeight: 18 }}>
+            Declare how much of the total course cost you'll contribute outside
+            the loan (savings, family, scholarship, etc.). The loan amount
+            requested = total course cost − self-contribution.
+          </Text>
+          <Input
+            label={`Total course cost: ${formatCurrency(totalCost)}`}
+            value={String(declaredContribution || '')}
+            onChangeText={(v) => dispatch({
+              type: 'SET_SELF_CONTRIBUTION',
+              payload: { amountInr: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 },
+            })}
+            placeholder="Self-contribution amount in ₹"
+            keyboardType="numeric"
+          />
+          {declaredContribution > 0 ? (
+            <>
+              <Text style={{ color: colors.textPrimary, fontSize: 13, marginTop: 6 }}>
+                Loan amount you're requesting:{' '}
+                <Text style={{ color: colors.teal, fontWeight: '700' }}>
+                  {formatCurrency(balanceLoanAmount)}
+                </Text>
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 8, fontWeight: '600' }}>Source</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
+                {SELF_CONTRIBUTION_SOURCES.map((s) => {
+                  const isSel = selfContribution.sourceType === s.code;
+                  return (
+                    <TouchableOpacity
+                      key={s.code}
+                      onPress={() => dispatch({ type: 'SET_SELF_CONTRIBUTION', payload: { sourceType: s.code } })}
+                      style={{
+                        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor: isSel ? colors.teal : colors.cardBorder,
+                        backgroundColor: isSel ? colors.teal : 'transparent',
+                        marginRight: 6, marginBottom: 6,
+                      }}
+                    >
+                      <Text style={{ color: isSel ? '#fff' : colors.textPrimary, fontSize: 11, fontWeight: '600' }}>
+                        {s.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Input
+                label="Source description (optional)"
+                value={selfContribution.sourceDescription || ''}
+                onChangeText={(v) => dispatch({ type: 'SET_SELF_CONTRIBUTION', payload: { sourceDescription: v } })}
+                placeholder="e.g. Father's savings + 50% scholarship from XYZ"
+              />
+            </>
+          ) : null}
+        </Card>
+
+        {/* ── Collateral ── */}
+        <Card>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>
+              Collateral {collateral.offered ? '✓' : '(optional)'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => dispatch({
+                type: 'SET_COLLATERAL',
+                payload: collateral.offered
+                  ? { offered: false }
+                  : { offered: true, type: collateral.type || 'property', valuationCurrency: 'INR' },
+              })}
+              style={{
+                paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+                borderWidth: 1, borderColor: colors.teal,
+              }}
+            >
+              <Text style={{ color: colors.teal, fontSize: 12, fontWeight: '700' }}>
+                {collateral.offered ? 'Remove' : '+ Pledge collateral'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 6, lineHeight: 18 }}>
+            Pledging collateral can unlock a larger loan amount, lower interest
+            rate, or both. Property must be free of existing encumbrance.
+          </Text>
+
+          {collateral.offered && (
+            <View style={{ marginTop: 10 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600' }}>Type</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
+                {COLLATERAL_TYPES.map((t) => {
+                  const isSel = (collateral.type || 'property') === t.code;
+                  return (
+                    <TouchableOpacity
+                      key={t.code}
+                      onPress={() => dispatch({ type: 'SET_COLLATERAL', payload: { type: t.code } })}
+                      style={{
+                        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor: isSel ? colors.teal : colors.cardBorder,
+                        backgroundColor: isSel ? colors.teal : 'transparent',
+                        marginRight: 6, marginBottom: 6,
+                      }}
+                    >
+                      <Text style={{ color: isSel ? '#fff' : colors.textPrimary, fontSize: 11, fontWeight: '600' }}>
+                        {t.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Input
+                label="Indicative market value (₹)"
+                value={String(collateral.marketValue || '')}
+                onChangeText={(v) => dispatch({ type: 'SET_COLLATERAL', payload: { marketValue: parseInt(v.replace(/[^0-9]/g, ''), 10) || 0 } })}
+                placeholder="e.g. 5000000"
+                keyboardType="numeric"
+              />
+              <Input
+                label="Owner name"
+                value={collateral.ownerName || ''}
+                onChangeText={(v) => dispatch({ type: 'SET_COLLATERAL', payload: { ownerName: v } })}
+                placeholder="e.g. Same as borrower / Father / etc."
+              />
+              <Input
+                label="Owner relationship to student"
+                value={collateral.ownerRelationship || ''}
+                onChangeText={(v) => dispatch({ type: 'SET_COLLATERAL', payload: { ownerRelationship: v } })}
+                placeholder="e.g. Self, Father, Mother"
+              />
+              <Input
+                label="Identifier (account no. / property reg. / certificate no.)"
+                value={collateral.identifier || ''}
+                onChangeText={(v) => dispatch({ type: 'SET_COLLATERAL', payload: { identifier: v } })}
+                placeholder="As per ownership document"
+              />
+              <Input
+                label="Address / location of collateral (if applicable)"
+                value={collateral.address || ''}
+                onChangeText={(v) => dispatch({ type: 'SET_COLLATERAL', payload: { address: v } })}
+                placeholder="Optional for FDs / shares / MFs"
+              />
+              <Input
+                label="Existing encumbrance (if any)"
+                value={collateral.encumbrance || ''}
+                onChangeText={(v) => dispatch({ type: 'SET_COLLATERAL', payload: { encumbrance: v } })}
+                placeholder="e.g. Loan from XYZ Bank, ₹15L outstanding"
+              />
+            </View>
+          )}
         </Card>
 
         {REQUIRED_DOCS.map((def) => {
