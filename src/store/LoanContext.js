@@ -435,7 +435,7 @@ const loanReducer = (state, action) => {
       const id = action.payload?.id || `cb_${Date.now()}_${Math.random().toString(36).slice(-4)}`;
       const newCo = {
         id,
-        name: '', phone: '', dob: '', email: '', pan: '',
+        name: '', fatherName: '', phone: '', dob: '', email: '', pan: '',
         relationship: '',
         panDetails: null,
         creditScore: null,

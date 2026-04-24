@@ -92,6 +92,7 @@ function quickRepliesForStep(step, lang) {
       ];
     case 'welcome':
     case 'askName':
+    case 'askFatherName':
       return [
         { label: L('yes', lg), value: 'yes' },
         { label: L('no', lg), value: 'no' },
@@ -182,6 +183,9 @@ const dispatchLoanUpdate = (dispatch, action) => {
   switch (action.type) {
     case 'SET_NAME':
       dispatch({ type: 'SET_BORROWER_DETAILS', payload: { name: action.value } });
+      return;
+    case 'SET_FATHER_NAME':
+      dispatch({ type: 'SET_BORROWER_DETAILS', payload: { fatherName: action.value } });
       return;
     case 'SET_DOB':
       dispatch({ type: 'SET_BORROWER_DETAILS', payload: { dob: action.value } });
@@ -288,6 +292,7 @@ const screenForStep = (step) => {
     case 'askBorrowerType':
     case 'askRelationship':
     case 'askName':
+    case 'askFatherName':
     case 'askPhone':
     case 'askOtp':
       return 'BorrowerSelection';
@@ -331,6 +336,7 @@ const FBot = () => {
     postAction(action);
     switch (action?.type) {
       case 'SET_NAME':        if (action.value) remember('userName', action.value); break;
+      case 'SET_FATHER_NAME': if (action.value) remember('userFatherName', action.value); break;
       case 'SET_DOB':         if (action.value) remember('userDob', action.value); break;
       case 'SET_PHONE':       if (action.value) remember('userPhone', action.value); break;
       case 'SET_OCCUPATION':  if (action.value) remember('userOccupation', action.value); break;
@@ -603,6 +609,12 @@ const FBot = () => {
     // Phase 4: Borrower identity — name, phone + OTP, PAN.
     const b = state.borrowerDetails || {};
     if (!b.name) return 'askName';
+    // Capture father's name BEFORE mobile validation — it's a
+    // regulated field (NSSO / CKYC / ITR all require it) and asking
+    // for it after OTP means the user can't back out without losing
+    // their OTP session. Prefilled from student details when the
+    // applicant is the student themselves.
+    if (!b.fatherName) return 'askFatherName';
     // DOB is not chat-collected — it's auto-fetched when the PAN API
     // resolves during PAN verification, so we skip it in the bot flow.
     if (!b.phone) return 'askPhone';
@@ -872,6 +884,19 @@ const FBot = () => {
       prompt = prefillName
         ? getMessage('askName', lg, { prefillName })
         : getMessage('askNameFresh', lg);
+    } else if (next === 'askFatherName') {
+      // Prefill from (a) what the user already entered, (b) the student
+      // record (when borrower IS the student), (c) CKYC (when KYC was
+      // done earlier on a previous attempt), (d) memory from a past
+      // session. Only ask cold when none of those apply.
+      const prefillFatherName = state.borrowerDetails?.fatherName
+        || state.studentDetails?.fatherName
+        || state.kycData?.fatherName
+        || recall('userFatherName')
+        || '';
+      prompt = prefillFatherName
+        ? getMessage('askFatherName', lg, { prefillFatherName })
+        : getMessage('askFatherNameFresh', lg);
     } else if (next === 'askLoanAmount') {
       // If we already know the balance fee (from student lookup) use it
       // as the proposed loan amount — user just confirms.
@@ -1159,16 +1184,44 @@ const FBot = () => {
         if (detected.type === 'confirm') {
           const name = state.borrowerDetails?.name || user?.name || recall('userName') || '';
           onAction?.({ type: 'SET_NAME', value: name });
-          advanceTo('askPhone');
+          advanceTo('askFatherName');
         } else if (detected.type === 'deny') {
           addBotMessage(getMessage('askNameFresh', l));
         } else if (detected.type === 'text') {
           // User corrected the prefilled name — remember it for next time.
           rememberCorrection('askName', detected.value);
           onAction?.({ type: 'SET_NAME', value: detected.value });
-          advanceTo('askPhone');
+          advanceTo('askFatherName');
         }
         break;
+
+      case 'askFatherName': {
+        // Accept "yes" when we proposed a prefill (from student details /
+        // memory / CKYC), accept free text as a fresh name, redirect
+        // "no" back to the fresh prompt.
+        const prefill = state.borrowerDetails?.fatherName
+          || state.studentDetails?.fatherName
+          || state.kycData?.fatherName
+          || recall('userFatherName')
+          || '';
+        if (detected.type === 'confirm' && prefill) {
+          onAction?.({ type: 'SET_FATHER_NAME', value: prefill });
+          advanceTo('askPhone');
+          return;
+        }
+        if (detected.type === 'deny') {
+          addBotMessage(getMessage('askFatherNameFresh', l));
+          return;
+        }
+        if (detected.type === 'text') {
+          rememberCorrection('askFatherName', detected.value);
+          onAction?.({ type: 'SET_FATHER_NAME', value: detected.value });
+          advanceTo('askPhone');
+          return;
+        }
+        addBotMessage(getMessage('askFatherNameFresh', l));
+        break;
+      }
 
       case 'askPhone':
         if (detected.type === 'phone') {
