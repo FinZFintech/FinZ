@@ -71,6 +71,42 @@ const EmployeeLoanScreen = ({ navigation }) => {
     navigation.navigate('PanVerification');
   };
 
+  // The Employee Loan journey is still being built. Until the company /
+  // payroll / BSA pieces are wired end-to-end, customers landing here
+  // see a coming-soon placeholder instead of a half-working flow.
+  // Flip UNDER_DEVELOPMENT to false when the journey is ready to ship.
+  const UNDER_DEVELOPMENT = true;
+  if (UNDER_DEVELOPMENT) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Header title="Employee Loan" onBack={() => navigation.goBack()} />
+        <View style={styles.devContainer}>
+          <Card style={styles.devCard}>
+            <Text style={styles.devEmoji}>🚧</Text>
+            <Text style={[styles.devTitle, { color: colors.textPrimary }]}>
+              Coming Soon
+            </Text>
+            <Text style={[styles.devBody, { color: colors.textSecondary }]}>
+              The Employee Loan journey is currently under development. We are
+              integrating company verification, payroll-based income checks
+              and instant-approval rails — please check back shortly.
+            </Text>
+            <Text style={[styles.devBody, { color: colors.textSecondary, marginTop: 8 }]}>
+              In the meantime, you can apply for an Education or Higher
+              Education loan from the home screen.
+            </Text>
+            <Button
+              title="Back to Home"
+              onPress={() => navigation.goBack()}
+              style={{ marginTop: 16 }}
+            />
+          </Card>
+        </View>
+        <FloatingAssistButton />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
@@ -143,6 +179,11 @@ const styles = StyleSheet.create({
   note: { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
   applyBtn: { marginTop: 16 },
   bottomSpacer: { height: 40 },
+  devContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 24, alignItems: 'stretch' },
+  devCard: { padding: 24, alignItems: 'center' },
+  devEmoji: { fontSize: 48, marginBottom: 12 },
+  devTitle: { fontSize: 20, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
+  devBody: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
 });
 
 export default EmployeeLoanScreen;
