@@ -181,10 +181,64 @@ const EnachEsignScreen = ({ navigation }) => {
       // Digitap wants YYYY-MM-DDTHH:MM:SS (local, no timezone).
       const rawFetched = kycData.fetchedAt || kycData.validatedAt || new Date().toISOString();
       const dateOfAadhaarFetch = String(rawFetched).replace(/\..*$/, '').replace(/Z$/, '');
-      // Base64 photograph only — strip any data: prefix CKYC may have
-      // applied when shaping it for the app.
-      const imageOfUserBase64 = String(kycData.photo || kycData.photograph || '')
-        .replace(/^data:image\/[a-z]+;base64,/i, '');
+
+      // Pure base64 photograph is required. Source can be:
+      //  • CKYC: raw base64 in kycData.photo
+      //  • DigiLocker: Signzy may return either raw base64 OR a hosted
+      //    URL (https://...). Digitap rejects URLs with
+      //    "Invalid Base64 Aadhaar image provided".
+      //  • Post-Cloudinary upload: kycData.photo is replaced with a
+      //    secure_url, again a URL not base64.
+      // Resolve in this order: explicit base64 sources → fall back to
+      // any URL we have and fetch+encode it to base64.
+      let imageOfUserBase64 = '';
+      const candidates = [
+        kycData.photoBase64,
+        kycData.aadhaarJpeg,        // DigiLocker eAadhaar JPEG (raw base64)
+        kycData.photograph,         // CKYC alternate field name
+        kycData.photo,
+        // Last resort: digilocker images array, picking the photograph.
+        ...(Array.isArray(kycData.images)
+          ? kycData.images.filter((i) => i?.code === '03' || /jp/i.test(i?.mime || '')).map((i) => i.data)
+          : []),
+      ].filter(Boolean).map((v) => String(v));
+
+      for (const v of candidates) {
+        // Strip data: URI prefix if present.
+        const stripped = v.replace(/^data:image\/[a-z]+;base64,/i, '');
+        // A real base64 photo is always >1KB. Anything smaller is a
+        // sentinel ("[not-uploaded]") or a corrupt fragment — skip.
+        if (!stripped.startsWith('http') && stripped.length > 1000) {
+          imageOfUserBase64 = stripped;
+          break;
+        }
+      }
+
+      // If we still don't have base64 but do have an HTTPS URL (e.g.
+      // Cloudinary already swallowed the original blob), fetch it and
+      // re-encode so Digitap is happy.
+      if (!imageOfUserBase64) {
+        const url = [kycData.photoStorageUrl, kycData.photo, kycData.aadhaarJpeg]
+          .filter(Boolean)
+          .map(String)
+          .find((v) => v.startsWith('http'));
+        if (url) {
+          try {
+            const blob = await (await fetch(url)).blob();
+            imageOfUserBase64 = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const result = String(reader.result || '');
+                resolve(result.replace(/^data:image\/[a-z]+;base64,/i, ''));
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+          } catch (fetchErr) {
+            console.log('[EnachEsign] Failed to fetch + base64 the KYC photo:', fetchErr?.message);
+          }
+        }
+      }
 
       // Quick validation before we fire the network call, so the user
       // sees an actionable message instead of a generic 400.
