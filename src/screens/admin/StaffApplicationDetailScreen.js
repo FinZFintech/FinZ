@@ -981,6 +981,67 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         ) : null}
       </Card>
 
+      {/* Video KYC (vKYC) — shown whenever the customer has checked
+          status at least once OR vKYC has completed. Messaging mirrors
+          what the customer sees so sales / credit / ops know what the
+          customer was told. */}
+      {(application._rawState?.vkycStatusDetail
+        || application._rawState?.vkycStatus) ? (() => {
+        const detail = application._rawState?.vkycStatusDetail || {};
+        const completed = application._rawState?.vkycStatus === 'completed';
+        const tone = completed ? 'ok' : (detail.tone || 'pending');
+        const palette = {
+          ok:       { bg: `${colors.teal}14`,    fg: colors.teal,    icon: '✓',  hdr: 'Approved' },
+          pending:  { bg: `${colors.warning}14`, fg: colors.warning, icon: '⏳', hdr: 'In progress' },
+          review:   { bg: `${colors.warning}14`, fg: colors.warning, icon: '🔎', hdr: 'Under review' },
+          rejected: { bg: `${colors.error}14`,   fg: colors.error,   icon: '✕',  hdr: 'Rejected' },
+          error:    { bg: `${colors.error}14`,   fg: colors.error,   icon: '⚠️', hdr: 'Check failed' },
+        }[tone] || { bg: `${colors.warning}14`, fg: colors.warning, icon: '⏳', hdr: 'Pending' };
+        return (
+          <Card accent={palette.fg}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Video KYC (vKYC)</Text>
+            <View style={{
+              padding: 12, borderRadius: 10, backgroundColor: palette.bg,
+              borderLeftWidth: 4, borderLeftColor: palette.fg, marginBottom: 10,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={{ fontSize: 16, marginRight: 6 }}>{palette.icon}</Text>
+                <Text style={{ color: palette.fg, fontWeight: '700', fontSize: 13 }}>
+                  {detail.label || palette.hdr}
+                </Text>
+              </View>
+              {detail.message ? (
+                <Text style={{ color: colors.textPrimary, fontSize: 12, lineHeight: 18 }}>
+                  {detail.message}
+                </Text>
+              ) : null}
+              {detail.rejectionReason ? (
+                <Text style={{ color: colors.error, fontSize: 11, marginTop: 6, fontStyle: 'italic' }}>
+                  Rejection reason: {detail.rejectionReason}
+                </Text>
+              ) : null}
+            </View>
+            {detail.digitapStatus ? (
+              <InfoRow label="Digitap status" value={detail.digitapStatus} />
+            ) : null}
+            {detail.sessionId ? (
+              <InfoRow label="Session ID" value={detail.sessionId} />
+            ) : null}
+            {detail.callStatus ? (
+              <InfoRow label="Call status" value={detail.callStatus} />
+            ) : null}
+            {detail.lastCheckedAt ? (
+              <InfoRow label="Last checked" value={formatDate(detail.lastCheckedAt)} />
+            ) : null}
+            {detail.errorMessage ? (
+              <Text style={{ color: colors.textSecondary, fontSize: 11, fontStyle: 'italic', marginTop: 4 }}>
+                Upstream: {detail.errorMessage}
+              </Text>
+            ) : null}
+          </Card>
+        );
+      })() : null}
+
       {/* KYC Contact Details */}
       {(application.kycData?.email ||
         application.kycData?.mobileNumber ||
