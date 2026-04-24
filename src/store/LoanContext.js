@@ -82,10 +82,13 @@ function computeStatus(state) {
   // Stage 7: Application submitted
   if (state.submittedAt)                                return LOAN_STATUS.SUBMITTED;
 
-  // Stage 6: EnachEsign outputs
-  if (state.esignStatus?.completed)                     return LOAN_STATUS.ESIGN_DONE;
-  if (state.enachStatus?.completed)                     return LOAN_STATUS.ENACH_DONE;
-  if (state.vkycStatus?.completed)                      return LOAN_STATUS.VKYC_DONE;
+  // Stage 6: EnachEsign outputs — accept either the object shape
+  // ({ completed: true, ... }) or the legacy 'completed' string so a
+  // mid-migration application doesn't get stuck at SELFIE_VERIFIED.
+  const isDone = (v) => v === 'completed' || v?.completed === true;
+  if (isDone(state.esignStatus))                        return LOAN_STATUS.ESIGN_DONE;
+  if (isDone(state.enachStatus))                        return LOAN_STATUS.ENACH_DONE;
+  if (isDone(state.vkycStatus))                         return LOAN_STATUS.VKYC_DONE;
 
   // Stage 5: Selfie
   if (state.selfieData?.matched)                        return LOAN_STATUS.SELFIE_VERIFIED;
@@ -511,12 +514,54 @@ const loanReducer = (state, action) => {
     case 'SET_ELIGIBILITY':
       next = { ...state, eligibilityResult: action.payload };
       break;
-    case 'SET_ENACH':
-      next = { ...state, enachStatus: action.payload };
+    case 'SET_ENACH': {
+      // Payload can be either a string ('completed' / 'initiated') for
+      // the legacy call sites, or a rich object
+      // { status, completed, mandateId, bankRefNo, redirectUrl,
+      //   emiAmount, completedAt, ... }.
+      // Normalise to an object so downstream consumers (computeStatus,
+      // admin detail) can read both shapes. Merged, not replaced, so
+      // an 'initiated' dispatch doesn't wipe the URL on completion.
+      const p = action.payload;
+      let patch;
+      if (p == null) {
+        patch = null;
+      } else if (typeof p === 'string') {
+        patch = {
+          status: p,
+          completed: p === 'completed',
+          completedAt: p === 'completed' ? new Date().toISOString() : undefined,
+        };
+      } else {
+        patch = p;
+      }
+      next = {
+        ...state,
+        enachStatus: patch == null ? null : { ...(state.enachStatus && typeof state.enachStatus === 'object' ? state.enachStatus : {}), ...patch },
+      };
       break;
-    case 'SET_ESIGN':
-      next = { ...state, esignStatus: action.payload };
+    }
+    case 'SET_ESIGN': {
+      // Same pattern as SET_ENACH — accept string or object, merge.
+      const p = action.payload;
+      let patch;
+      if (p == null) {
+        patch = null;
+      } else if (typeof p === 'string') {
+        patch = {
+          status: p,
+          completed: p === 'completed',
+          completedAt: p === 'completed' ? new Date().toISOString() : undefined,
+        };
+      } else {
+        patch = p;
+      }
+      next = {
+        ...state,
+        esignStatus: patch == null ? null : { ...(state.esignStatus && typeof state.esignStatus === 'object' ? state.esignStatus : {}), ...patch },
+      };
       break;
+    }
     case 'SET_VKYC':
       next = { ...state, vkycStatus: action.payload };
       break;

@@ -1141,6 +1141,147 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         );
       })() : null}
 
+      {/* eNACH Mandate — whenever the customer initiated or completed
+          the mandate setup. Status banner + mandate id + bank
+          reference + EMI amount so sales / credit can audit and
+          re-share the link if the customer abandoned mid-flow. */}
+      {(() => {
+        const raw = application._rawState?.enachStatus;
+        if (!raw) return null;
+        const detail = typeof raw === 'object' ? raw : { status: raw, completed: raw === 'completed' };
+        const done = detail.completed === true || detail.status === 'completed';
+        const init = !done && (detail.status === 'initiated' || !!detail.redirectUrl);
+        const tone = done ? 'ok' : init ? 'pending' : 'unknown';
+        const palette = {
+          ok:       { bg: `${colors.teal}14`,    fg: colors.teal,    icon: '✓',  hdr: 'Mandate registered' },
+          pending:  { bg: `${colors.warning}14`, fg: colors.warning, icon: '⏳', hdr: 'Mandate initiated — customer has not completed yet' },
+          unknown:  { bg: `${colors.warning}14`, fg: colors.warning, icon: '⏳', hdr: 'Pending' },
+        }[tone];
+        return (
+          <Card accent={palette.fg}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>eNACH Mandate</Text>
+            <View style={{
+              padding: 12, borderRadius: 10, backgroundColor: palette.bg,
+              borderLeftWidth: 4, borderLeftColor: palette.fg, marginBottom: 10,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, marginRight: 6 }}>{palette.icon}</Text>
+                <Text style={{ color: palette.fg, fontWeight: '700', fontSize: 13 }}>{palette.hdr}</Text>
+              </View>
+            </View>
+            {detail.redirectUrl ? (
+              <>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600', marginBottom: 4 }}>
+                  MANDATE LINK (share with customer if needed)
+                </Text>
+                <TouchableOpacity onPress={() => Linking.openURL(detail.redirectUrl)}>
+                  <Text
+                    style={{ color: colors.teal, fontSize: 12, textDecorationLine: 'underline', marginBottom: 8 }}
+                    numberOfLines={2}
+                  >
+                    {detail.redirectUrl}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+            {detail.mandateId ? <InfoRow label="Mandate ID" value={detail.mandateId} /> : null}
+            {detail.bankRefNo ? <InfoRow label="Bank Ref No." value={detail.bankRefNo} /> : null}
+            {detail.bankName ? <InfoRow label="Bank" value={detail.bankName} /> : null}
+            {detail.accountNumberLast4 ? <InfoRow label="Account (last 4)" value={`•••• ${detail.accountNumberLast4}`} /> : null}
+            {detail.ifsc ? <InfoRow label="IFSC" value={detail.ifsc} /> : null}
+            {detail.emiAmount ? <InfoRow label="EMI Amount" value={formatCurrency(detail.emiAmount)} /> : null}
+            {detail.frequency ? <InfoRow label="Frequency" value={detail.frequency} /> : null}
+            {detail.initiatedAt ? <InfoRow label="Initiated At" value={formatDate(detail.initiatedAt)} /> : null}
+            {detail.completedAt ? <InfoRow label="Completed At" value={formatDate(detail.completedAt)} /> : null}
+          </Card>
+        );
+      })()}
+
+      {/* eSign Agreement — mirrors the eNACH card. Lists every
+          required signer (main + co-applicants) and their signed-at
+          timestamp when completed, so reviewers can see the full
+          signature roster instead of a single "completed" badge. */}
+      {(() => {
+        const raw = application._rawState?.esignStatus;
+        if (!raw) return null;
+        const detail = typeof raw === 'object' ? raw : { status: raw, completed: raw === 'completed' };
+        const done = detail.completed === true || detail.status === 'completed';
+        const init = !done && (detail.status === 'initiated' || !!detail.redirectUrl);
+        const tone = done ? 'ok' : init ? 'pending' : 'unknown';
+        const palette = {
+          ok:       { bg: `${colors.teal}14`,    fg: colors.teal,    icon: '✓',  hdr: 'Agreement eSigned' },
+          pending:  { bg: `${colors.warning}14`, fg: colors.warning, icon: '⏳', hdr: 'eSign initiated — awaiting signatures' },
+          unknown:  { bg: `${colors.warning}14`, fg: colors.warning, icon: '⏳', hdr: 'Pending' },
+        }[tone];
+        return (
+          <Card accent={palette.fg}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>eSign Agreement</Text>
+            <View style={{
+              padding: 12, borderRadius: 10, backgroundColor: palette.bg,
+              borderLeftWidth: 4, borderLeftColor: palette.fg, marginBottom: 10,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, marginRight: 6 }}>{palette.icon}</Text>
+                <Text style={{ color: palette.fg, fontWeight: '700', fontSize: 13 }}>{palette.hdr}</Text>
+              </View>
+            </View>
+            {detail.redirectUrl ? (
+              <>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600', marginBottom: 4 }}>
+                  eSIGN LINK (share with customer if needed)
+                </Text>
+                <TouchableOpacity onPress={() => Linking.openURL(detail.redirectUrl)}>
+                  <Text
+                    style={{ color: colors.teal, fontSize: 12, textDecorationLine: 'underline', marginBottom: 8 }}
+                    numberOfLines={2}
+                  >
+                    {detail.redirectUrl}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+            {detail.sessionId ? <InfoRow label="Session ID" value={detail.sessionId} /> : null}
+            {Array.isArray(detail.signers) && detail.signers.length > 0 ? (
+              <>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600', marginTop: 8, marginBottom: 6 }}>
+                  REQUIRED SIGNERS ({detail.signers.length})
+                </Text>
+                {detail.signers.map((s, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                      paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8,
+                      backgroundColor: s.signedAt ? `${colors.teal}14` : `${colors.warning}14`,
+                      marginBottom: 6,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.textPrimary, fontSize: 12, fontWeight: '600' }}>
+                        {s.role === 'main' ? '👤 ' : '👥 '}{s.name}
+                      </Text>
+                      {s.pan ? (
+                        <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                          PAN: {s.pan}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={{
+                      fontSize: 11, fontWeight: '700',
+                      color: s.signedAt ? colors.teal : colors.warning,
+                    }}>
+                      {s.signedAt ? '✓ SIGNED' : 'PENDING'}
+                    </Text>
+                  </View>
+                ))}
+              </>
+            ) : null}
+            {detail.initiatedAt ? <InfoRow label="Initiated At" value={formatDate(detail.initiatedAt)} /> : null}
+            {detail.completedAt ? <InfoRow label="Completed At" value={formatDate(detail.completedAt)} /> : null}
+          </Card>
+        );
+      })()}
+
       {/* KYC Contact Details */}
       {(application.kycData?.email ||
         application.kycData?.mobileNumber ||
