@@ -152,10 +152,18 @@ const EnachEsignScreen = ({ navigation }) => {
       if (!aadhaarLastFourDigits || aadhaarLastFourDigits.length < 4) missing.push('Aadhaar last 4 digits');
       if (!imageOfUserBase64 || imageOfUserBase64.length < 100) missing.push('photograph');
       if (missing.length > 0) {
-        Alert.alert(
-          'KYC data incomplete for vKYC',
-          `vKYC needs ${missing.join(', ')} from your Aadhaar. Complete DigiLocker / CKYC fully, or ask the agent to reinitiate KYC.`,
-        );
+        const title = 'KYC data incomplete for vKYC';
+        const body = `vKYC needs ${missing.join(', ')} from your Aadhaar. Complete DigiLocker / CKYC fully, or ask the agent to reinitiate KYC.`;
+        console.log('[EnachEsign] vKYC blocked — missing fields:', missing, { kycData });
+        // On web Alert.alert is a no-op unless a polyfill is registered,
+        // which is why the button looked dead before — the pre-flight
+        // fired, short-circuited, and the user saw nothing. Use the
+        // browser-native dialog on web; Alert.alert on native.
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+          window.alert(`${title}\n\n${body}`);
+        } else {
+          Alert.alert(title, body);
+        }
         setVkycLoading(false);
         return;
       }
