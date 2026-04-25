@@ -18,6 +18,24 @@ import useFocusScroller from '../../../hooks/useFocusScroller';
 
 const RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Brother', 'Sister', 'Friend', 'Colleague', 'Other'];
 
+// Digitap vKYC links remain valid for 72 hours after creation. After
+// that the lead expires upstream and any further status check returns
+// "no session" — so we treat a stored link as expired client-side and
+// prompt the customer to initiate vKYC again.
+const VKYC_LINK_TTL_MS = 72 * 60 * 60 * 1000;
+
+/**
+ * Returns true when the persisted vKYC lead is still within its 72-hr
+ * window. Defensive: an entry without `initiatedAt` is assumed live
+ * (best effort) so we don't accidentally invalidate legacy records.
+ */
+function isVkycLeadFresh(detail) {
+  if (!detail || !detail.initiatedAt) return true;
+  const at = new Date(detail.initiatedAt).getTime();
+  if (!Number.isFinite(at)) return true;
+  return (Date.now() - at) < VKYC_LINK_TTL_MS;
+}
+
 const EnachEsignScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { state, dispatch } = useLoan();
@@ -61,10 +79,30 @@ const EnachEsignScreen = ({ navigation }) => {
     // admin detail screen.
     const detail = state.vkycStatusDetail;
     if (detail) {
-      if (detail.label) setVkycStatusText(detail.label);
-      setVkycStatusDetail(detail);
-      if (detail.vkycUrl) setVkycUrl(detail.vkycUrl);
-      if (detail.initiated) setVkycInitiated(true);
+      const stillFresh = isVkycLeadFresh(detail);
+      if (stillFresh) {
+        if (detail.label) setVkycStatusText(detail.label);
+        setVkycStatusDetail(detail);
+        if (detail.vkycUrl) setVkycUrl(detail.vkycUrl);
+        if (detail.initiated) setVkycInitiated(true);
+      } else if (detail.vkycUrl || detail.initiated) {
+        // Expired (>72 h since initiate). Drop the stored link and
+        // surface a clear "create a new link" banner so the customer
+        // doesn't keep tapping the dead URL.
+        const expiredDetail = {
+          tone: 'pending',
+          label: 'Link expired',
+          message: 'Your previous Video KYC link expired (72-hour validity). Tap "Initiate vKYC" to generate a fresh one.',
+          vkycUrl: '',
+          initiated: false,
+          lastCheckedAt: new Date().toISOString(),
+        };
+        setVkycStatusText(expiredDetail.label);
+        setVkycStatusDetail(expiredDetail);
+        setVkycUrl(null);
+        setVkycInitiated(false);
+        dispatch({ type: 'SET_VKYC_STATUS_DETAIL', payload: expiredDetail });
+      }
     }
     // Keep the existing `vkycStatus === 'completed'` semantics in
     // sync — if that flag is set, skip straight to the done state.
@@ -390,7 +428,7 @@ const EnachEsignScreen = ({ navigation }) => {
           label: result.vkycCompleted ? 'Approved' : 'vKYC link sent',
           message: result.vkycCompleted
             ? 'Video KYC was already completed for this application. You can proceed with the rest of the flow.'
-            : 'A Video KYC link has been sent to your registered mobile and email. Open it any time within 24 hours to start the call.',
+            : 'A Video KYC link has been sent to your registered mobile and email. Open it any time within the next 72 hours to start the call.',
         },
       });
 
@@ -463,7 +501,7 @@ const EnachEsignScreen = ({ navigation }) => {
       return {
         tone: 'pending',
         label: 'Not started',
-        message: 'No Video KYC session exists yet. Tap "Initiate vKYC" to create one — the link is valid for 24 hours.',
+        message: 'No Video KYC session exists yet. Tap "Initiate vKYC" to create one — the link is valid for 72 hours.',
       };
     }
     const raw = String(result.vkycStatus || '').toUpperCase();
@@ -545,6 +583,23 @@ const EnachEsignScreen = ({ navigation }) => {
         dispatch({
           type: 'SET_VKYC_STATUS_DETAIL',
           payload: { vkycUrl: '', initiated: false },
+        });
+      } else if (result?.reason === 'no_session' && (vkycInitiated || vkycUrl)) {
+        // Status check came back NOT_STARTED but we had a link
+        // locally — Digitap dropped the session (typically because
+        // the 72-hour validity elapsed). Clear the stale link and
+        // ask the customer to re-initiate.
+        setVkycInitiated(false);
+        setVkycUrl(null);
+        dispatch({
+          type: 'SET_VKYC_STATUS_DETAIL',
+          payload: {
+            vkycUrl: '',
+            initiated: false,
+            tone: 'pending',
+            label: 'Link expired',
+            message: 'Your previous Video KYC link has expired (72-hour validity). Tap "Initiate vKYC" to generate a fresh one.',
+          },
         });
       }
     } catch (err) {

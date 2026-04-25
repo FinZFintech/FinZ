@@ -29,17 +29,26 @@ const STATUS_FILTERS = [
 const REJECTED_STATUSES = new Set([
   'credit_check_failed', 'kyc_failed', 'not_eligible',
 ]);
+// Completed = disbursed and beyond. The application is only marked
+// "complete" once money has actually moved (or the loan has matured /
+// closed). Submitted / eSign-done / eNACH-done / vKYC-done are
+// pre-disbursement milestones — they belong in the In-Progress bucket
+// so the dashboard and the queue agree on the same definition.
 const COMPLETED_STATUSES = new Set([
-  'submitted', 'disbursed', 'active', 'closed', 'esign_done', 'enach_done',
+  'disbursed', 'active', 'closed',
 ]);
 const REVIEW_STATUSES = new Set([
   'manual_review', 'kyc_address_review',
 ]);
+// Pending = anything pre-decision the customer is still working
+// through. Keep submitted / eSign / eNACH / vKYC here (they're
+// pre-disbursement) so the queue's In-Progress count matches the
+// dashboard's.
 const PENDING_STATUSES = new Set([
   'draft', 'institute_verified', 'student_details_done', 'borrower_selected',
   'pan_verified', 'credit_check_passed', 'bank_verified', 'income_verified',
   'kyc_completed', 'selfie_verified', 'fully_eligible', 'partially_eligible',
-  'vkyc_done',
+  'vkyc_done', 'enach_done', 'esign_done', 'submitted',
 ]);
 
 const LoanQueueScreen = ({ route, navigation }) => {
