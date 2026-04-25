@@ -775,11 +775,26 @@ const KycVerificationScreen = ({ navigation }) => {
 
       // Wall-clock watchdog. If the customer never finishes the
       // DigiLocker consent (or finishes but never returns to the
-      // app), surface a failure with retry / switch CTAs after the
-      // 5-minute SLA. Cleared on success / explicit reset.
+      // app), tear the session down after the 5-minute SLA: close
+      // the consent popup, stop the poll loop, clear the popup-
+      // monitor interval, and surface the failure banner with
+      // Try Again / Switch CTAs. Cleared on success / explicit
+      // reset.
       if (digilockerWatchdogRef.current) clearTimeout(digilockerWatchdogRef.current);
       digilockerWatchdogRef.current = setTimeout(() => {
+        // Stop poll attempts.
         if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null; }
+        // Stop monitoring the popup.
+        if (popupCheckRef.current) { clearInterval(popupCheckRef.current); popupCheckRef.current = null; }
+        // Close the popup if it's still open — abandons the orphan
+        // consent window so a stale callback can't fire later.
+        try {
+          if (digilockerPopupRef.current && !digilockerPopupRef.current.closed) {
+            digilockerPopupRef.current.close();
+          }
+        } catch (_) { /* popup may have been navigated away */ }
+        digilockerPopupRef.current = null;
+
         setDigilockerPolling(false);
         setDigilockerWaiting(false);
         endApiCall();
@@ -791,10 +806,11 @@ const KycVerificationScreen = ({ navigation }) => {
         });
         recordMethodFailure(
           KYC_METHODS.DIGILOCKER,
-          'No response from DigiLocker within 5 minutes. Tap "Try again" to start a fresh session, or switch to CKYC / Aadhaar XML.',
+          'No response from DigiLocker within 5 minutes. The session has been closed — tap "Try again" to start a fresh one, or switch to CKYC / Aadhaar XML.',
           handleInitiateDigilocker,
         );
         setDigilockerRequestId(null);
+        digilockerWatchdogRef.current = null;
       }, DIGILOCKER_TOTAL_TIMEOUT_MS);
 
       if (isWeb) {
