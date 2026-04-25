@@ -13,10 +13,18 @@
  */
 
 // ─── Terminal ────────────────────────────────────────────────────────────────
-// The customer flow is finished. No further user action possible.
+// The loan has reached a state where no further customer action is
+// possible AND the app is not awaiting disbursement. We deliberately
+// exclude `submitted` here — the customer signed everything but the
+// loan hasn't been disbursed yet, so it's still in-progress for ops.
 export const TERMINAL_STATUSES = new Set([
-  'submitted', 'disbursed', 'active', 'closed',
+  'disbursed', 'active', 'closed',
 ]);
+
+// "Completed" for dashboards / queue counts. Same set — kept as a
+// separate alias so call-sites that mean "Completed (disbursed+)"
+// read literally.
+export const COMPLETED_STATUSES = TERMINAL_STATUSES;
 
 // ─── Rejected ────────────────────────────────────────────────────────────────
 // Application failed a gate and cannot continue. "Rejected" is either
@@ -99,7 +107,9 @@ export const SALES_DRAFT_STATUSES = new Set([
   'draft', 'institute_verified', 'student_details_done',
 ]);
 
-// Submitted (from the user's POV).
+// Submitted (from the user's POV) — application has crossed the
+// e-sign / submission line. 'submitted' is awaiting disbursement,
+// the rest are post-disbursement. Used for sales success counts.
 export const SALES_SUBMITTED_STATUSES = new Set([
   'submitted', 'disbursed', 'active', 'closed',
 ]);
