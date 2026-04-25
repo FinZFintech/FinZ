@@ -277,6 +277,14 @@ const HOME_STACK_SCREENS = new Set([
   'VkycScreen',
   'EnachEsign',
   'LoanSuccess',
+  // Support screens nested inside HomeStack — needed for the
+  // help / madad chip and any FBotIntents action.navigate target.
+  'LoanAssistance',
+  'HelpSupport',
+  'MyLoans',
+  'CreditScore',
+  'Referral',
+  'Offers',
 ]);
 
 // Route an FBot step to the customer-facing screen that collects that step's
@@ -814,16 +822,20 @@ const FBot = () => {
       // so the FAB doesn't keep nagging.
       addBotMessage(getMessage('help', l));
       setTimeout(() => {
-        try {
-          if (navigation?.navigate) {
-            navigation.navigate('Home', { screen: 'LoanAssistance' });
-          }
-        } catch (_) {
-          try { navigation?.navigate?.('LoanAssistance'); } catch (__) { /* ignore */ }
-        }
-        setVisible(false);
-        setMinimized(false);
-        setUnread(0);
+        // Fire the navigation FIRST while the chat panel is still
+        // mounted — closing the panel before dispatching used to
+        // race React Navigation's event so the customer ended up on
+        // whichever tab they were on instead of LoanAssistance.
+        // safeNavigate handles the Tab → HomeStack hop because we
+        // added 'LoanAssistance' to HOME_STACK_SCREENS.
+        safeNavigate('LoanAssistance');
+        // Tear down on the next tick so the navigate event has
+        // already been queued.
+        setTimeout(() => {
+          setVisible(false);
+          setMinimized(false);
+          setUnread(0);
+        }, 0);
       }, 350);
       return;
     }
@@ -867,12 +879,16 @@ const FBot = () => {
           // Hand the user off to the target screen and close the bot
           // panel so the destination takes the foreground. Same UX
           // as the explicit help / madad keywords above. Short delay
-          // lets the answer message render first.
+          // lets the answer message render first; navigation must
+          // dispatch BEFORE setVisible(false) or React Navigation
+          // races the unmount and the event gets dropped.
           setTimeout(() => {
             safeNavigate(match.intent.action.screen);
-            setVisible(false);
-            setMinimized(false);
-            setUnread(0);
+            setTimeout(() => {
+              setVisible(false);
+              setMinimized(false);
+              setUnread(0);
+            }, 0);
           }, 600);
         }
         // If we've seen this intent many times, the user is clearly
