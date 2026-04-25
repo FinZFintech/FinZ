@@ -109,6 +109,16 @@ const PanVerificationScreen = ({ navigation }) => {
         firstName,
         lastName,
       );
+      // Audit trail — same shape the bot path produces, so the admin
+      // detail's Verifications + Raw Data tabs see this call whether
+      // the application started via the form or the bot.
+      // applicationDbService strips data.rawResponse onto the rawData
+      // subcollection (signzy_phoneToPan_rawResponse).
+      dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+        key: 'phoneToPan',
+        status: data.panNumber ? 'success' : 'no_match',
+        result: data,
+      }});
       if (data.panNumber) {
         setPan(data.panNumber);
         setPanName(data.name || '');
@@ -118,8 +128,14 @@ const PanVerificationScreen = ({ navigation }) => {
         setPanFetched(false);
         setPanNotLinked(true);
       }
-    } catch {
-      // Phone-to-PAN lookup failed — user can enter PAN manually
+    } catch (err) {
+      // Phone-to-PAN lookup failed — user can enter PAN manually.
+      // Persist the failure too so reviewers see it on the audit tab.
+      dispatch({ type: 'SET_SIGNZY_VERIFICATION', payload: {
+        key: 'phoneToPan',
+        status: 'failed',
+        error: { message: err?.message || 'Phone → PAN lookup failed' },
+      }});
       setPanFetched(false);
       setPanNotLinked(true);
     } finally {

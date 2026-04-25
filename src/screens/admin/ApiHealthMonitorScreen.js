@@ -12,6 +12,7 @@ import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import { COLORS } from '../../config/constants';
 import { getAllBreakerStatuses, resetAllBreakers, STATES } from '../../utils/circuitBreaker';
+import { getApiPerfStats, clearApiPerfLog } from '../../utils/apiPerformanceLog';
 
 const STATE_COLORS = {
   [STATES.CLOSED]: COLORS.teal,
@@ -113,10 +114,15 @@ const ApiHealthMonitorScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [statuses, setStatuses] = useState({});
   const [autoRefresh, setAutoRefresh] = useState(false);
+  // Performance log feed — separate from circuit-breaker state.
+  // Tracks per-call duration / failures so we can show p50 / p95 /
+  // error-rate per upstream over the last MAX_ENTRIES calls.
+  const [perfStats, setPerfStats] = useState([]);
 
   const refresh = useCallback(() => {
     const s = getAllBreakerStatuses();
     setStatuses(s);
+    getApiPerfStats().then((stats) => setPerfStats(stats || [])).catch(() => {});
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -221,6 +227,50 @@ const ApiHealthMonitorScreen = ({ navigation }) => {
             <Text style={styles.resetBtnText}>Reset All</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Per-API performance — recent log captured by logApiCall.
+            Shows call count, error rate, p50 / p95 latency, and the
+            slowest single call so ops can spot upstream regressions
+            (e.g. CIBIL p95 creeping up, DigiLocker timeouts spiking). */}
+        {perfStats.length > 0 ? (
+          <Card>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ color: COLORS.textPrimary, fontSize: 15, fontWeight: '700' }}>
+                Recent API Performance ({perfStats.length})
+              </Text>
+              <TouchableOpacity onPress={() => clearApiPerfLog().then(refresh)}>
+                <Text style={{ color: COLORS.error, fontSize: 12, fontWeight: '600' }}>Clear log</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 11, marginBottom: 10 }}>
+              Captures duration + outcome of every API the customer flow makes. Sorted by error rate.
+            </Text>
+            {perfStats.map((s) => {
+              const errPct = (s.errorRate * 100).toFixed(0);
+              const tone = s.errorRate > 0.25 ? COLORS.error
+                : s.errorRate > 0 ? COLORS.warning
+                : (s.p95 > 8000 ? COLORS.warning : COLORS.teal);
+              return (
+                <View
+                  key={s.api}
+                  style={{
+                    paddingVertical: 8, borderTopWidth: 1, borderTopColor: COLORS.border,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: COLORS.textPrimary, fontWeight: '600', fontSize: 13 }}>{s.api}</Text>
+                    <Text style={{ color: tone, fontWeight: '700', fontSize: 12 }}>
+                      {s.failures}/{s.calls} fail · {errPct}%
+                    </Text>
+                  </View>
+                  <Text style={{ color: COLORS.textSecondary, fontSize: 11, marginTop: 2 }}>
+                    p50 {s.p50}ms · p95 {s.p95}ms · slowest {s.slowest}ms
+                  </Text>
+                </View>
+              );
+            })}
+          </Card>
+        ) : null}
 
         {/* API Groups */}
         {Object.entries(API_GROUPS).map(([group, apiNames]) => {
