@@ -12,6 +12,7 @@ import {
   Modal,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import Button from '../../../components/common/Button';
@@ -33,7 +34,11 @@ import { useFBot } from '../../../components/fbot/FBotContext';
 import { useRisk } from '../../../store/RiskContext';
 
 const POLL_INTERVAL_MS = 4000;
-const MAX_POLL_ATTEMPTS = 45; // ~3 minutes
+// 5-minute SLA for DigiLocker. After this we mark the method as
+// failed so the customer isn't stuck on a perpetually-spinning
+// poll. Keep the interval at 4 s (Signzy rate-limit friendly).
+const MAX_POLL_ATTEMPTS = Math.ceil((5 * 60 * 1000) / POLL_INTERVAL_MS); // 5 min
+const DIGILOCKER_TOTAL_TIMEOUT_MS = 5 * 60 * 1000; // hard wall-clock
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 /**
@@ -223,6 +228,22 @@ const KycVerificationScreen = ({ navigation }) => {
   const prevMethod = canSkipKyc ? dedupeResult.previousKyc.kycMethod : state.kycMethod;
   const [currentMethod, setCurrentMethod] = useState(prevMethod || null);
   const [loading, setLoading] = useState(false);
+  // Descriptive label rendered inside the loader overlay so the user
+  // knows which API call is actually running ("Reading Aadhaar XML…"
+  // is much more reassuring than a bare spinner).
+  const [loadingMessage, setLoadingMessage] = useState('');
+  // Per-method last failure — drives the inline error banner with
+  // "Try again" + "Switch to …" CTAs. method ∈ ckyc / digilocker /
+  // aadhaarXml. retryFn is captured at call-site so the banner's
+  // "Try again" button reproduces the exact same arguments. Cleared
+  // when the user switches method or the next attempt succeeds.
+  const [methodFailure, setMethodFailure] = useState(null);
+  const startApiCall = (msg) => { setLoading(true); setLoadingMessage(msg || ''); };
+  const endApiCall = () => { setLoading(false); setLoadingMessage(''); };
+  const recordMethodFailure = (method, message, retryFn) => {
+    setMethodFailure({ method, message: message || 'Verification failed.', retryFn: retryFn || null });
+  };
+  const clearMethodFailure = () => setMethodFailure(null);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [kycCompleted, setKycCompleted] = useState(!!prevKyc && !!prevMethod && !prevKyc.nameMatchFailed);
@@ -238,6 +259,11 @@ const KycVerificationScreen = ({ navigation }) => {
   const pollCountRef = useRef(0);
   const digilockerPopupRef = useRef(null);
   const popupCheckRef = useRef(null);
+  // Hard wall-clock watchdog — even if the customer never returns to
+  // the app and the poll-attempts counter never increments, we mark
+  // DigiLocker as failed after DIGILOCKER_TOTAL_TIMEOUT_MS so the
+  // banner appears with Try Again / Switch CTAs.
+  const digilockerWatchdogRef = useRef(null);
 
   // Session timeout (15 min for DigiLocker / Aadhaar XML)
   const sessionTimerRef = useRef(null);
@@ -374,6 +400,7 @@ const KycVerificationScreen = ({ navigation }) => {
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
       if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
       if (ckycResendTimerRef.current) clearInterval(ckycResendTimerRef.current);
+      if (digilockerWatchdogRef.current) clearTimeout(digilockerWatchdogRef.current);
     };
   }, []);
 
@@ -529,8 +556,9 @@ const KycVerificationScreen = ({ navigation }) => {
       return;
     }
 
-    setLoading(true);
+    startApiCall('Searching CKYC records for your PAN…');
     setCkycError('');
+    clearMethodFailure();
     try {
       const result = await kycService.initiateCkyc({
         pan,
@@ -551,24 +579,15 @@ const KycVerificationScreen = ({ navigation }) => {
           ? 'config_error'
           : 'initiate';
       recordKycFailure({ method: KYC_METHODS.CKYC, stage, error: err });
-      if (err.ckycTokenMissing || err.ckycConfigIssue) {
-        setCkycError(err.message);
-        Alert.alert('CKYC Configuration Issue', err.message);
-      } else if (err.noRecord) {
-        setCkycError(err.message);
-        Alert.alert(
-          'CKYC Record Not Found',
-          err.message || 'No CKYC record found for this PAN. Please use DigiLocker instead.',
-        );
-      } else {
-        setCkycError(err.message || 'Failed to initiate CKYC.');
-        Alert.alert(
-          'CKYC Error',
-          err.message || 'Failed to initiate CKYC. Please try again or use DigiLocker.',
-        );
-      }
+      const friendly = err.ckycTokenMissing || err.ckycConfigIssue
+        ? `CKYC service is misconfigured: ${err.message}. Please switch to DigiLocker or Aadhaar XML.`
+        : err.noRecord
+          ? (err.message || 'No CKYC record found for your PAN. You can switch to DigiLocker or Aadhaar XML to complete KYC.')
+          : (err.message || 'Could not start CKYC. You can try again, or switch to DigiLocker / Aadhaar XML.');
+      setCkycError(friendly);
+      recordMethodFailure(KYC_METHODS.CKYC, friendly, handleInitiateCkyc);
     } finally {
-      setLoading(false);
+      endApiCall();
     }
   };
 
@@ -578,7 +597,7 @@ const KycVerificationScreen = ({ navigation }) => {
     const phone = state.borrowerDetails?.phone;
     if (!pan || !phone || !ckycRequestId) return;
 
-    setLoading(true);
+    startApiCall('Resending CKYC OTP to your registered mobile…');
     setCkycError('');
     try {
       const result = await kycService.resendCkycOtp({
@@ -591,10 +610,11 @@ const KycVerificationScreen = ({ navigation }) => {
     } catch (err) {
       console.log('[KycVerificationScreen] CKYC resend failed:', err.message);
       recordKycFailure({ method: KYC_METHODS.CKYC, stage: 'resend_otp', error: err });
-      setCkycError(err.message || 'Failed to resend OTP.');
-      Alert.alert('Resend Failed', err.message || 'Failed to resend OTP. Please try again.');
+      const friendly = err.message || 'Could not resend the CKYC OTP just now.';
+      setCkycError(friendly);
+      recordMethodFailure(KYC_METHODS.CKYC, `${friendly} You can try again, or switch to DigiLocker / Aadhaar XML.`, handleResendCkycOtp);
     } finally {
-      setLoading(false);
+      endApiCall();
     }
   };
 
@@ -610,8 +630,9 @@ const KycVerificationScreen = ({ navigation }) => {
       return;
     }
 
-    setLoading(true);
+    startApiCall('Verifying your CKYC OTP…');
     setCkycError('');
+    clearMethodFailure();
     try {
       const result = await kycService.verifyCkycOtp({
         pan,
@@ -636,13 +657,13 @@ const KycVerificationScreen = ({ navigation }) => {
     } catch (err) {
       console.log('[KycVerificationScreen] CKYC verify failed:', err.message);
       recordKycFailure({ method: KYC_METHODS.CKYC, stage: 'verify_otp', error: err });
-      setCkycError(err.message || 'CKYC verification failed.');
-      Alert.alert(
-        'OTP Verification Failed',
-        err.message || 'CKYC verification failed. Please try again or use DigiLocker.',
-      );
+      const friendly = err.message
+        ? `${err.message} If the OTP keeps failing, you can switch to DigiLocker or Aadhaar XML.`
+        : 'OTP verification failed. You can try again, or switch to DigiLocker / Aadhaar XML.';
+      setCkycError(friendly);
+      recordMethodFailure(KYC_METHODS.CKYC, friendly, () => handleVerifyCkycOtp(code));
     } finally {
-      setLoading(false);
+      endApiCall();
     }
   };
 
@@ -656,7 +677,8 @@ const KycVerificationScreen = ({ navigation }) => {
       Alert.alert('Required', 'Please enter the 4-digit share code you used when downloading the XML.');
       return;
     }
-    setLoading(true);
+    startApiCall('Reading and validating your Aadhaar XML…');
+    clearMethodFailure();
     try {
       const formData = new FormData();
       formData.append('file', {
@@ -673,7 +695,11 @@ const KycVerificationScreen = ({ navigation }) => {
           stage: 'upload',
           error: { message: 'Aadhaar XML verification failed. Invalid file or share code.' },
         });
-        Alert.alert('Error', 'Aadhaar XML verification failed. Please check the file and share code.');
+        recordMethodFailure(
+          KYC_METHODS.AADHAAR_XML,
+          'Aadhaar XML could not be validated. Re-check the file and the 4-digit share code, then try again — or switch to CKYC / DigiLocker.',
+          handleAadhaarXmlUpload,
+        );
         return;
       }
       // Unified images array so the staff view can show every document
@@ -712,19 +738,20 @@ const KycVerificationScreen = ({ navigation }) => {
       showDetailsReview(kycData, KYC_METHODS.AADHAAR_XML);
     } catch (err) {
       recordKycFailure({ method: KYC_METHODS.AADHAAR_XML, stage: 'upload', error: err });
-      Alert.alert(
-        'Error',
-        err?.message || 'Failed to process Aadhaar XML. Please try again or use a different method.',
-      );
+      const friendly = err?.message
+        ? `${err.message} You can try again with a fresh file, or switch to CKYC / DigiLocker.`
+        : 'Could not process the Aadhaar XML. Please try again with a fresh file, or switch to CKYC / DigiLocker.';
+      recordMethodFailure(KYC_METHODS.AADHAAR_XML, friendly, handleAadhaarXmlUpload);
     } finally {
-      setLoading(false);
+      endApiCall();
     }
   };
 
   // ─── DigiLocker Flow ────────────────────────────────────────────────────
   const handleInitiateDigilocker = async () => {
-    setLoading(true);
+    startApiCall('Opening DigiLocker for consent…');
     setKycErrorMsg('');
+    clearMethodFailure();
     try {
       // On web, use a callback page that auto-closes the popup
       const isWeb = Platform.OS === 'web';
@@ -743,8 +770,32 @@ const KycVerificationScreen = ({ navigation }) => {
 
       setDigilockerRequestId(requestId);
       setDigilockerWaiting(true);
-      setLoading(false);
+      endApiCall();
       startSessionTimer();
+
+      // Wall-clock watchdog. If the customer never finishes the
+      // DigiLocker consent (or finishes but never returns to the
+      // app), surface a failure with retry / switch CTAs after the
+      // 5-minute SLA. Cleared on success / explicit reset.
+      if (digilockerWatchdogRef.current) clearTimeout(digilockerWatchdogRef.current);
+      digilockerWatchdogRef.current = setTimeout(() => {
+        if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null; }
+        setDigilockerPolling(false);
+        setDigilockerWaiting(false);
+        endApiCall();
+        recordKycFailure({
+          method: KYC_METHODS.DIGILOCKER,
+          stage: 'watchdog',
+          error: { message: 'No response from DigiLocker within 5 minutes' },
+          reasonOverride: 'DigiLocker did not return data within 5 minutes',
+        });
+        recordMethodFailure(
+          KYC_METHODS.DIGILOCKER,
+          'No response from DigiLocker within 5 minutes. Tap "Try again" to start a fresh session, or switch to CKYC / Aadhaar XML.',
+          handleInitiateDigilocker,
+        );
+        setDigilockerRequestId(null);
+      }, DIGILOCKER_TOTAL_TIMEOUT_MS);
 
       if (isWeb) {
         // Open DigiLocker in a popup window
@@ -772,10 +823,12 @@ const KycVerificationScreen = ({ navigation }) => {
         }
       }
     } catch (err) {
-      setLoading(false);
-      const msg = err?.message || 'Failed to initiate DigiLocker. Please try again.';
+      endApiCall();
+      const msg = err?.message
+        ? `${err.message} You can try DigiLocker again, or switch to CKYC / Aadhaar XML.`
+        : 'Could not start DigiLocker. You can try again, or switch to CKYC / Aadhaar XML.';
       recordKycFailure({ method: KYC_METHODS.DIGILOCKER, stage: 'initiate', error: err });
-      Alert.alert('DigiLocker Error', msg);
+      recordMethodFailure(KYC_METHODS.DIGILOCKER, msg, handleInitiateDigilocker);
     }
   };
 
@@ -859,6 +912,10 @@ const KycVerificationScreen = ({ navigation }) => {
           validatedAt: new Date().toISOString(),
         };
 
+        if (digilockerWatchdogRef.current) {
+          clearTimeout(digilockerWatchdogRef.current);
+          digilockerWatchdogRef.current = null;
+        }
         showDetailsReview(kycData, KYC_METHODS.DIGILOCKER);
         return;
       } catch (err) {
@@ -877,14 +934,18 @@ const KycVerificationScreen = ({ navigation }) => {
           if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
           setDigilockerPolling(false);
           setDigilockerWaiting(false);
-          setLoading(false);
+          endApiCall();
           recordKycFailure({
             method: KYC_METHODS.DIGILOCKER,
             stage: 'poll',
             error: err,
             reasonOverride: 'DigiLocker session has expired',
           });
-          Alert.alert('Session Expired', 'DigiLocker session has expired. Please try again.');
+          recordMethodFailure(
+            KYC_METHODS.DIGILOCKER,
+            'Your DigiLocker session has expired. Tap "Try again" to start a fresh session, or switch to CKYC / Aadhaar XML.',
+            handleInitiateDigilocker,
+          );
           setDigilockerRequestId(null);
           return;
         }
@@ -893,16 +954,17 @@ const KycVerificationScreen = ({ navigation }) => {
           if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
           setDigilockerPolling(false);
           setDigilockerWaiting(false);
-          setLoading(false);
+          endApiCall();
           recordKycFailure({
             method: KYC_METHODS.DIGILOCKER,
             stage: 'poll',
             error: err,
             reasonOverride: 'DigiLocker consent not granted by user',
           });
-          Alert.alert(
-            'Consent Required',
-            'DigiLocker consent was not granted. Please try again or choose CKYC.',
+          recordMethodFailure(
+            KYC_METHODS.DIGILOCKER,
+            'DigiLocker consent was not granted. Tap "Try again" to retry, or switch to CKYC / Aadhaar XML.',
+            handleInitiateDigilocker,
           );
           setDigilockerRequestId(null);
           return;
@@ -912,14 +974,18 @@ const KycVerificationScreen = ({ navigation }) => {
           if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
           setDigilockerPolling(false);
           setDigilockerWaiting(false);
-          setLoading(false);
+          endApiCall();
           recordKycFailure({
             method: KYC_METHODS.DIGILOCKER,
             stage: 'poll',
             error: err,
             reasonOverride: `DigiLocker polling timed out after ${MAX_POLL_ATTEMPTS} attempts`,
           });
-          Alert.alert('Timed Out', 'DigiLocker verification took too long. Please try again.');
+          recordMethodFailure(
+            KYC_METHODS.DIGILOCKER,
+            'DigiLocker took too long to respond. Tap "Try again" to retry, or switch to CKYC / Aadhaar XML.',
+            handleInitiateDigilocker,
+          );
           setDigilockerRequestId(null);
           return;
         }
@@ -1187,6 +1253,66 @@ const KycVerificationScreen = ({ navigation }) => {
       <Header title="KYC Verification" onBack={() => navigation.goBack()} />
       <StepIndicator currentStep={4} />
       <ScrollView ref={scrollRef} style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+        {/* Method-failure banner — visible whenever the most recent
+            KYC API call surfaced an error. Two CTAs: "Try {method}
+            again" replays the last call (same args), and one button
+            per other method that switches the flow. Cleared when the
+            customer picks an option or the next attempt succeeds. */}
+        {methodFailure ? (() => {
+          const friendlyName = (m) => ({
+            ckyc: 'CKYC', digilocker: 'DigiLocker', aadhaar_xml: 'Aadhaar XML',
+          }[m] || m);
+          const failedMethod = methodFailure.method;
+          const otherMethods = ['ckyc', 'digilocker', 'aadhaar_xml'].filter((m) => m !== failedMethod);
+          return (
+            <Card accent={colors.error}>
+              <Text style={{ color: colors.error, fontSize: 14, fontWeight: '700', marginBottom: 6 }}>
+                ⚠ {friendlyName(failedMethod)} verification failed
+              </Text>
+              <Text style={{ color: colors.textPrimary, fontSize: 13, lineHeight: 18 }}>
+                {methodFailure.message}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                {methodFailure.retryFn ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      const fn = methodFailure.retryFn;
+                      clearMethodFailure();
+                      try { fn(); } catch (e) { console.log('[KYC] retry failed:', e?.message); }
+                    }}
+                    style={{
+                      paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
+                      backgroundColor: colors.teal,
+                    }}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>
+                      ↻ Try {friendlyName(failedMethod)} again
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+                {otherMethods.map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    onPress={() => {
+                      clearMethodFailure();
+                      setCurrentMethod(m);
+                      scrollToAnchor('methodForm');
+                    }}
+                    style={{
+                      paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
+                      borderWidth: 1, borderColor: colors.teal,
+                    }}
+                  >
+                    <Text style={{ color: colors.teal, fontWeight: '700', fontSize: 12 }}>
+                      Switch to {friendlyName(m)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </Card>
+          );
+        })() : null}
 
         {/* ── Method Selection ── */}
         {/* KYC Skip Banner for active loan holders */}
@@ -2090,6 +2216,42 @@ const KycVerificationScreen = ({ navigation }) => {
         onClose={() => setZoomImage(null)}
         colors={colors}
       />
+
+      {/* KYC API loader overlay — shown whenever any KYC service call
+          is in flight. The descriptive loadingMessage tells the
+          customer exactly which step is running ("Reading Aadhaar
+          XML…") instead of a bare spinner, so a 10-second wait
+          doesn't feel like the screen has frozen. */}
+      <Modal
+        visible={!!loading}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { /* loader is non-cancellable */ }}
+      >
+        <View style={{
+          flex: 1, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'rgba(10, 15, 25, 0.55)', padding: 20,
+        }}>
+          <View style={{
+            backgroundColor: colors.cardBg, borderRadius: 16, paddingVertical: 24,
+            paddingHorizontal: 28, alignItems: 'center', minWidth: 240, maxWidth: 360,
+            borderWidth: 1, borderColor: colors.cardBorder,
+          }}>
+            <ActivityIndicator size="large" color={colors.teal} />
+            <Text style={{
+              color: colors.textPrimary, fontSize: 14, fontWeight: '700',
+              marginTop: 14, textAlign: 'center',
+            }}>
+              {loadingMessage || 'Working on it…'}
+            </Text>
+            <Text style={{
+              color: colors.textSecondary, fontSize: 11, marginTop: 6, textAlign: 'center',
+            }}>
+              Please don't close this tab.
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
