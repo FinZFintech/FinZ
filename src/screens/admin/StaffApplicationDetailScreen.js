@@ -1529,12 +1529,11 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         <InfoRow label="Processing Fee" value={application.processingFee} />
       </Card>
 
-      {/* eNACH / eSign */}
-      <Card>
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>eNACH & eSign</Text>
-        <InfoRow label="eNACH Status" value={application.enachStatus} highlight={application.enachStatus === 'Completed'} />
-        <InfoRow label="eSign Status" value={application.esignStatus} highlight={application.esignStatus === 'Completed'} />
-      </Card>
+      {/* The eNACH & eSign status InfoRows that used to live here are
+          now superseded by the richer 'eNACH Mandate' and 'eSign
+          Agreement' cards rendered above (mandate id, bank ref,
+          signer roster, redirect link, timestamps). Removed to stop
+          showing the same status twice on the Loan Details tab. */}
 
       {application.reason && (
         <Card accent={colors.warning}>
