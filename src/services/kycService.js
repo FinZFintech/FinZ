@@ -476,7 +476,7 @@ export const kycService = {
       throw err;
     }
 
-    if (!sessions || sessions.length === 0) {
+    if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
       return {
         status: 'pending',
         vkycStatus: 'NOT_STARTED',
@@ -485,8 +485,11 @@ export const kycService = {
       };
     }
 
-    // Get the latest session
-    const latest = sessions[sessions.length - 1];
+    // Defensive: digitapService.getStatusByUniqueId already normalises
+    // the response to an array, but a future upstream shape change
+    // could still leave a stray null in there. Pick the latest entry
+    // that's actually an object so we never index 'undefined.vkycStatus'.
+    const latest = [...sessions].reverse().find((s) => s && typeof s === 'object') || {};
     const isApproved = latest.vkycStatus === 'APPROVED';
     const isRejected = latest.vkycStatus === 'REJECTED';
     const isCompleted = isApproved;

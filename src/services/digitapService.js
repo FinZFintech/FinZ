@@ -105,14 +105,45 @@ export const digitapService = {
   /**
    * Fetch session details by uniqueId to check vKYC status.
    *
+   * Digitap wraps the array in any of these shapes depending on the
+   * tenant's API revision:
+   *   • [ { sessionId, vkycStatus, … } ]                 (raw array)
+   *   • { result: [ … ] }
+   *   • { result: { <uniqueId>: [ … ] } }
+   *   • { <uniqueId>: [ … ] }                            (older rev)
+   *   • { code, msg, result: { … } }                     (new envelope)
+   * Normalise to a flat array of session objects so downstream
+   * consumers (kycService.getVkycStatus) can always index it safely.
+   *
    * @param {string|string[]} uniqueIds
    * @returns {Promise<Array<{sessionId, callStatus, vkycStatus, state, status, callInitiated}>>}
    */
   async getStatusByUniqueId(uniqueIds) {
     const ids = Array.isArray(uniqueIds) ? uniqueIds : [uniqueIds];
-    return digitapRequest('/vkyc/v2/integration/sessions/unique-id/', {
+    const raw = await digitapRequest('/vkyc/v2/integration/sessions/unique-id/', {
       body: { uniqueIds: ids },
     });
+
+    const flatten = (val) => {
+      if (val == null) return [];
+      if (Array.isArray(val)) return val;
+      if (typeof val !== 'object') return [];
+      // { result: ... } envelope
+      if (val.result !== undefined) return flatten(val.result);
+      if (val.data !== undefined) return flatten(val.data);
+      if (val.sessions !== undefined) return flatten(val.sessions);
+      // Map keyed by uniqueId — concatenate every value's array.
+      const out = [];
+      for (const key of Object.keys(val)) {
+        const v = val[key];
+        if (Array.isArray(v)) out.push(...v);
+        else if (v && typeof v === 'object' && v.sessionId) out.push(v);
+      }
+      return out;
+    };
+
+    const sessions = flatten(raw).filter((s) => s && typeof s === 'object');
+    return sessions;
   },
 
   /**
