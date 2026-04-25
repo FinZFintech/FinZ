@@ -807,7 +807,24 @@ const FBot = () => {
     const l = lang || 'en';
 
     if (detected.type === 'help') {
+      // Hand the user off to the dedicated Loan Assistance screen
+      // (FAQs, request callback, contact form). Show a brief
+      // confirmation, then close the chat panel so the assistance
+      // screen takes the foreground. The unread badge is cleared too
+      // so the FAB doesn't keep nagging.
       addBotMessage(getMessage('help', l));
+      setTimeout(() => {
+        try {
+          if (navigation?.navigate) {
+            navigation.navigate('Home', { screen: 'LoanAssistance' });
+          }
+        } catch (_) {
+          try { navigation?.navigate?.('LoanAssistance'); } catch (__) { /* ignore */ }
+        }
+        setVisible(false);
+        setMinimized(false);
+        setUnread(0);
+      }, 350);
       return;
     }
     if (detected.type === 'restart') {
@@ -847,7 +864,16 @@ const FBot = () => {
         if (answer) addBotMessage(answer);
         logIntent(match.intent.id, rawText);
         if (match.intent.action?.type === 'navigate') {
-          setTimeout(() => safeNavigate(match.intent.action.screen), 600);
+          // Hand the user off to the target screen and close the bot
+          // panel so the destination takes the foreground. Same UX
+          // as the explicit help / madad keywords above. Short delay
+          // lets the answer message render first.
+          setTimeout(() => {
+            safeNavigate(match.intent.action.screen);
+            setVisible(false);
+            setMinimized(false);
+            setUnread(0);
+          }, 600);
         }
         // If we've seen this intent many times, the user is clearly
         // confused — nudge them toward human support.
