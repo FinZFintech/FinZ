@@ -1,6 +1,7 @@
 import { signzyService } from './signzyService';
 import { ckycService } from './ckycService';
 import { getActiveVendorsForApi } from './vendorConfigService';
+import { logApiCall } from '../utils/apiPerformanceLog';
 
 export const kycService = {
   // ─── REAL APIs (Signzy) ──────────────────────────────────────────────────
@@ -10,14 +11,21 @@ export const kycService = {
    */
   async fetchPanByMobile(mobile, firstName = '', lastName = '') {
     console.log('[kycService] fetchPanByMobile → calling signzyService.phoneToPan directly');
-    const result = await signzyService.phoneToPan(mobile, firstName, lastName);
-    console.log('[kycService] phoneToPan result:', JSON.stringify(result));
-    return {
-      panNumber: result.pan || '',
-      name: result.name || '',
-      gender: result.gender || '',
-      dateOfBirth: result.dateOfBirth || '',
-    };
+    return logApiCall('phoneToPan', async () => {
+      const result = await signzyService.phoneToPan(mobile, firstName, lastName);
+      console.log('[kycService] phoneToPan result:', JSON.stringify({
+        pan: result.pan, name: result.name, dob: result.dateOfBirth,
+      }));
+      return {
+        panNumber: result.pan || '',
+        name: result.name || '',
+        gender: result.gender || '',
+        dateOfBirth: result.dateOfBirth || '',
+        // rawResponse threaded through so applicationDbService strips
+        // it onto the rawData subcollection (signzy_phoneToPan_rawResponse).
+        rawResponse: result.rawResponse || null,
+      };
+    });
   },
 
   /**
@@ -36,9 +44,11 @@ export const kycService = {
    */
   async initiateDigilocker(options = {}) {
     console.log('[kycService] initiateDigilocker → calling signzyService.digilockerCreateUrl');
-    const result = await signzyService.digilockerCreateUrl(options);
-    console.log('[kycService] digilockerCreateUrl result: requestId =', result.requestId);
-    return result;
+    return logApiCall('digilocker.createUrl', async () => {
+      const result = await signzyService.digilockerCreateUrl(options);
+      console.log('[kycService] digilockerCreateUrl result: requestId =', result.requestId);
+      return result;
+    });
   },
 
   /**
@@ -47,14 +57,16 @@ export const kycService = {
    */
   async fetchDigilockerEAadhaar(requestId) {
     console.log('[kycService] fetchDigilockerEAadhaar → calling signzyService.digilockerGetEAadhaar');
-    const result = await signzyService.digilockerGetEAadhaar(requestId);
-    console.log('[kycService] digilockerGetEAadhaar result:', JSON.stringify({
-      name: result.name,
-      uid: result.uid,
-      dob: result.dob,
-      address: result.address,
-    }));
-    return result;
+    return logApiCall('digilocker.getEAadhaar', async () => {
+      const result = await signzyService.digilockerGetEAadhaar(requestId);
+      console.log('[kycService] digilockerGetEAadhaar result:', JSON.stringify({
+        name: result.name,
+        uid: result.uid,
+        dob: result.dob,
+        address: result.address,
+      }));
+      return result;
+    });
   },
 
   // Selfie & Liveness (Signzy)
@@ -149,7 +161,8 @@ export const kycService = {
         // the caller provided. Most are mandatory upstream; missing
         // ones become empty strings and the API will respond with a
         // 400 the catch-block surfaces.
-        const result = await signzyService.cibilConsumerReport({
+        const result = await logApiCall('cibil.consumerReport', () =>
+          signzyService.cibilConsumerReport({
           phoneNumber: data.phone || '',
           panNumber: data.pan,
           firstName: data.firstName || (data.name || '').split(/\s+/)[0] || '',
@@ -163,7 +176,7 @@ export const kycService = {
             consentTimestamp: Math.floor(Date.now() / 1000),
             consentIpAddress: data.ipAddress || '0.0.0.0',
           },
-        });
+        }));
         console.log('[kycService] CIBIL softPull → score =', result.cibilScore, ', gating =', result.gatingPassed);
         return {
           score: result.cibilScore,
@@ -256,6 +269,7 @@ export const kycService = {
    */
   async initiateCkyc(data) {
     console.log('[kycService] initiateCkyc → calling ckycService.searchCkyc');
+    return logApiCall('ckyc.initiate', async () => {
 
     const searchResult = await ckycService.searchCkyc({
       pan: data.pan,
@@ -314,6 +328,7 @@ export const kycService = {
       requestId: otpResult.requestId,
       message: otpResult.message,
     };
+    });
   },
 
   /**
@@ -323,11 +338,11 @@ export const kycService = {
    */
   async resendCkycOtp(data) {
     console.log('[kycService] resendCkycOtp → calling ckycService.resendCkycOtp');
-    return ckycService.resendCkycOtp({
+    return logApiCall('ckyc.resendOtp', () => ckycService.resendCkycOtp({
       pan: data.pan,
       mobile: data.phone,
       requestId: data.requestId,
-    });
+    }));
   },
 
   /**
@@ -338,6 +353,7 @@ export const kycService = {
    */
   async verifyCkycOtp(data) {
     console.log('[kycService] verifyCkycOtp → calling ckycService.validateCkycOtp');
+    return logApiCall('ckyc.verifyOtp', async () => {
 
     const result = await ckycService.validateCkycOtp({
       pan: data.pan,
@@ -358,11 +374,13 @@ export const kycService = {
       result.ckycReferenceNo,
     );
     return result;
+    });
   },
 
   // Aadhaar XML
   async uploadAadhaarXml(formData) {
     console.log('[kycService] Mock uploadAadhaarXml');
+    return logApiCall('aadhaar.uploadXml', async () => {
     await new Promise((r) => setTimeout(r, 1000));
     return {
       name: 'RAHUL SHARMA',
@@ -380,6 +398,7 @@ export const kycService = {
         pincode: '400053',
       },
     };
+    });
   },
 
   // Pincode check
@@ -417,6 +436,7 @@ export const kycService = {
   async initiateVkyc(params) {
     const { digitapService } = require('./digitapService');
     console.log('[kycService] Initiating vKYC via Digitap for:', params.uniqueId);
+    return logApiCall('vkyc.initiate', async () => {
 
     const result = await digitapService.createLead({
       firstName: params.firstName,
@@ -440,6 +460,7 @@ export const kycService = {
       vkycCompleted: result.vkycCompleted || false,
       uniqueIdExist: result.uniqueIdExist || false,
     };
+    });
   },
 
   /**
@@ -454,7 +475,10 @@ export const kycService = {
 
     let sessions;
     try {
-      sessions = await digitapService.getStatusByUniqueId(uniqueId);
+      sessions = await logApiCall(
+        'vkyc.getStatus',
+        () => digitapService.getStatusByUniqueId(uniqueId),
+      );
     } catch (err) {
       // Digitap returns 400 "No session found for the given uniqueId"
       // when no vKYC lead exists yet (e.g. customer clicked "Check
@@ -476,7 +500,7 @@ export const kycService = {
       throw err;
     }
 
-    if (!sessions || sessions.length === 0) {
+    if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
       return {
         status: 'pending',
         vkycStatus: 'NOT_STARTED',
@@ -485,8 +509,11 @@ export const kycService = {
       };
     }
 
-    // Get the latest session
-    const latest = sessions[sessions.length - 1];
+    // Defensive: digitapService.getStatusByUniqueId already normalises
+    // the response to an array, but a future upstream shape change
+    // could still leave a stray null in there. Pick the latest entry
+    // that's actually an object so we never index 'undefined.vkycStatus'.
+    const latest = [...sessions].reverse().find((s) => s && typeof s === 'object') || {};
     const isApproved = latest.vkycStatus === 'APPROVED';
     const isRejected = latest.vkycStatus === 'REJECTED';
     const isCompleted = isApproved;

@@ -185,6 +185,11 @@ export const signzyService = {
       name: personalInfo.name?.trim() || '',
       gender: personalInfo.gender || '',
       dateOfBirth: personalInfo.dateOfBirth || '',
+      // Carry the raw payload so applicationDbService moves it to the
+      // rawData subcollection (alongside ckyc / cibil / itr) and the
+      // admin Raw Data tab + audit screens can inspect what Signzy
+      // actually returned.
+      rawResponse: data,
     };
   },
 

@@ -1529,12 +1529,11 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
         <InfoRow label="Processing Fee" value={application.processingFee} />
       </Card>
 
-      {/* eNACH / eSign */}
-      <Card>
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>eNACH & eSign</Text>
-        <InfoRow label="eNACH Status" value={application.enachStatus} highlight={application.enachStatus === 'Completed'} />
-        <InfoRow label="eSign Status" value={application.esignStatus} highlight={application.esignStatus === 'Completed'} />
-      </Card>
+      {/* The eNACH & eSign status InfoRows that used to live here are
+          now superseded by the richer 'eNACH Mandate' and 'eSign
+          Agreement' cards rendered above (mandate id, bank ref,
+          signer roster, redirect link, timestamps). Removed to stop
+          showing the same status twice on the Loan Details tab. */}
 
       {application.reason && (
         <Card accent={colors.warning}>
@@ -1750,20 +1749,31 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
           const label = SIGNZY_VERIFICATION_LABELS[key] || key;
           const status = entry?.status || 'unknown';
           const isSuccess = status === 'success';
+          // CIBIL has a special "fallback succeeded" case: status is
+          // 'no_bureau' (Signzy disabled / unreachable) but the mock
+          // returned a usable cibilScore. Treat that as "fetched"
+          // for retry/visibility purposes — show the score, label
+          // it as mock, and don't pester the reviewer with a retry
+          // button (a re-fire would just give the same mock value).
+          const cibilFallbackHasScore =
+            key === 'cibilBureau'
+            && status === 'no_bureau'
+            && Number(entry?.result?.cibilScore || 0) > 0;
+          const treatAsFetched = isSuccess || cibilFallbackHasScore;
 
           return (
-            <Card key={key} accent={isSuccess ? colors.teal : colors.warning}>
+            <Card key={key} accent={treatAsFetched ? colors.teal : colors.warning}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>{label}</Text>
                 <Text
                   style={{
-                    color: isSuccess ? colors.teal : colors.warning,
+                    color: treatAsFetched ? colors.teal : colors.warning,
                     fontSize: 12,
                     fontWeight: '600',
                     textTransform: 'uppercase',
                   }}
                 >
-                  {status}
+                  {cibilFallbackHasScore ? 'fetched (mock)' : status}
                 </Text>
               </View>
               {entry?.fetchedAt ? (
@@ -1780,7 +1790,12 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
               {isSuccess && key === 'bankVerification' && renderBankVerification(entry.result)}
               {isSuccess && key === 'ckyc' && renderCkycResult(entry.result)}
               {isSuccess && key === 'fraudShieldLite' && renderFraudShield(entry.result)}
-              {isSuccess && key === 'cibilBureau' && renderCibilBureau(entry.result)}
+              {treatAsFetched && key === 'cibilBureau' && renderCibilBureau(entry.result)}
+              {cibilFallbackHasScore ? (
+                <Text style={{ color: colors.textSecondary, fontSize: 11, fontStyle: 'italic', marginTop: 6 }}>
+                  ℹ️ {entry?.result?.note || 'Bureau call did not complete — score above is a deterministic mock for flow continuity.'}
+                </Text>
+              ) : null}
               {isSuccess && key === 'gstIncome' && renderGstIncome(entry.result)}
               {isSuccess && key === 'itrPull' && renderItrPull(entry.result)}
               {isSuccess && key === 'form26AS' && renderForm26AS(entry.result)}
@@ -1794,8 +1809,11 @@ const StaffApplicationDetailScreen = ({ route, navigation }) => {
                   button so sales / credit can re-fire the API without
                   asking the customer to come back. Calls that need
                   user input (CKYC OTP, ITR password) get a hint
-                  instead, telling the reviewer to ask the customer. */}
-              {!isSuccess ? (
+                  instead, telling the reviewer to ask the customer.
+                  CIBIL with a usable mock score (treatAsFetched) skips
+                  this whole block — re-firing would only reproduce the
+                  same mock value. */}
+              {!treatAsFetched ? (
                 <View>
                   {entry?.error ? (
                     <View

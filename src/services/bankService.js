@@ -1,4 +1,5 @@
 import { signzyService } from './signzyService';
+import { withTimeout, FIVE_MINUTES_MS } from '../utils/withTimeout';
 
 // ─── Fuzzy Name Matching ──────────────────────────────────────────────────────
 // Levenshtein distance for fuzzy string comparison
@@ -246,32 +247,44 @@ export const bankService = {
     };
   },
 
-  // Bank Statement
+  // Bank Statement — wrapped in a 5-minute SLA. Real BSA / BAS
+  // pipelines (Perfios / Finbox / Karza) routinely take 30–90 s for
+  // a thick PDF; 5 minutes is a hard outer bound past which we tell
+  // the customer to retry or pick AA. The wrapper rejects with
+  // ApiTimeoutError so the screen can render the method-failure
+  // banner.
   async uploadBankStatement(formData) {
     console.log('[bankService] Mock uploadBankStatement');
-    await new Promise((r) => setTimeout(r, 1500));
-    return {
-      income: {
-        monthlyIncome: 45000,
-        averageBalance: 32000,
-        totalCredits: 270000,
-        totalDebits: 210000,
-        emiObligations: 8000,
-        bounceCount: 0,
-        accountHolderName: 'RAHUL SHARMA',
-        accountNumberLast4: '7890',
-      },
-    };
+    return withTimeout((async () => {
+      await new Promise((r) => setTimeout(r, 1500));
+      return {
+        income: {
+          monthlyIncome: 45000,
+          averageBalance: 32000,
+          totalCredits: 270000,
+          totalDebits: 210000,
+          emiObligations: 8000,
+          bounceCount: 0,
+          accountHolderName: 'RAHUL SHARMA',
+          accountNumberLast4: '7890',
+        },
+      };
+    })(), FIVE_MINUTES_MS, 'Bank statement analysis');
   },
 
+  // Account Aggregator — same 5-minute SLA. AA flow polls a consent
+  // grant + analysis pipeline; if the FIP / FIU is slow we want to
+  // surface a clear failure rather than a perpetual spinner.
   async getIncomeAnalysis(analysisId) {
     console.log('[bankService] Mock getIncomeAnalysis:', analysisId);
-    await new Promise((r) => setTimeout(r, 500));
-    return {
-      monthlyIncome: 45000,
-      averageBalance: 32000,
-      status: 'completed',
-    };
+    return withTimeout((async () => {
+      await new Promise((r) => setTimeout(r, 500));
+      return {
+        monthlyIncome: 45000,
+        averageBalance: 32000,
+        status: 'completed',
+      };
+    })(), FIVE_MINUTES_MS, 'Account Aggregator analysis');
   },
 };
 
